@@ -94,7 +94,12 @@ public final class PocketController {
                 sight;
         public final String lastHeard;
         public final String audioRoute;
-        public final boolean cameraOffered, cameraOn, cameraFront, cameraCanFlip;
+        public final boolean cameraOffered,
+                cameraOn,
+                cameraRequested,
+                cameraRetry,
+                cameraFront,
+                cameraCanFlip;
         public final int heatLevel;
         public final boolean voiceInput,
                 voiceAvailable,
@@ -130,6 +135,8 @@ public final class PocketController {
             audioRoute = (c.capture == null ? "" : c.capture.route() + " → ") + c.outputRoute;
             cameraOffered = camera.offered;
             cameraOn = camera.on;
+            cameraRequested = camera.requested;
+            cameraRetry = camera.retry;
             cameraFront = camera.front;
             cameraCanFlip = camera.canFlip;
             heatLevel = c.heatLevel;
@@ -532,6 +539,22 @@ public final class PocketController {
 
     public void setHaptics(boolean value) {
         settings.haptics(value);
+    }
+
+    public void changeLanguage(String value) {
+        settings.language(value);
+        state.execute(
+                () -> {
+                    notifications.language();
+                    if (!trying) passport.languageChanged();
+                    if (trying) {
+                        stopTryingOnState(false);
+                        if (!startTryingOnState()) {
+                            refreshService();
+                            if (settings.isComplete()) startNetwork();
+                        }
+                    } else publish();
+                });
     }
 
     public void setKeepAwake(boolean value) {
@@ -2153,84 +2176,84 @@ public final class PocketController {
     }
 
     public void startTrying() {
-        state.execute(
-                () -> {
-                    if (trying) return;
-                    TryChannel local;
-                    try {
-                        local =
-                                new TryChannel(
-                                        this::readTryResource,
-                                        new File(
-                                                context.getCacheDir(),
-                                                "try-channel/" + UUID.randomUUID()),
-                                        settings.language().equals("en"));
-                    } catch (Exception failure) {
-                        notice("无法准备体验房间，请检查本机存储空间");
-                        return;
-                    }
-                    pairingEpoch++;
-                    pairingActive = false;
-                    releaseOnState(true);
-                    saveDraft();
-                    sendEpoch++;
-                    connectionEpoch++;
-                    sending = opening = uploadForeground = false;
-                    channel.closeLive();
-                    socketWriter.getQueue().clear();
-                    stopCapture();
-                    stopPlayback();
-                    ambientWanted = false;
-                    ambient = Ambient.OFF;
-                    sightSession.clear();
-                    passport.online(false);
-                    realRepo.select(realRepo.roomIdentity());
-                    trying = true;
-                    channel = tryChannel = local;
-                    repo = new RoomRepository(context, null);
-                    repo.select("try:" + UUID.randomUUID());
-                    viewer.reset();
-                    turn.reset();
-                    resetRoomTransient();
-                    chips.clear();
-                    draft = quote = lastError = "";
-                    refreshService();
-                    connection = Connection.CONNECTING;
-                    reload();
-                    publish();
-                    connect();
-                });
+        state.execute(this::startTryingOnState);
+    }
+
+    private boolean startTryingOnState() {
+        if (trying) return true;
+        TryChannel local;
+        try {
+            local =
+                    new TryChannel(
+                            this::readTryResource,
+                            new File(context.getCacheDir(), "try-channel/" + UUID.randomUUID()),
+                            top.kuaner.pockete2.text.AppText.get(context).en);
+        } catch (Exception failure) {
+            notice("无法准备体验房间，请检查本机存储空间");
+            return false;
+        }
+        pairingEpoch++;
+        pairingActive = false;
+        releaseOnState(true);
+        saveDraft();
+        sendEpoch++;
+        connectionEpoch++;
+        sending = opening = uploadForeground = false;
+        channel.closeLive();
+        socketWriter.getQueue().clear();
+        stopCapture();
+        stopPlayback();
+        ambientWanted = false;
+        ambient = Ambient.OFF;
+        sightSession.clear();
+        passport.online(false);
+        realRepo.select(realRepo.roomIdentity());
+        trying = true;
+        channel = tryChannel = local;
+        repo = new RoomRepository(context, null);
+        repo.select("try:" + UUID.randomUUID());
+        viewer.reset();
+        turn.reset();
+        resetRoomTransient();
+        chips.clear();
+        draft = quote = lastError = "";
+        refreshService();
+        connection = Connection.CONNECTING;
+        reload();
+        publish();
+        connect();
+        return true;
     }
 
     public void stopTrying() {
-        state.execute(
-                () -> {
-                    if (!trying) return;
-                    releaseOnState(true);
-                    connectionEpoch++;
-                    sendEpoch++;
-                    sending = opening = uploadForeground = false;
-                    stopPlayback();
-                    stopCapture();
-                    ambientWanted = false;
-                    ambient = Ambient.OFF;
-                    cleanupTry();
-                    trying = false;
-                    resetRoomTransient();
-                    viewer.reset();
-                    chips.clear();
-                    draft = quote = "";
-                    turn.reset();
-                    repo.select(settings);
-                    passport.room(repo.roomIdentity());
-                    restoreDraft();
-                    refreshService();
-                    connection =
-                            settings.isComplete() ? Connection.CONNECTING : Connection.NEEDS_SETUP;
-                    reload();
-                    publish();
-                    if (settings.isComplete()) startNetwork();
-                });
+        state.execute(() -> stopTryingOnState(true));
+    }
+
+    private void stopTryingOnState(boolean resumeReal) {
+        if (!trying) return;
+        releaseOnState(true);
+        connectionEpoch++;
+        sendEpoch++;
+        sending = opening = uploadForeground = false;
+        stopPlayback();
+        stopCapture();
+        ambientWanted = false;
+        ambient = Ambient.OFF;
+        cleanupTry();
+        trying = false;
+        resetRoomTransient();
+        viewer.reset();
+        chips.clear();
+        draft = quote = "";
+        turn.reset();
+        repo.select(settings);
+        passport.room(repo.roomIdentity());
+        restoreDraft();
+        if (resumeReal) refreshService();
+        connection = settings.isComplete() ? Connection.CONNECTING : Connection.NEEDS_SETUP;
+        reload();
+        publish();
+        if (resumeReal && settings.isComplete()) startNetwork();
     }
 
     private String currentRoom() {

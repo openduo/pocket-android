@@ -17,18 +17,29 @@ import top.kuaner.pockete2.core.PocketController;
 public final class PocketSessionService extends Service implements PocketController.Listener {
     private PocketController controller;
 
+    private top.kuaner.pockete2.text.TextCatalog words() {
+        return top.kuaner.pockete2.text.AppText.get(this);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(
-                new NotificationChannel("ambient", "环境模式", NotificationManager.IMPORTANCE_LOW));
+                new NotificationChannel(
+                        "ambient", words().t("环境模式"), NotificationManager.IMPORTANCE_LOW));
         controller = PocketController.get(this);
         controller.addListener(this);
         controller.resumeAccessory();
     }
 
     private Notification notification() {
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        NotificationChannel channel = manager.getNotificationChannel("ambient");
+        if (channel != null && !words().t("环境模式").contentEquals(channel.getName())) {
+            channel.setName(words().t("环境模式"));
+            manager.createNotificationChannel(channel);
+        }
         PendingIntent open =
                 PendingIntent.getActivity(
                         this,
@@ -48,20 +59,21 @@ public final class PocketSessionService extends Service implements PocketControl
                         .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                         .setContentTitle(
                                 listening
-                                        ? "Pocket E2 · 环境模式"
+                                        ? words().t("Pocket E2 · 环境模式")
                                         : s != null && s.uploadingVoice
-                                                ? "Pocket E2 · 正在发送语音"
+                                                ? words().t("Pocket E2 · 正在发送语音")
                                                 : "Pocket E2 · Passport")
                         .setContentText(
                                 listening
-                                        ? s.status
+                                        ? words().explain(s.status)
                                         : s != null && s.uploadingVoice
-                                                ? "发送完成后自动结束上传任务"
-                                                : "保持配件连接，按键语音可在后台处理")
+                                                ? words().t("发送完成后自动结束上传任务")
+                                                : words().t("保持配件连接，按键语音可在后台处理"))
                         .setContentIntent(open)
                         .setOngoing(true);
         if (listening)
-            builder.addAction(new Notification.Action.Builder(null, "停止收音", stop).build());
+            builder.addAction(
+                    new Notification.Action.Builder(null, words().t("停止收音"), stop).build());
         return builder.build();
     }
 

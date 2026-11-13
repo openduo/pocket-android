@@ -249,6 +249,11 @@ public final class Contracts {
                         == null,
                 "central rejects wrong direction");
         PressAssembler press = new PressAssembler();
+        check(
+                Arrays.equals(PocketProtocol.appState(0, true), new byte[] {0, 1})
+                        && Arrays.equals(PocketProtocol.appState(2, false), new byte[] {2, 0}),
+                "Passport app-state carries the resolved UI language without changing"
+                        + " reachability");
         press.handle(message(PocketProtocol.PRESS_START, PocketProtocol.u16s(9)));
         press.handle(message(PocketProtocol.AUDIO, new byte[] {9, 0, 0, 0, 1}));
         press.handle(message(PocketProtocol.AUDIO, new byte[] {9, 0, 2, 0, 2}));
@@ -346,7 +351,16 @@ public final class Contracts {
                         true,
                         "rows",
                         new JSONArray()
-                                .put(Json.object("id", "1", "kind", "reply", "text", "old"))));
+                                .put(
+                                        Json.object(
+                                                "id",
+                                                "1",
+                                                "at",
+                                                "2026-11-14T00:00:00Z",
+                                                "kind",
+                                                "reply",
+                                                "text",
+                                                "old"))));
         viewer.handle(
                 Json.object(
                         "type",
@@ -355,7 +369,16 @@ public final class Contracts {
                         "job:qa",
                         "rows",
                         new JSONArray()
-                                .put(Json.object("id", "1", "kind", "reply", "text", "new"))));
+                                .put(
+                                        Json.object(
+                                                "id",
+                                                "1",
+                                                "at",
+                                                "2026-11-14T00:00:01Z",
+                                                "kind",
+                                                "reply",
+                                                "text",
+                                                "new"))));
         check(
                 viewer.snapshot().rows.size() == 2
                         && viewer.snapshot().rows.get(1).text.equals("new"),
@@ -574,7 +597,90 @@ public final class Contracts {
                         && top.kuaner.pockete2.sight.SightProtocol.bufferRotation(270, true, 270)
                                 == 0,
                 "camera buffers use lens sensor and physical device rotation");
+        top.kuaner.pockete2.sight.SightRecovery recovery =
+                new top.kuaner.pockete2.sight.SightRecovery();
+        recovery.failed("camera_taken", 1_000);
+        check(
+                recovery.delay(1_001) > 0
+                        && recovery.delay(1_499) > 0
+                        && recovery.delay(1_500) == 0,
+                "transient camera failure waits for a monotonic backoff before retrying");
+        recovery.retry();
+        recovery.failed("encoder_failed", 2_000);
+        check(
+                recovery.delay(2_000) > 500,
+                "a restarted encoder keeps its failure budget before any transmitted key frame");
+        recovery.retry();
+        recovery.failed("encoder_failed", 5_000);
+        recovery.retry();
+        recovery.failed("camera_taken", 15_000);
+        check(
+                recovery.exhausted() && recovery.delay(Long.MAX_VALUE - 1) == -1,
+                "repeated native failures stop automatic retries instead of reopening forever");
+        recovery.inputsChanged();
+        check(
+                !recovery.exhausted() && recovery.failure().isEmpty(),
+                "an explicit lifecycle or control change permits another transient attempt");
+        recovery.failed("no_format", 20_000);
+        recovery.inputsChanged();
+        check(
+                recovery.failure().equals("no_format") && recovery.delay(30_000) == -1,
+                "unsupported camera format holds until a different ask or lens");
+        recovery.reset();
+        recovery.failed("encoder_failed", 30_000);
+        check(
+                recovery.delay(30_000) == 500,
+                "a new ask or confirmed key frame resets the native failure budget");
+        org.json.JSONObject translated =
+                new org.json.JSONObject(
+                        new String(
+                                java.nio.file.Files.readAllBytes(
+                                        java.nio.file.Paths.get(
+                                                System.getProperty("pocket.e2.root"),
+                                                "android/src/main/assets/i18n/en.json")),
+                                java.nio.charset.StandardCharsets.UTF_8));
+        top.kuaner.pockete2.text.TextCatalog english =
+                new top.kuaner.pockete2.text.TextCatalog("en", Locale.CHINA, translated);
+        check(
+                english.t("设置").equals("Settings")
+                        && english.t("后置摄像头画面").equals("Rear camera view"),
+                "English application controls and accessibility copy share the catalog");
+        check(
+                english.explain("没发出去 · 轻点重试（503）").equals("Not sent · Tap to retry (503)")
+                        && english.explain("文件太大（上限 3.5 MB）")
+                                .equals("File too large (limit 3.5 MB)")
+                        && english.explain("E2 阵列初始化失败（-2）")
+                                .equals("E2 array initialisation failed (-2)"),
+                "previously persisted app errors localise with numeric context intact");
+        check(
+                english.explain("我写了设置，别改这个文件名.txt").equals("我写了设置，别改这个文件名.txt")
+                        && english.route("USB 系统音频输出 → 系统音频输出")
+                                .equals("USB 系统音频输出 → System audio output"),
+                "unknown content and actual audio product names are not substring-translated");
+        check(
+                english.traceSummary(1, 1200).equals("Done · 1 step · 1 s")
+                        && english.traceSummary(2, 0).equals("Done · 2 steps"),
+                "English tool summaries use correct singular and elapsed time");
+        check(
+                english.language("zh-Hans", Locale.US).t("设置").equals("设置")
+                        && english.t("设置").equals("Settings"),
+                "scoped language catalogs are immutable and do not mutate other views");
+        check(
+                english.language("system", Locale.US).en
+                        && english.language("system", Locale.JAPAN).en
+                        && !english.language("system", Locale.CHINA).en,
+                "system language follows the supported device locale");
+        check(
+                english.format("（地图坐标：%.6f, %.6f）", 31.25, 121.5)
+                        .equals(" (map coordinates: 31.250000, 121.500000)"),
+                "location templates retain coordinate precision in English");
+        check(
+                new java.text.SimpleDateFormat(english.t("M月d日 EEEE HH:mm"), english.locale)
+                        .format(new Date(0))
+                        .contains("Jan"),
+                "date labels use translated patterns and the selected locale");
         checked += TryChannelContracts.run();
+        checked += SessionViewerContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

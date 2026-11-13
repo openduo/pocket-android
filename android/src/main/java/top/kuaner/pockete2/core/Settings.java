@@ -196,10 +196,12 @@ public final class Settings {
     }
 
     public String language() {
-        return prefs.getString("language", "zh-Hans");
+        return prefs.getString("language", "system");
     }
 
     public void language(String value) {
+        if (!value.matches("system|zh-Hans|en"))
+            throw new IllegalArgumentException("Unknown UI language");
         prefs.edit().putString("language", value).apply();
     }
 

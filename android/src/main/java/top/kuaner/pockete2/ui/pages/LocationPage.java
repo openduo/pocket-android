@@ -49,12 +49,12 @@ public final class LocationPage implements AutoCloseable {
         if (root != null) return root;
         root = ui.column();
         LinearLayout bar = ui.row();
-        bar.addView(ui.iconButton("chevron_left", "返回", ui.palette.secondary, host::back));
-        bar.addView(ui.label("选择位置", 18, ui.palette.text, true));
+        bar.addView(ui.iconButton("chevron_left", ui.t("返回"), ui.palette.secondary, host::back));
+        bar.addView(ui.label(ui.t("选择位置"), 18, ui.palette.text, true));
         root.addView(bar);
         LinearLayout search = ui.row();
         ui.inset(search, 10, 6);
-        query = ui.input("搜索地点或输入 纬度, 经度", "", false);
+        query = ui.input(ui.t("搜索地点或输入 纬度, 经度"), "", false);
         query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         query.setOnEditorActionListener(
                 (v, id, event) -> {
@@ -62,20 +62,20 @@ public final class LocationPage implements AutoCloseable {
                     return true;
                 });
         search.addView(query, new LinearLayout.LayoutParams(0, -2, 1));
-        search.addView(ui.iconButton("search", "搜索", ui.palette.accent, this::search));
+        search.addView(ui.iconButton("search", ui.t("搜索"), ui.palette.accent, this::search));
         root.addView(search);
         map =
                 new TileMapView(
                         ui.context,
                         (lat, lon) -> {
                             approximate = false;
-                            pin(lat, lon, "地图中心", "");
+                            pin(lat, lon, ui.t("地图中心"), "");
                         });
         root.addView(map, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout controls = ui.row();
         controls.addView(
                 ui.button(
-                        "当前位置",
+                        ui.t("当前位置"),
                         ui.palette.accent,
                         0,
                         () ->
@@ -84,18 +84,22 @@ public final class LocationPage implements AutoCloseable {
                                         this::locate)),
                 new LinearLayout.LayoutParams(0, ui.dp(48), 1));
         controls.addView(
-                ui.iconButton("minus", "缩小地图", ui.palette.secondary, () -> map.zoom(-1)),
+                ui.iconButton("minus", ui.t("缩小地图"), ui.palette.secondary, () -> map.zoom(-1)),
                 new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         controls.addView(
-                ui.iconButton("plus", "放大地图", ui.palette.secondary, () -> map.zoom(1)),
+                ui.iconButton("plus", ui.t("放大地图"), ui.palette.secondary, () -> map.zoom(1)),
                 new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         root.addView(controls);
         selected =
-                ui.label("拖动地图选择位置，或获取当前位置。地图数据来自 OpenStreetMap。", 12, ui.palette.secondary, false);
+                ui.label(
+                        ui.t("拖动地图选择位置，或获取当前位置。地图数据来自 OpenStreetMap。"),
+                        12,
+                        ui.palette.secondary,
+                        false);
         ui.inset(selected, 14, 10);
         selected.setMaxLines(4);
         root.addView(selected);
-        use = ui.button("使用这个位置", ui.palette.onAccent, ui.palette.accent, this::insert);
+        use = ui.button(ui.t("使用这个位置"), ui.palette.onAccent, ui.palette.accent, this::insert);
         use.setEnabled(false);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, ui.dp(50));
         p.setMargins(ui.dp(12), 0, ui.dp(12), ui.dp(12));
@@ -107,19 +111,19 @@ public final class LocationPage implements AutoCloseable {
         try {
             String provider = manager.getBestProvider(new Criteria(), true);
             if (provider == null) {
-                selected.setText("定位未开启，可在地图选点或搜索坐标");
+                selected.setText(ui.t("定位未开启，可在地图选点或搜索坐标"));
                 return;
             }
             Location cached = manager.getLastKnownLocation(provider);
             if (cached != null) {
                 approximate = cached.getAccuracy() > 500;
                 map.center(cached.getLatitude(), cached.getLongitude(), 16);
-                pin(cached.getLatitude(), cached.getLongitude(), "上次的位置", "");
+                pin(cached.getLatitude(), cached.getLongitude(), ui.t("上次的位置"), "");
             }
             manager.requestSingleUpdate(provider, locations, android.os.Looper.getMainLooper());
-            selected.setText("正在获取当前位置…");
+            selected.setText(ui.t("正在获取当前位置…"));
         } catch (SecurityException failure) {
-            selected.setText("需要定位权限，也可以直接在地图上选点");
+            selected.setText(ui.t("需要定位权限，也可以直接在地图上选点"));
         }
     }
 
@@ -129,7 +133,7 @@ public final class LocationPage implements AutoCloseable {
                     if (closed) return;
                     approximate = location.getAccuracy() > 500;
                     map.center(location.getLatitude(), location.getLongitude(), 16);
-                    pin(location.getLatitude(), location.getLongitude(), "当前位置", "");
+                    pin(location.getLatitude(), location.getLongitude(), ui.t("当前位置"), "");
                 }
 
                 public void onStatusChanged(String provider, int state, Bundle extras) {}
@@ -137,7 +141,7 @@ public final class LocationPage implements AutoCloseable {
                 public void onProviderEnabled(String provider) {}
 
                 public void onProviderDisabled(String provider) {
-                    selected.setText("定位已关闭，可继续在地图选点");
+                    selected.setText(ui.t("定位已关闭，可继续在地图选点"));
                 }
             };
 
@@ -155,7 +159,7 @@ public final class LocationPage implements AutoCloseable {
                     try {
                         if (!Geocoder.isPresent()) return;
                         List<Address> found =
-                                new Geocoder(ui.context, Locale.getDefault())
+                                new Geocoder(ui.context, ui.words.locale)
                                         .getFromLocation(lat, lon, 1);
                         if (found == null || found.isEmpty()) return;
                         Address a = found.get(0);
@@ -180,10 +184,10 @@ public final class LocationPage implements AutoCloseable {
                         + (address.isEmpty() ? "" : " · " + address)
                         + String.format(
                                 Locale.ROOT,
-                                "\n地图坐标：%.6f, %.6f%s",
+                                ui.t("\n地图坐标：%.6f, %.6f%s"),
                                 latitude,
                                 longitude,
-                                approximate ? " · 大致位置" : ""));
+                                approximate ? ui.t(" · 大致位置") : ""));
     }
 
     private void search() {
@@ -201,23 +205,23 @@ public final class LocationPage implements AutoCloseable {
                         || Math.abs(lon) > 180) throw new NumberFormatException();
                 approximate = false;
                 map.center(lat, lon, 16);
-                pin(lat, lon, "所选位置", "");
+                pin(lat, lon, ui.t("所选位置"), "");
                 return;
             } catch (NumberFormatException ignored) {
             }
-        selected.setText("正在搜索…");
+        selected.setText(ui.t("正在搜索…"));
         lookup.execute(
                 () -> {
                     try {
                         if (!Geocoder.isPresent()) throw new java.io.IOException();
                         List<Address> found =
-                                new Geocoder(ui.context, Locale.getDefault())
+                                new Geocoder(ui.context, ui.words.locale)
                                         .getFromLocationName(value, 5);
                         root.post(
                                 () -> {
                                     if (closed) return;
                                     if (found == null || found.isEmpty()) {
-                                        selected.setText("未找到地点，可输入 纬度, 经度 或在地图选点");
+                                        selected.setText(ui.t("未找到地点，可输入 纬度, 经度 或在地图选点"));
                                         return;
                                     }
                                     List<Sheets.Action> choices = new ArrayList<>();
@@ -247,12 +251,15 @@ public final class LocationPage implements AutoCloseable {
                                                         }));
                                     }
                                     Sheets.actions(
-                                            ui, "搜索结果", choices.toArray(new Sheets.Action[0]));
+                                            ui,
+                                            ui.t("搜索结果"),
+                                            choices.toArray(new Sheets.Action[0]));
                                 });
                     } catch (java.io.IOException | RuntimeException failure) {
                         root.post(
                                 () -> {
-                                    if (!closed) selected.setText("这台设备暂时无法查询地名，可输入 纬度, 经度 或在地图选点");
+                                    if (!closed)
+                                        selected.setText(ui.t("这台设备暂时无法查询地名，可输入 纬度, 经度 或在地图选点"));
                                 });
                     }
                 });
@@ -263,8 +270,8 @@ public final class LocationPage implements AutoCloseable {
                 "📍 "
                         + name
                         + (address.isEmpty() ? "" : "，" + address)
-                        + String.format(Locale.ROOT, "（地图坐标：%.6f, %.6f）", latitude, longitude)
-                        + (approximate ? "，大致位置" : "");
+                        + String.format(Locale.ROOT, ui.t("（地图坐标：%.6f, %.6f）"), latitude, longitude)
+                        + (approximate ? ui.t("，大致位置") : "");
         String previous = controller.draft();
         controller.draft(previous.isEmpty() ? text : previous + "\n" + text);
         controller.setVoiceInput(false);

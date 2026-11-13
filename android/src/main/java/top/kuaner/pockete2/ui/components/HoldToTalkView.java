@@ -33,13 +33,13 @@ public final class HoldToTalkView extends LinearLayout {
         setGravity(Gravity.CENTER);
         setMinimumHeight(ui.dp(48));
         setOrientation(VERTICAL);
-        label = ui.label("按住说话", 14, ui.palette.text, true);
+        label = ui.label(ui.t("按住说话"), 14, ui.palette.text, true);
         label.setGravity(Gravity.CENTER);
         addView(label);
         setBackground(ui.surface(ui.palette.raised, 12));
         setClickable(true);
         setFocusable(true);
-        setContentDescription("按住说话，手指移出按钮可取消");
+        setContentDescription(ui.t("按住说话，手指移出按钮可取消"));
         setOnClickListener(
                 v -> {
                     if (!((AccessibilityManager)
@@ -92,7 +92,7 @@ public final class HoldToTalkView extends LinearLayout {
                         != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     host.permission(
                             new String[] {android.Manifest.permission.RECORD_AUDIO},
-                            () -> host.toast("麦克风已允许，请再次按住说话"));
+                            () -> host.toast(ui.t("麦克风已允许，请再次按住说话")));
                     return true;
                 }
                 getParent().requestDisallowInterceptTouchEvent(true);
@@ -133,8 +133,10 @@ public final class HoldToTalkView extends LinearLayout {
         }
         label.setText(
                 held
-                        ? cancel ? "松手取消" : live ? "松开发送 · " + duration(s.holdDurationMs) : "准备中…"
-                        : "按住说话");
+                        ? cancel
+                                ? ui.t("松手取消")
+                                : live ? ui.t("松开发送 · ") + duration(s.holdDurationMs) : ui.t("准备中…")
+                        : ui.t("按住说话"));
         label.setTextColor(held && live && !cancel ? ui.palette.onAccent : ui.palette.text);
         setBackground(
                 ui.surface(
@@ -145,7 +147,9 @@ public final class HoldToTalkView extends LinearLayout {
                                 : ui.palette.raised,
                         12));
         setContentDescription(
-                held ? cancel ? "松手取消，移回按钮继续录音" : live ? "正在录音，松开发送" : "准备麦克风" : "按住说话");
+                held
+                        ? cancel ? ui.t("松手取消，移回按钮继续录音") : live ? ui.t("正在录音，松开发送") : ui.t("准备麦克风")
+                        : ui.t("按住说话"));
     }
 
     public boolean cancelArmed() {

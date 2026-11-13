@@ -14,6 +14,8 @@ pure += [source / 'passport' / (name + '.java') for name in ('PocketProtocol', '
 pure += [source / 'audio/PacketStream.java', source / 'sight/SightProtocol.java', source / 'pairing/QrCode.java']
 pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.java', source / 'trymode/TryScript.java']
 pure += [source / 'sight/PreviewFrame.java']
+pure += [source / 'sight/SightRecovery.java']
+pure += [source / 'text/TextCatalog.java']
 for file in pure:
     if re.search(r'^import android\.', file.read_text(), re.M):
         errors.append(f'{file.relative_to(root)} imports Android in a pure protocol/model')

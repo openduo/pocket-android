@@ -47,6 +47,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private Dialog imagePreview;
     private boolean loginWaiting;
     private top.kuaner.pockete2.ui.pages.SessionsPage sessions;
+    private top.kuaner.pockete2.ui.pages.SessionsPage.State sessionsState;
     private top.kuaner.pockete2.ui.pages.PassportPage passport;
     private top.kuaner.pockete2.ui.pages.LocationPage location;
     private boolean keyboardVisible;
@@ -57,9 +58,17 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private OnboardingPage onboarding;
 
     @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(top.kuaner.pockete2.text.AppText.context(base));
+    }
+
+    @Override
     public void onCreate(Bundle saved) {
         if (Ui.lightTheme(this)) setTheme(top.kuaner.pockete2.R.style.PocketLightTheme);
         super.onCreate(saved);
+        Object retained = getLastNonConfigurationInstance();
+        if (retained instanceof top.kuaner.pockete2.ui.pages.SessionsPage.State)
+            sessionsState = (top.kuaner.pockete2.ui.pages.SessionsPage.State) retained;
         ui = new Ui(this);
         ui.immersive();
         controller = PocketController.get(this);
@@ -101,6 +110,12 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     }
 
     @Override
+    public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (focused && ui != null) ui.immersive();
+    }
+
+    @Override
     protected void onStop() {
         if (pairing != null) pairing.hidden();
         if (conversation != null) conversation.hidden();
@@ -125,10 +140,15 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     }
 
     @Override
+    public Object onRetainNonConfigurationInstance() {
+        return sessions == null ? sessionsState : sessions.retain();
+    }
+
+    @Override
     public void changed() {
         if (controller.snapshot() == null) {
             if (pages.getChildCount() == 0)
-                pages.addView(ui.label("正在读取对话…", 16, ui.palette.secondary, false));
+                pages.addView(ui.label(ui.t("正在读取对话…"), 16, ui.palette.secondary, false));
             return;
         }
         if (views.isEmpty()) {
@@ -201,6 +221,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                     break;
                 case "sessions":
                     sessions = new top.kuaner.pockete2.ui.pages.SessionsPage(this, controller);
+                    sessions.restore(sessionsState);
+                    sessionsState = null;
                     selected = sessions.render();
                     break;
                 case "pairing":
@@ -235,8 +257,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private View extraPage(String name) {
         LinearLayout body = ui.column();
         ui.inset(body, 16, 10);
-        body.addView(ui.button("返回", ui.palette.secondary, 0, this::back));
-        body.addView(ui.label(name.equals("diagnostics") ? "诊断" : name, 22, ui.palette.text, true));
+        body.addView(ui.button(ui.t("返回"), ui.palette.secondary, 0, this::back));
+        body.addView(
+                ui.label(
+                        name.equals("diagnostics") ? ui.t("诊断") : name, 22, ui.palette.text, true));
         if (name.equals("diagnostics")) {
             PocketController.Snapshot s = controller.snapshot();
             String report =
@@ -264,7 +288,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
             ui.add(
                     body,
                     ui.button(
-                            "分享诊断",
+                            ui.t("分享诊断"),
                             ui.palette.accent,
                             ui.palette.raised,
                             () ->
@@ -274,7 +298,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                                                     shareFile(PocketFiles.uri(this, file), mime))),
                     20);
         } else
-            ui.add(body, ui.label("这项迁移仍在开发，功能不会以占位界面计入完成。", 15, ui.palette.secondary, false), 20);
+            ui.add(
+                    body,
+                    ui.label(ui.t("这项迁移仍在开发，功能不会以占位界面计入完成。"), 15, ui.palette.secondary, false),
+                    20);
         return ui.scroll(body);
     }
 
@@ -358,9 +385,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         else
             Sheets.actions(
                     ui,
-                    "需要权限才能使用此功能",
+                    ui.t("需要权限才能使用此功能"),
                     new Sheets.Action(
-                            "打开应用权限设置",
+                            ui.t("打开应用权限设置"),
                             () ->
                                     startActivity(
                                             new Intent(
@@ -379,7 +406,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                             .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
                     PICK);
         } catch (android.content.ActivityNotFoundException failure) {
-            toast("没有文件选择器，可从其他应用分享到 Pocket E2");
+            toast(ui.t("没有文件选择器，可从其他应用分享到 Pocket E2"));
         }
     }
 
@@ -400,9 +427,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
             startActivityForResult(camera, CAMERA);
         } catch (android.content.ActivityNotFoundException failure) {
             if (cameraFile != null) cameraFile.delete();
-            toast("这台设备没有可用的相机应用");
+            toast(ui.t("这台设备没有可用的相机应用"));
         } catch (java.io.IOException failure) {
-            toast("无法创建照片文件");
+            toast(ui.t("无法创建照片文件"));
         }
     }
 
@@ -427,10 +454,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     @Override
     public void openAttachment(Attachment attachment) {
         if (attachment.sha256.isEmpty() && attachment.localPath.isEmpty()) {
-            toast("服务器未能取得这个附件");
+            toast(ui.t("服务器未能取得这个附件"));
             return;
         }
-        toast("正在打开附件…");
+        toast(ui.t("正在打开附件…"));
         controller.download(
                 attachment,
                 (file, mime) -> {
@@ -460,9 +487,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                                     .setType(mime)
                                     .putExtra(Intent.EXTRA_STREAM, uri)
                                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-                            "分享附件"));
+                            ui.t("分享附件")));
         } catch (android.content.ActivityNotFoundException failure) {
-            toast("没有可接收文件的应用");
+            toast(ui.t("没有可接收文件的应用"));
         }
     }
 
@@ -472,19 +499,19 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         controller.start();
         controller.refreshTailnet();
         continueLogin();
-        if (loginWaiting) toast("正在获取 Tailscale 登录地址…");
+        if (loginWaiting) toast(ui.t("正在获取 Tailscale 登录地址…"));
     }
 
     private void continueLogin() {
         PocketController.Snapshot s = controller.snapshot();
         if (s != null && s.tailnetState.equals("Failed")) {
             loginWaiting = false;
-            toast("无法启动 Tailscale，请在设置中查看连接状态");
+            toast(ui.t("无法启动 Tailscale，请在设置中查看连接状态"));
             return;
         }
         if (s != null && s.tailnetState.equals("Running")) {
             loginWaiting = false;
-            toast("Tailscale 已连接，节点 pocket-e2");
+            toast(ui.t("Tailscale 已连接，节点 pocket-e2"));
             return;
         }
         if (s == null || s.authUrl.isEmpty()) return;
@@ -492,7 +519,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(s.authUrl)));
         } catch (android.content.ActivityNotFoundException failure) {
-            ui.copy("Tailscale 登录链接", s.authUrl);
+            ui.copy(ui.t("Tailscale 登录链接"), s.authUrl);
         }
     }
 }

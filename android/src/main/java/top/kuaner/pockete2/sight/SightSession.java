@@ -6,6 +6,10 @@ package top.kuaner.pockete2.sight;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.camera2.CameraManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 
 import org.json.JSONObject;
 
@@ -25,13 +29,15 @@ public final class SightSession {
     }
 
     public static final class Snapshot {
-        public final boolean offered, on, front, canFlip;
+        public final boolean offered, on, requested, retry, front, canFlip;
         public final String status;
         public final int rotation;
 
         Snapshot(SightSession session) {
             offered = session.ask != null && session.active && session.master;
             on = session.capture != null && session.transmitting;
+            requested = session.enabled;
+            retry = session.recovery.exhausted();
             front = session.front;
             canFlip = session.frontAvailable && session.rearAvailable;
             status = session.status;
@@ -44,6 +50,16 @@ public final class SightSession {
     private final Listener listener;
     private final BooleanSupplier connected, congested;
     private final SightProtocol.Uplink uplink = new SightProtocol.Uplink();
+    private final SightRecovery recovery = new SightRecovery();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final CameraManager cameras;
+    private final String frontCamera, rearCamera;
+    private CameraManager.AvailabilityCallback availability;
+    private String observedCamera = "";
+    private Boolean cameraAvailable;
+    private volatile int availabilityEpoch;
+    private boolean ownRelease;
+    private Runnable retryWake;
     private SightProtocol.Ask ask;
     private SightCapture capture;
     private boolean active, master, framed, foreground, enabled, front, stopping, transmitting;
@@ -68,32 +84,33 @@ public final class SightSession {
         this.connected = connected;
         this.congested = congested;
         this.listener = listener;
-        boolean hasFront = false, hasRear = false;
+        cameras = context.getSystemService(CameraManager.class);
+        String frontId = null, rearId = null;
         try {
-            android.hardware.camera2.CameraManager manager =
-                    context.getSystemService(android.hardware.camera2.CameraManager.class);
-            for (String id : manager.getCameraIdList()) {
+            for (String id : cameras.getCameraIdList()) {
                 Integer facing =
-                        manager.getCameraCharacteristics(id)
+                        cameras.getCameraCharacteristics(id)
                                 .get(android.hardware.camera2.CameraCharacteristics.LENS_FACING);
-                hasFront |=
-                        facing != null
-                                && facing
-                                        == android.hardware.camera2.CameraCharacteristics
-                                                .LENS_FACING_FRONT;
-                hasRear |=
-                        facing != null
-                                && facing
-                                        == android.hardware.camera2.CameraCharacteristics
-                                                .LENS_FACING_BACK;
+                if (frontId == null
+                        && facing != null
+                        && facing
+                                == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT)
+                    frontId = id;
+                if (rearId == null
+                        && facing != null
+                        && facing
+                                == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK)
+                    rearId = id;
             }
         } catch (android.hardware.camera2.CameraAccessException | RuntimeException ignored) {
         }
-        frontAvailable = hasFront;
-        rearAvailable = hasRear;
+        frontCamera = frontId;
+        rearCamera = rearId;
+        frontAvailable = frontId != null;
+        rearAvailable = rearId != null;
         front =
-                hasFront
-                        && (!hasRear
+                frontAvailable
+                        && (!rearAvailable
                                 || context.getSharedPreferences(
                                                 "pocket-e2.sight", Context.MODE_PRIVATE)
                                         .getBoolean("front", true));
@@ -120,6 +137,7 @@ public final class SightSession {
             throw new IllegalArgumentException("Invalid camera orientation");
         if (deviceOrientation == degrees) return;
         deviceOrientation = degrees;
+        recovery.inputsChanged();
         if (capture != null) stop("");
         apply();
         listener.changed();
@@ -127,6 +145,11 @@ public final class SightSession {
 
     public void update(
             boolean active, boolean master, boolean framed, boolean foreground, int heat) {
+        if (this.active != active
+                || this.master != master
+                || this.framed != framed
+                || this.foreground != foreground
+                || this.heat != heat) recovery.inputsChanged();
         this.active = active;
         this.master = master;
         this.framed = framed;
@@ -138,6 +161,9 @@ public final class SightSession {
 
     public void connectionReset() {
         orientation.active(false);
+        watchCamera(false);
+        cancelRetry();
+        recovery.reset();
         ask = null;
         framed = false;
         declined = "";
@@ -169,11 +195,11 @@ public final class SightSession {
             try {
                 SightProtocol.Ask next = new SightProtocol.Ask(frame.optJSONObject("capture"));
                 boolean same = next.equals(ask) && maxBytes == bound;
+                if (!same) recovery.reset();
                 maxBytes = bound;
                 ask = next;
                 if (same && capture != null) capture.requestKey();
                 else stop("");
-                apply();
             } catch (IllegalArgumentException invalid) {
                 ask = null;
                 stop("");
@@ -181,11 +207,16 @@ public final class SightSession {
                 listener.text(Json.object("type", "camera_declined", "reason", "no_format"));
             }
         }
+        apply();
         listener.changed();
     }
 
     public void toggle() {
-        enabled = !enabled;
+        if (enabled && recovery.exhausted()) recovery.reset();
+        else {
+            enabled = !enabled;
+            recovery.inputsChanged();
+        }
         apply();
         listener.changed();
     }
@@ -193,6 +224,8 @@ public final class SightSession {
     public void flip() {
         if (!frontAvailable || !rearAvailable) return;
         front = !front;
+        watchCamera(false);
+        recovery.reset();
         context.getSharedPreferences("pocket-e2.sight", Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean("front", front)
@@ -211,11 +244,11 @@ public final class SightSession {
     }
 
     private void stop(String reason) {
-        orientation.active(false);
         epoch++;
         transmitting = false;
         preview = null;
         if (capture != null) {
+            ownRelease = availability != null;
             SightCapture old = capture;
             capture = null;
             stopping = true;
@@ -235,6 +268,8 @@ public final class SightSession {
                                     if (released) apply();
                                     else {
                                         enabled = false;
+                                        watchCamera(false);
+                                        orientation.active(false);
                                         status = "相机关闭超时，请稍后重新开启";
                                     }
                                     listener.changed();
@@ -250,8 +285,119 @@ public final class SightSession {
         }
     }
 
+    private void watchCamera(boolean wanted) {
+        String id = front ? frontCamera : rearCamera;
+        if (wanted && availability != null && observedCamera.equals(id)) return;
+        availabilityEpoch++;
+        if (availability != null) cameras.unregisterAvailabilityCallback(availability);
+        availability = null;
+        observedCamera = "";
+        cameraAvailable = null;
+        ownRelease = false;
+        if (!wanted) {
+            cancelRetry();
+            return;
+        }
+        if (cameras == null || id == null) {
+            // Let the capture report the specific missing-camera failure once.
+            cameraAvailable = true;
+            return;
+        }
+        observedCamera = id;
+        int ticket = availabilityEpoch;
+        availability =
+                new CameraManager.AvailabilityCallback() {
+                    private void changed(String cameraId, boolean available) {
+                        if (!id.equals(cameraId) || ticket != availabilityEpoch) return;
+                        state.execute(
+                                () -> {
+                                    if (ticket != availabilityEpoch) return;
+                                    boolean changed =
+                                            cameraAvailable == null || cameraAvailable != available;
+                                    cameraAvailable = available;
+                                    if (available) ownRelease = false;
+                                    // An unavailable event from our own open is expected. Never
+                                    // preempt a peer.
+                                    if (changed && capture == null && !stopping) {
+                                        apply();
+                                        listener.changed();
+                                    }
+                                });
+                    }
+
+                    @Override
+                    public void onCameraAvailable(String cameraId) {
+                        changed(cameraId, true);
+                    }
+
+                    @Override
+                    public void onCameraUnavailable(String cameraId) {
+                        changed(cameraId, false);
+                    }
+                };
+        try {
+            cameras.registerAvailabilityCallback(availability, main);
+        } catch (RuntimeException failed) {
+            availability = null;
+            // Native open remains authoritative when availability cannot be observed.
+            cameraAvailable = true;
+        }
+    }
+
+    private void cancelRetry() {
+        if (retryWake == null) return;
+        main.removeCallbacks(retryWake);
+        retryWake = null;
+    }
+
+    private void retryLater(long delay) {
+        if (retryWake != null) return;
+        retryWake =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        state.execute(
+                                () -> {
+                                    if (retryWake != this) return;
+                                    retryWake = null;
+                                    apply();
+                                    listener.changed();
+                                });
+                    }
+                };
+        main.postDelayed(retryWake, delay);
+    }
+
+    private String failureStatus() {
+        switch (recovery.failure()) {
+            case "no_camera":
+                return frontAvailable && rearAvailable ? "没有这一侧的相机，可切换镜头" : "这台设备没有可用的相机";
+            case "no_h264":
+                return "编码器不支持服务器要求的 H.264 参数";
+            case "no_format":
+                return "相机不支持服务器要求的尺寸或帧率";
+            default:
+                if (recovery.exhausted()) return "相机多次中断，请点按重试";
+                return recovery.failure().equals("encoder_failed")
+                        ? "视频编码暂时中断，正在重试…"
+                        : "相机暂时不可用，正在重试…";
+        }
+    }
+
     private void apply() {
-        orientation.active(ask != null && active && master && framed && foreground && enabled);
+        boolean eligible =
+                ask != null
+                        && active
+                        && master
+                        && framed
+                        && foreground
+                        && enabled
+                        && heat != DeviceHeat.CRITICAL
+                        && context.checkSelfPermission(Manifest.permission.CAMERA)
+                                == PackageManager.PERMISSION_GRANTED;
+        boolean held = !recovery.failure().isEmpty() && !recovery.transientFailure();
+        watchCamera(eligible && !held);
+        orientation.active(eligible && !held);
         if (ask == null || !active || !master || !framed) {
             stop("");
             return;
@@ -278,6 +424,30 @@ public final class SightSession {
             return;
         }
         if (capture != null || stopping) return;
+        if (held) {
+            status = failureStatus();
+            return;
+        }
+        if (cameraAvailable == null) {
+            status = "正在检查相机状态…";
+            return;
+        }
+        if (!cameraAvailable) {
+            if (!ownRelease) stop("camera_taken");
+            status = ownRelease ? "正在等待相机释放…" : "相机被其他应用占用，释放后自动恢复";
+            return;
+        }
+        if (!recovery.failure().isEmpty()) {
+            status = failureStatus();
+            long delay = recovery.delay(SystemClock.elapsedRealtime());
+            if (delay < 0) return;
+            if (delay > 0) {
+                retryLater(delay);
+                return;
+            }
+            recovery.retry();
+        }
+        cancelRetry();
         int ticket = ++epoch;
         uplink.expectKey();
         status = "正在打开相机…";
@@ -340,6 +510,7 @@ public final class SightSession {
                                             if (frame == null) capture.requestKey();
                                             else {
                                                 if (key) {
+                                                    recovery.reset();
                                                     declined = "";
                                                     if (!transmitting) {
                                                         transmitting = true;
@@ -360,16 +531,10 @@ public final class SightSession {
                                 state.execute(
                                         () -> {
                                             if (ticket != epoch) return;
-                                            enabled = false;
+                                            recovery.failed(reason, SystemClock.elapsedRealtime());
                                             stop(reason);
-                                            status =
-                                                    reason.equals("no_camera")
-                                                            ? "没有这一侧的相机，可切换镜头"
-                                                            : reason.equals("no_h264")
-                                                                    ? "编码器不支持服务器要求的 H.264 参数"
-                                                                    : reason.equals("no_format")
-                                                                            ? "相机不支持服务器要求的尺寸或帧率"
-                                                                            : "相机被占用或编码已中断，可重新开启";
+                                            status = failureStatus();
+                                            apply();
                                             listener.changed();
                                         });
                             }

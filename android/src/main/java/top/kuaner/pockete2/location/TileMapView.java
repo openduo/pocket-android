@@ -45,7 +45,8 @@ public final class TileMapView extends View implements AutoCloseable {
         directory = new File(context.getCacheDir(), "map-tiles");
         directory.mkdirs();
         setBackgroundColor(0xff222321);
-        setContentDescription("地图，拖动选择中心位置，缩放按钮在地图下方");
+        setContentDescription(
+                top.kuaner.pockete2.text.AppText.get(context).t("地图，拖动选择中心位置，缩放按钮在地图下方"));
         setFocusable(true);
     }
 

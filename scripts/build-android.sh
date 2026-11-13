@@ -4,6 +4,7 @@
 set -euo pipefail
 project_dir="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 python3 "$project_dir/scripts/check-architecture.py"
+python3 "$project_dir/scripts/check-localization.py"
 (cd "$project_dir" && shasum -a 256 -c third_party/dependencies.sha256)
 (cd "$project_dir" && shasum -a 256 -c third_party/try-assets.sha256)
 sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}}"

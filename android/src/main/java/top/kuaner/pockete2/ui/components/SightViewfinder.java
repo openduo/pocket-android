@@ -15,9 +15,7 @@ import top.kuaner.pockete2.ui.Ui;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * The rear camera's bounded viewfinder; it never opens a second camera or records its frames.
- */
+/** The rear camera's bounded viewfinder; it never opens a second camera or records its frames. */
 public final class SightViewfinder extends View {
     private final Supplier<PreviewFrame> frames;
     private final Consumer<Boolean> visible;
@@ -31,7 +29,7 @@ public final class SightViewfinder extends View {
         super(ui.context);
         this.frames = frames;
         this.visible = visible;
-        setContentDescription("后置摄像头画面");
+        setContentDescription(ui.t("后置摄像头画面"));
         setBackground(ui.surface(ui.palette.raised, 20));
         setClipToOutline(true);
     }

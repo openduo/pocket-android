@@ -54,6 +54,7 @@ public final class PassportCoordinator {
     private final Listener listener;
     private final SharedPreferences prefs;
     private final Executor state;
+    private final Context context;
     private final top.kuaner.pockete2.diagnostics.AppLog log;
     private final PressAssembler press = new PressAssembler();
     private final ReplyTracker reply = new ReplyTracker();
@@ -81,6 +82,7 @@ public final class PassportCoordinator {
     }
 
     public PassportCoordinator(Context context, Executor state, Listener listener) {
+        this.context = context.getApplicationContext();
         this.listener = listener;
         this.state = state;
         log = top.kuaner.pockete2.diagnostics.AppLog.get(context);
@@ -187,7 +189,14 @@ public final class PassportCoordinator {
 
     private void appState() {
         link.send(
-                PocketProtocol.APP_STATE, new byte[] {(byte) (major > 1 ? 2 : online ? 0 : 1), 0});
+                PocketProtocol.APP_STATE,
+                PocketProtocol.appState(
+                        major > 1 ? 2 : online ? 0 : 1,
+                        top.kuaner.pockete2.text.AppText.get(context).en));
+    }
+
+    public void languageChanged() {
+        if (link.snapshot().ready) appState();
     }
 
     private void receive(PocketProtocol.Message message) {

@@ -41,35 +41,35 @@ public final class SettingsPage implements PocketController.Listener {
     public View render() {
         if (root != null) return root;
         root = ui.column();
-        TextView heading = ui.label("设置", 22, ui.palette.text, true);
+        TextView heading = ui.label(ui.t("设置"), 22, ui.palette.text, true);
         ui.inset(heading, 16, 14);
         root.addView(heading);
         LinearLayout body = ui.column();
         body.setPadding(ui.dp(12), 0, ui.dp(12), ui.dp(24));
         root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
         Settings pref = controller.settings;
-        section(body, "连接");
-        connection = row(body, "link", "房间与主机", "尚未配对", () -> host.navigate("pairing"));
+        section(body, ui.t("连接"));
+        connection = row(body, "link", ui.t("房间与主机"), ui.t("尚未配对"), () -> host.navigate("pairing"));
         tailnet = row(body, "wifi", "Tailscale", "", host::loginTailnet);
-        row(body, "rotate_ccw", "重新连接", "同步历史和实时消息", controller::start);
+        row(body, "rotate_ccw", ui.t("重新连接"), ui.t("同步历史和实时消息"), controller::start);
         row(
                 body,
                 "cloud_off",
-                "退出 Tailscale",
-                "退出后需要重新登录网络",
+                ui.t("退出 Tailscale"),
+                ui.t("退出后需要重新登录网络"),
                 () ->
                         Sheets.confirm(
                                 ui,
-                                "退出 Tailscale",
-                                "当前房间会断开连接，配对凭据仍保存在本机。",
-                                "退出登录",
+                                ui.t("退出 Tailscale"),
+                                ui.t("当前房间会断开连接，配对凭据仍保存在本机。"),
+                                ui.t("退出登录"),
                                 controller::logoutTailnet));
-        section(body, "声音与屏幕");
-        audioRoute = row(body, "info", "音频路径", "", null);
+        section(body, ui.t("声音与屏幕"));
+        audioRoute = row(body, "info", ui.t("音频路径"), "", null);
         toggle(
                 body,
-                "使用耳机麦克风",
-                "连接耳机时改用耳机收音；蓝牙耳机会切到通话音质",
+                ui.t("使用耳机麦克风"),
+                ui.t("连接耳机时改用耳机收音；蓝牙耳机会切到通话音质"),
                 pref.headsetMic(),
                 value -> {
                     if (value && android.os.Build.VERSION.SDK_INT >= 31)
@@ -78,17 +78,22 @@ public final class SettingsPage implements PocketController.Listener {
                                 () -> controller.setHeadsetMic(true));
                     else controller.setHeadsetMic(value);
                 });
-        toggle(body, "播放语音回复", "环境模式关闭时，在前台播放回答", pref.ambientOutput(), controller::setReplyAudio);
         toggle(
                 body,
-                "离开 App 后继续听",
-                "环境模式以常驻通知保持收音",
+                ui.t("播放语音回复"),
+                ui.t("环境模式关闭时，在前台播放回答"),
+                pref.ambientOutput(),
+                controller::setReplyAudio);
+        toggle(
+                body,
+                ui.t("离开 App 后继续听"),
+                ui.t("环境模式以常驻通知保持收音"),
                 pref.keepListening(),
                 value -> pref.keepListening(value));
         toggle(
                 body,
-                "保持屏幕常亮",
-                "仅在 Pocket E2 位于前台时生效",
+                ui.t("保持屏幕常亮"),
+                ui.t("仅在 Pocket E2 位于前台时生效"),
                 pref.keepAwake(),
                 value -> {
                     controller.setKeepAwake(value);
@@ -105,12 +110,12 @@ public final class SettingsPage implements PocketController.Listener {
                                         android.view.WindowManager.LayoutParams
                                                 .FLAG_KEEP_SCREEN_ON);
                 });
-        toggle(body, "触感反馈", "麦克风就绪、取消和发送时轻震", pref.haptics(), controller::setHaptics);
-        section(body, "后台回答");
+        toggle(body, ui.t("触感反馈"), ui.t("麦克风就绪、取消和发送时轻震"), pref.haptics(), controller::setHaptics);
+        section(body, ui.t("后台回答"));
         toggle(
                 body,
-                "显示回答通知",
-                "离开 App 后收到回答时提醒",
+                ui.t("显示回答通知"),
+                ui.t("离开 App 后收到回答时提醒"),
                 pref.answerNotifications(),
                 value -> {
                     pref.answerNotifications(value);
@@ -124,7 +129,7 @@ public final class SettingsPage implements PocketController.Listener {
                 row(
                         body,
                         "info",
-                        "通知与后台同步",
+                        ui.t("通知与后台同步"),
                         "",
                         () -> {
                             if (android.os.Build.VERSION.SDK_INT >= 33
@@ -149,12 +154,12 @@ public final class SettingsPage implements PocketController.Listener {
                                                                         .EXTRA_APP_PACKAGE,
                                                                 host.activity().getPackageName()));
                         });
-        section(body, "位置");
+        section(body, ui.t("位置"));
         arrivalControl =
                 toggle(
                         body,
-                        "让房间知道我到了哪",
-                        "只随下一条消息发送地名，不发送坐标",
+                        ui.t("让房间知道我到了哪"),
+                        ui.t("只随下一条消息发送地名，不发送坐标"),
                         controller.arrivalsEnabled(),
                         value -> {
                             controller.arrivalsEnabled(value);
@@ -169,9 +174,9 @@ public final class SettingsPage implements PocketController.Listener {
                                                     && controller.arrivalsNeedPermission())
                                                 Sheets.actions(
                                                         ui,
-                                                        "需要始终允许定位",
+                                                        ui.t("需要始终允许定位"),
                                                         new Sheets.Action(
-                                                                "打开应用权限设置",
+                                                                ui.t("打开应用权限设置"),
                                                                 () ->
                                                                         host.activity()
                                                                                 .startActivity(
@@ -192,54 +197,102 @@ public final class SettingsPage implements PocketController.Listener {
                                             else controller.arrivalsEnabled(true);
                                         });
                         });
-        arrivalStatus = row(body, "info", "到达检测方式", "", null);
-        section(body, "配件与会话");
-        row(body, "bluetooth", "Passport", "按键语音配件", () -> host.navigate("passport"));
+        arrivalStatus = row(body, "info", ui.t("到达检测方式"), "", null);
+        section(body, ui.t("配件与会话"));
+        row(body, "bluetooth", "Passport", ui.t("按键语音配件"), () -> host.navigate("passport"));
         row(
                 body,
                 "messages_square",
-                "会话查看器",
-                "连接 sessions 或 notify 范围的配对",
+                ui.t("会话查看器"),
+                ui.t("连接 sessions 或 notify 范围的配对"),
                 () -> host.navigate("sessions"));
-        section(body, "外观");
+        section(body, ui.t("外观"));
+        row(
+                body,
+                "languages",
+                ui.t("语言"),
+                pref.language().equals("system")
+                        ? ui.t("跟随系统")
+                        : pref.language().equals("en") ? "English" : "中文",
+                () -> {
+                    LinearLayout choices = ui.column();
+                    ui.add(
+                            choices,
+                            ui.label(
+                                    ui.t("切换语言后，体验房间会重新开始。真实房间的记录和草稿会保留。"),
+                                    13,
+                                    ui.palette.secondary,
+                                    false),
+                            6);
+                    android.app.Dialog[] dialog = {null};
+                    for (String[] option :
+                            new String[][] {
+                                {"system", ui.t("跟随系统")}, {"zh-Hans", "中文"}, {"en", "English"}
+                            })
+                        ui.add(
+                                choices,
+                                ui.button(
+                                        option[1],
+                                        ui.palette.text,
+                                        0,
+                                        () -> {
+                                            dialog[0].dismiss();
+                                            if (!pref.language().equals(option[0])) {
+                                                controller.changeLanguage(option[0]);
+                                                host.activity().recreate();
+                                            }
+                                        }),
+                                4);
+                    dialog[0] = Sheets.content(ui, ui.t("切换语言"), choices);
+                });
         row(
                 body,
                 "palette",
-                "主题",
+                ui.t("主题"),
                 pref.appearance().equals("light")
-                        ? "浅色"
-                        : pref.appearance().equals("system") ? "跟随系统" : "暖黑",
+                        ? ui.t("浅色")
+                        : pref.appearance().equals("system") ? ui.t("跟随系统") : ui.t("暖黑"),
                 () ->
                         Sheets.actions(
                                 ui,
-                                "主题",
-                                new Sheets.Action("暖黑", () -> appearance("dark")),
-                                new Sheets.Action("浅色", () -> appearance("light")),
-                                new Sheets.Action("跟随系统", () -> appearance("system"))));
-        section(body, "诊断");
-        toggle(body, "记录网络日志", "排查连接问题时开启", pref.networkLog(), controller::networkLogging);
-        cache = row(body, "hard_drive", "本机缓存", "", null);
-        configIssues = row(body, "info", "频道配置提示", "", null);
-        row(body, "share_2", "导出诊断", "版本、连接状态与运行日志", () -> host.navigate("diagnostics"));
-        row(body, "info", "关于 Pocket E2", "Android 原生迁移 · 0.1.0", this::about);
+                                ui.t("主题"),
+                                new Sheets.Action(ui.t("暖黑"), () -> appearance("dark")),
+                                new Sheets.Action(ui.t("浅色"), () -> appearance("light")),
+                                new Sheets.Action(ui.t("跟随系统"), () -> appearance("system"))));
+        section(body, ui.t("诊断"));
+        toggle(
+                body,
+                ui.t("记录网络日志"),
+                ui.t("排查连接问题时开启"),
+                pref.networkLog(),
+                controller::networkLogging);
+        cache = row(body, "hard_drive", ui.t("本机缓存"), "", null);
+        configIssues = row(body, "info", ui.t("频道配置提示"), "", null);
+        row(
+                body,
+                "share_2",
+                ui.t("导出诊断"),
+                ui.t("版本、连接状态与运行日志"),
+                () -> host.navigate("diagnostics"));
+        row(body, "info", ui.t("关于 Pocket E2"), ui.t("Android 原生迁移 · 0.1.0"), this::about);
         row(
                 body,
                 "trash_2",
-                "忘记房间",
-                "移除配对、缓存和待发内容",
+                ui.t("忘记房间"),
+                ui.t("移除配对、缓存和待发内容"),
                 () ->
                         Sheets.confirm(
                                 ui,
-                                "忘记这个房间",
-                                "本机的设备凭据、离线记录和待发送内容会被删除。服务器上的对话仍然保留。",
-                                "忘记房间",
+                                ui.t("忘记这个房间"),
+                                ui.t("本机的设备凭据、离线记录和待发送内容会被删除。服务器上的对话仍然保留。"),
+                                ui.t("忘记房间"),
                                 () -> {
                                     controller.forgetPairing();
                                     host.navigate("onboarding");
                                 }));
         exitTrial =
                 ui.button(
-                        "退出体验",
+                        ui.t("退出体验"),
                         ui.palette.secondary,
                         ui.palette.raised,
                         () -> {
@@ -317,7 +370,7 @@ public final class SettingsPage implements PocketController.Listener {
                 ui,
                 "Pocket E2 0.1.0",
                 new Sheets.Action(
-                        "源项目与迁移说明",
+                        ui.t("源项目与迁移说明"),
                         () ->
                                 ui.shareText(
                                         "Pocket E2 is an Android port of"
@@ -325,7 +378,7 @@ public final class SettingsPage implements PocketController.Listener {
                                             + "Code license: FSL-1.1-Apache-2.0. Neutral branding;"
                                             + " E2Studio design reference.")),
                 new Sheets.Action(
-                        "开源许可",
+                        ui.t("开源许可"),
                         () -> {
                             try (java.io.InputStream in =
                                     ui.context
@@ -338,14 +391,14 @@ public final class SettingsPage implements PocketController.Listener {
                                 while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
                                 Sheets.actions(
                                         ui,
-                                        "开源许可",
+                                        ui.t("开源许可"),
                                         new Sheets.Action(
                                                 new String(
                                                         out.toByteArray(),
                                                         java.nio.charset.StandardCharsets.UTF_8),
                                                 () -> {}));
                             } catch (java.io.IOException failure) {
-                                host.toast("许可文件读取失败");
+                                host.toast(ui.t("许可文件读取失败"));
                             }
                         }));
     }
@@ -359,28 +412,34 @@ public final class SettingsPage implements PocketController.Listener {
         arrivalControl.setEnabled(!s.trying);
         Ui.updateText(
                 connection,
-                controller.configured() ? s.roomName + " · " + controller.settings.host() : "尚未配对");
+                controller.configured()
+                        ? (s.trying ? ui.t(s.roomName) : s.roomName)
+                                + " · "
+                                + controller.settings.host()
+                        : ui.t("尚未配对"));
         Ui.updateText(tailnet, s.tailnetState + " · pocket-e2");
-        Ui.updateText(cache, s.rows.size() + " 条可见记录 · " + s.outbox.size() + " 条待同步");
+        Ui.updateText(cache, s.rows.size() + ui.t(" 条可见记录 · ") + s.outbox.size() + ui.t(" 条待同步"));
         Ui.updateText(
                 audioRoute,
-                s.audioRoute
-                        + (s.ambientActive ? s.echoCancellation ? " · 回声消除已开" : " · 回声消除未开" : ""));
+                ui.words.route(s.audioRoute)
+                        + (s.ambientActive
+                                ? s.echoCancellation ? ui.t(" · 回声消除已开") : ui.t(" · 回声消除未开")
+                                : ""));
         Ui.updateText(
                 configIssues,
-                s.configIssues.isEmpty() ? "当前没有配置提示" : String.join("\n", s.configIssues));
+                s.configIssues.isEmpty() ? ui.t("当前没有配置提示") : String.join("\n", s.configIssues));
         boolean allowed =
                 host.activity()
                         .getSystemService(android.app.NotificationManager.class)
                         .areNotificationsEnabled();
         Ui.updateText(
                 notificationStatus,
-                !allowed ? "系统通知未开启，点按设置。" : "实时连接可用时即时提醒；离线时约每 15 分钟补取，系统省电可能延迟。");
+                !allowed ? ui.t("系统通知未开启，点按设置。") : ui.t("实时连接可用时即时提醒；离线时约每 15 分钟补取，系统省电可能延迟。"));
         Ui.updateText(
                 arrivalStatus,
                 controller.arrivalsEnabled() && controller.arrivalsNeedPermission()
-                        ? "等待定位权限。需要精确位置；Android 10 及以上还需在系统设置中始终允许。"
-                        : "Android 使用低频网络与被动定位，停留后记录地名；省电策略可能延迟。");
+                        ? ui.t("等待定位权限。需要精确位置；Android 10 及以上还需在系统设置中始终允许。")
+                        : ui.t("Android 使用低频网络与被动定位，停留后记录地名；省电策略可能延迟。"));
     }
 
     public void close() {

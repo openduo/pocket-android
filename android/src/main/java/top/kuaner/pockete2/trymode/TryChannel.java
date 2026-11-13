@@ -492,8 +492,14 @@ public final class TryChannel implements ChannelConnection, AutoCloseable {
                                 id,
                                 "ok",
                                 allowed,
-                                "error",
-                                allowed ? "" : "not_allowed"));
+                                "reason",
+                                allowed
+                                        ? ""
+                                        : !sessionRows.containsKey(key)
+                                                ? "not_found"
+                                                : !key.equals("try-chat")
+                                                        ? "not_notifiable"
+                                                        : "failed"));
                 if (!allowed) break;
                 JSONArray rows = sessionRows.get(key);
                 String rowId = "n-" + id;

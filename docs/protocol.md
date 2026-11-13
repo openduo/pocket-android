@@ -30,9 +30,17 @@ uses negotiated MTU, and serializes GATT operations. Direction-specific PDU vali
 UTF-8 fitting, sequence wrap/loss/duplicates, implicit press and link-loss completion are explicit.
 RESULT follows cleaned/failed settlement; answers correlate through `message_ids`, and quiet replies,
 monotone persisted ids and live/log deduplication are separate from press assembly.
+APP_STATE includes the resolved UI-language byte (0 for Chinese, 1 for English) after reachability;
+changing language resends it only to this app's already-ready accessory.
 
 Session watches follow visible foreground UI, are restored after `/live` reconnect, and end on page
 exit. One correlated notification may be in flight. A connection loss marks its delivery uncertain.
+Lists and row windows validate atomically, including wire types; malformed data cannot partially
+replace a visible session. Activity order compares absolute instants. Notification receipts retain
+the original key/id/body after the reader changes sessions, so acknowledgements cannot clear a
+different recipient's draft or text edited since submission. Viewer reset advances a generation
+that invalidates retained UI drafts. The refusal words are `forbidden`, `not_notifiable`,
+`not_found` and `failed`, under the wire key `reason`.
 
 `ChannelConnection` is the common HTTP/live/incremental-speech boundary. `GoTransport` owns the
 native tsnet implementation; `TryChannel` handles those same API-v2 paths locally and cannot accept
@@ -49,3 +57,8 @@ camera. The UI receives one bounded RGB frame, not a recording. Encoding and vie
 buffer rotation. Serious heat lowers the declared rate and bitrate in place; critical heat and
 backgrounding stop the camera. API27's battery-temperature hint is an Android substitute and is not
 equivalent to a calibrated system thermal-pressure signal.
+Camera availability is observed only while an asked, authorized foreground camera is enabled.
+An occupied camera is not opened. Native transient failures keep opt-in and use finite backoffs;
+unsupported parameters hold until a new ask/lens. Ending the ask, changing the connection, switching
+off or backgrounding invalidates pending recovery. A resumed stream must send a new key frame but
+keeps the connection's monotonically increasing sequence.

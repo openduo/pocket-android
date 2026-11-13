@@ -266,7 +266,10 @@ public final class TryChannelContracts {
                             "text",
                             "hello"));
             check(
-                    !second.last("session_notify_result").optBoolean("ok"),
+                    !second.last("session_notify_result").optBoolean("ok")
+                            && second.last("session_notify_result")
+                                    .optString("reason")
+                                    .equals("not_notifiable"),
                     "sample session without notify capability rejects notifications");
 
             client.sendText(

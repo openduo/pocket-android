@@ -27,14 +27,14 @@ public final class ImagePreview {
         body.setBackgroundColor(ui.palette.background);
         LinearLayout toolbar = ui.row();
         toolbar.addView(
-                ui.iconButton("chevron_down", "关闭图片", ui.palette.secondary, dialog::dismiss));
-        TextView title = ui.label("图片", 16, ui.palette.text, true);
+                ui.iconButton("chevron_down", ui.t("关闭图片"), ui.palette.secondary, dialog::dismiss));
+        TextView title = ui.label(ui.t("图片"), 16, ui.palette.text, true);
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        toolbar.addView(ui.iconButton("share_2", "分享图片", ui.palette.accent, share));
+        toolbar.addView(ui.iconButton("share_2", ui.t("分享图片"), ui.palette.accent, share));
         body.addView(toolbar);
         ZoomImageView image = new ZoomImageView(ui.context);
         body.addView(image, new LinearLayout.LayoutParams(-1, 0, 1));
-        TextView hint = ui.label("双击或双指缩放 · 拖动查看", 11, ui.palette.subtle, false);
+        TextView hint = ui.label(ui.t("双击或双指缩放 · 拖动查看"), 11, ui.palette.subtle, false);
         hint.setGravity(android.view.Gravity.CENTER);
         ui.inset(hint, 12, 10);
         body.addView(hint);
@@ -73,7 +73,7 @@ public final class ImagePreview {
                                             return;
                                         }
                                         if (decoded == null) {
-                                            Ui.updateText(hint, "图片读取失败，可以分享后在其他应用打开");
+                                            Ui.updateText(hint, ui.t("图片读取失败，可以分享后在其他应用打开"));
                                             return;
                                         }
                                         owned[0] = decoded;

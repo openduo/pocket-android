@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /** Stable keyed rows and a persistent composer; state updates never replace the page. */
@@ -80,7 +79,7 @@ public final class ConversationPage implements PocketController.Listener {
         header.setPadding(ui.dp(8), 0, ui.dp(4), 0);
         LinearLayout heading = ui.column();
         title = ui.label("Pocket E2", 18, ui.palette.text, true);
-        subtitle = ui.label("加载中…", 11, ui.palette.secondary, false);
+        subtitle = ui.label(ui.t("加载中…"), 11, ui.palette.secondary, false);
         subtitle.setMaxLines(1);
         subtitle.setEllipsize(TextUtils.TruncateAt.END);
         heading.addView(title);
@@ -90,13 +89,16 @@ public final class ConversationPage implements PocketController.Listener {
         header.addView(
                 ui.iconButton(
                         "bluetooth",
-                        "Passport 配件",
+                        ui.t("Passport 配件"),
                         ui.palette.secondary,
                         () -> host.navigate("passport")),
                 new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
         header.addView(
                 ui.iconButton(
-                        "audio_lines", "环境模式", ui.palette.accent, () -> host.navigate("ambient")),
+                        "audio_lines",
+                        ui.t("环境模式"),
+                        ui.palette.accent,
+                        () -> host.navigate("ambient")),
                 new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
         root.addView(header);
         if (readOnly) header.setVisibility(View.GONE);
@@ -124,7 +126,7 @@ public final class ConversationPage implements PocketController.Listener {
         thread.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
         jump =
                 ui.button(
-                        "回到最新",
+                        ui.t("回到最新"),
                         ui.palette.accent,
                         ui.palette.raised,
                         () -> {
@@ -144,7 +146,7 @@ public final class ConversationPage implements PocketController.Listener {
                 });
         root.addView(thread, new LinearLayout.LayoutParams(-1, 0, 1));
         anchor = new ScrollAnchor(scroll);
-        older = ui.button("查看更早的记录", ui.palette.subtle, 0, controller::loadOlder);
+        older = ui.button(ui.t("查看更早的记录"), ui.palette.subtle, 0, controller::loadOlder);
         keyed.put("older", older);
         working = ui.label("", 14, ui.palette.secondary, false);
         ui.inset(working, 12, 12);
@@ -159,12 +161,12 @@ public final class ConversationPage implements PocketController.Listener {
         holdPanel = ui.column();
         ui.inset(holdPanel, 18, 10);
         holdPanel.setBackground(ui.surface(ui.palette.surface, 16));
-        holdLabel = ui.label("准备中…", 18, ui.palette.text, true);
+        holdLabel = ui.label(ui.t("准备中…"), 18, ui.palette.text, true);
         holdLabel.setGravity(Gravity.CENTER);
         holdPanel.addView(holdLabel);
         HoldToTalkView.Meter meter = new HoldToTalkView.Meter(ui, controller);
         holdPanel.addView(meter, new LinearLayout.LayoutParams(-1, ui.dp(48)));
-        TextView hint = ui.label("麦克风就绪后轻震 · 移出按钮取消", 12, ui.palette.secondary, false);
+        TextView hint = ui.label(ui.t("麦克风就绪后轻震 · 移出按钮取消"), 12, ui.palette.secondary, false);
         hint.setGravity(Gravity.CENTER);
         holdPanel.addView(hint);
         root.addView(holdPanel);
@@ -176,7 +178,8 @@ public final class ConversationPage implements PocketController.Listener {
         quoteText.setMaxLines(2);
         quoteRow.addView(quoteText, new LinearLayout.LayoutParams(0, -2, 1));
         quoteRow.addView(
-                ui.iconButton("minus", "取消引用", ui.palette.secondary, () -> controller.quote("")));
+                ui.iconButton(
+                        "minus", ui.t("取消引用"), ui.palette.secondary, () -> controller.quote("")));
         composer.addView(quoteRow);
         HorizontalScrollView chipScroll = new HorizontalScrollView(ui.context);
         chipScroll.setHorizontalScrollBarEnabled(false);
@@ -186,12 +189,13 @@ public final class ConversationPage implements PocketController.Listener {
         composer.addView(chipScroll);
         textRow = ui.row();
         voiceToggle =
-                ui.iconButton("mic", "切换语音或文字", ui.palette.secondary, controller::toggleVoiceInput);
+                ui.iconButton(
+                        "mic", ui.t("切换语音或文字"), ui.palette.secondary, controller::toggleVoiceInput);
         textRow.addView(voiceToggle, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(48)));
         input =
                 ui.configureInput(
                         new ComposerInput(ui.context, controller::importAttachment),
-                        "发消息…",
+                        ui.t("发消息…"),
                         controller.draft(),
                         true);
         input.setMaxLines(4);
@@ -211,12 +215,13 @@ public final class ConversationPage implements PocketController.Listener {
         hold = new HoldToTalkView(host, controller);
         textRow.addView(hold, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
         textRow.addView(
-                ui.iconButton("plus", "添加照片、拍照、文件或位置", ui.palette.secondary, this::attachMenu),
+                ui.iconButton(
+                        "plus", ui.t("添加照片、拍照、文件或位置"), ui.palette.secondary, this::attachMenu),
                 new LinearLayout.LayoutParams(ui.dp(44), ui.dp(48)));
         send =
                 ui.iconButton(
                         "chevron_right",
-                        "发送消息",
+                        ui.t("发送消息"),
                         ui.palette.accent,
                         () -> {
                             controller.sendDraft();
@@ -234,11 +239,11 @@ public final class ConversationPage implements PocketController.Listener {
     private void attachMenu() {
         Sheets.actions(
                 ui,
-                "添加到消息",
-                new Sheets.Action("照片", () -> host.pickAttachment("image/*")),
-                new Sheets.Action("拍照", host::takePhoto),
-                new Sheets.Action("文件", () -> host.pickAttachment("*/*")),
-                new Sheets.Action("位置", () -> host.navigate("location")));
+                ui.t("添加到消息"),
+                new Sheets.Action(ui.t("照片"), () -> host.pickAttachment("image/*")),
+                new Sheets.Action(ui.t("拍照"), host::takePhoto),
+                new Sheets.Action(ui.t("文件"), () -> host.pickAttachment("*/*")),
+                new Sheets.Action(ui.t("位置"), () -> host.navigate("location")));
     }
 
     @Override
@@ -246,12 +251,16 @@ public final class ConversationPage implements PocketController.Listener {
         if (root == null) return;
         PocketController.Snapshot s = controller.snapshot();
         if (s == null) return;
-        Ui.updateText(title, s.roomName.isEmpty() ? "Pocket E2" : s.roomName);
-        Ui.updateText(subtitle, s.status);
+        Ui.updateText(
+                title,
+                s.roomName.isEmpty() ? "Pocket E2" : s.trying ? ui.t(s.roomName) : s.roomName);
+        Ui.updateText(subtitle, ui.explain(s.status));
         String notice =
                 !s.lastError.isEmpty()
-                        ? s.lastError
-                        : s.trying ? "体验房间 · 回答为预设内容" : !s.daemonAvailable ? "暂时无法回复，消息会先记下" : "";
+                        ? ui.explain(s.lastError)
+                        : s.trying
+                                ? ui.t("体验房间 · 回答为预设内容")
+                                : !s.daemonAvailable ? ui.t("暂时无法回复，消息会先记下") : "";
         Ui.updateText(banner, notice);
         banner.setVisibility(notice.isEmpty() ? View.GONE : View.VISIBLE);
         if (revision != s.revision || s.trying || !lastReading.equals(s.readingId)) {
@@ -263,7 +272,7 @@ public final class ConversationPage implements PocketController.Listener {
         if (readOnly) return;
         boolean ambientOn = s.ambientActive, voice = s.voiceInput && !ambientOn;
         voiceToggle.setVisibility(ambientOn ? View.GONE : View.VISIBLE);
-        voiceToggle.setContentDescription(voice ? "切换到文字输入" : "切换到按住说话");
+        voiceToggle.setContentDescription(voice ? ui.t("切换到文字输入") : ui.t("切换到按住说话"));
         hold.setVisibility(voice ? View.VISIBLE : View.GONE);
         input.setVisibility(voice ? View.GONE : View.VISIBLE);
         if (voice) ui.hideKeyboard(input);
@@ -281,7 +290,7 @@ public final class ConversationPage implements PocketController.Listener {
                         ? View.VISIBLE
                         : View.GONE);
         quoteRow.setVisibility(s.quote.isEmpty() ? View.GONE : View.VISIBLE);
-        Ui.updateText(quoteText, "回复：" + s.quote);
+        Ui.updateText(quoteText, ui.t("回复：") + s.quote);
         StringBuilder ck = new StringBuilder();
         for (Attachment a : s.chips) ck.append(a.localPath).append(':').append(a.state).append('|');
         if (!chipKey.equals(ck.toString())) {
@@ -307,8 +316,10 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.label(
                                 a.name
                                         + (a.state == Attachment.UPLOADING
-                                                ? " · 上传中"
-                                                : a.state == Attachment.FAILED ? " · 重试" : ""),
+                                                ? ui.t(" · 上传中")
+                                                : a.state == Attachment.FAILED
+                                                        ? ui.t(" · 重试")
+                                                        : ""),
                                 12,
                                 a.state == Attachment.FAILED
                                         ? ui.palette.attention
@@ -326,7 +337,7 @@ public final class ConversationPage implements PocketController.Listener {
                 chip.addView(
                         ui.iconButton(
                                 "minus",
-                                "移除 " + a.name,
+                                ui.t("移除 ") + a.name,
                                 ui.palette.secondary,
                                 () -> controller.removeAttachment(a.localPath)));
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
@@ -340,8 +351,8 @@ public final class ConversationPage implements PocketController.Listener {
         Ui.updateText(
                 holdLabel,
                 hold.cancelArmed()
-                        ? "松手取消"
-                        : s.holdLive ? HoldToTalkView.duration(s.holdDurationMs) : "准备中…");
+                        ? ui.t("松手取消")
+                        : s.holdLive ? HoldToTalkView.duration(s.holdDurationMs) : ui.t("准备中…"));
     }
 
     private void updateRows(PocketController.Snapshot s) {
@@ -358,18 +369,18 @@ public final class ConversationPage implements PocketController.Listener {
         anchor.capture(true);
         List<String> keys = new ArrayList<>();
         keys.add("older");
-        older.setText(s.olderLoading ? "正在加载更早的记录…" : s.olderLabel);
+        older.setText(s.olderLoading ? ui.t("正在加载更早的记录…") : ui.explain(s.olderLabel));
         older.setEnabled(!s.olderLoading && !s.trying);
         if (s.rows.isEmpty()) {
             keys.add("empty");
             if (!keyed.containsKey("empty")) {
                 LinearLayout empty = ui.column();
                 ui.inset(empty, 20, 24);
-                ui.add(empty, ui.label("我在，随时说", 24, ui.palette.text, true), 16);
+                ui.add(empty, ui.label(ui.t("我在，随时说"), 24, ui.palette.text, true), 16);
                 ui.add(
                         empty,
                         ui.label(
-                                "按住下面的按钮说话，或切到键盘输入。环境模式会持续听着，回答接在这段对话里。",
+                                ui.t("按住下面的按钮说话，或切到键盘输入。环境模式会持续听着，回答接在这段对话里。"),
                                 15,
                                 ui.palette.secondary,
                                 false),
@@ -377,7 +388,7 @@ public final class ConversationPage implements PocketController.Listener {
                 ui.add(
                         empty,
                         ui.button(
-                                "打开环境模式",
+                                ui.t("打开环境模式"),
                                 ui.palette.accent,
                                 ui.palette.raised,
                                 () -> host.navigate("ambient")),
@@ -385,7 +396,7 @@ public final class ConversationPage implements PocketController.Listener {
                 ui.add(
                         empty,
                         ui.button(
-                                "添加 Passport",
+                                ui.t("添加 Passport"),
                                 ui.palette.secondary,
                                 0,
                                 () -> host.navigate("passport")),
@@ -410,8 +421,8 @@ public final class ConversationPage implements PocketController.Listener {
                 }
                 time.setText(
                         new SimpleDateFormat(
-                                        date.equals(day) ? "HH:mm" : "M月d日 EEEE HH:mm",
-                                        Locale.CHINA)
+                                        date.equals(day) ? "HH:mm" : ui.t("M月d日 EEEE HH:mm"),
+                                        ui.words.locale)
                                 .format(new Date(message.at)));
                 day = date;
             }
@@ -436,7 +447,7 @@ public final class ConversationPage implements PocketController.Listener {
                     if (start > 0)
                         block.addView(
                                 ui.button(
-                                        "房间里还说了 " + start + " 句",
+                                        ui.format("房间里还说了 %d 句", start),
                                         ui.palette.subtle,
                                         0,
                                         () -> {
@@ -448,9 +459,13 @@ public final class ConversationPage implements PocketController.Listener {
                         Message heardLine = heard.get(i);
                         TextView line =
                                 ui.label(
-                                        (heardLine.speaker.isEmpty() ? "听到" : heardLine.speaker)
+                                        (heardLine.speaker.isEmpty()
+                                                        ? ui.t("听到")
+                                                        : heardLine.speaker)
                                                 + " · "
-                                                + heardLine.text,
+                                                + (heardLine.id.startsWith("note:")
+                                                        ? ui.t(heardLine.text)
+                                                        : heardLine.text),
                                         13,
                                         ui.palette.subtle,
                                         false);
@@ -532,7 +547,11 @@ public final class ConversationPage implements PocketController.Listener {
         row.setGravity(mine ? Gravity.RIGHT : Gravity.LEFT);
         if (trace != null) {
             TextView detail =
-                    ui.button(trace.summary(), ui.palette.subtle, 0, () -> traceSheet(trace));
+                    ui.button(
+                            ui.words.traceSummary(trace.steps.size(), trace.elapsedMs),
+                            ui.palette.subtle,
+                            0,
+                            () -> traceSheet(trace));
             row.addView(detail);
         }
         LinearLayout bubble = ui.column();
@@ -541,7 +560,7 @@ public final class ConversationPage implements PocketController.Listener {
         if (!m.voiceSource.isEmpty()) {
             TextView voice =
                     ui.label(
-                            (m.voiceSource.equals("passport") ? "Passport 语音" : "语音")
+                            (m.voiceSource.equals("passport") ? ui.t("Passport 语音") : ui.t("语音"))
                                     + (m.durationMs > 0
                                             ? " · " + HoldToTalkView.duration(m.durationMs)
                                             : ""),
@@ -583,7 +602,7 @@ public final class ConversationPage implements PocketController.Listener {
         } else if (m.attachments.isEmpty())
             bubble.addView(
                     ui.label(
-                            m.delivery == Message.FAILED ? "语音未送达" : "正在识别…",
+                            m.delivery == Message.FAILED ? ui.t("语音未送达") : ui.t("正在识别…"),
                             15,
                             ui.palette.secondary,
                             false));
@@ -597,15 +616,17 @@ public final class ConversationPage implements PocketController.Listener {
         if (mine)
             meta =
                     m.delivery == Message.FAILED
-                            ? m.error.isEmpty() ? "没发出去 · 轻点重试" : m.error
+                            ? m.error.isEmpty() ? ui.t("没发出去 · 轻点重试") : ui.explain(m.error)
                             : !m.voiceSource.isEmpty() && m.text.isEmpty()
-                                    ? "正在识别…"
+                                    ? ui.t("正在识别…")
                                     : m.delivery == Message.QUEUED
-                                            ? "等待网络 · 已存本机"
-                                            : m.delivery == Message.SENDING ? "发送中…" : "已送达";
-        else if (m.spoken == Message.PARTLY_SPOKEN || m.truncated) meta = "只播了一部分";
-        else if (m.spoken == Message.SPOKEN) meta = "已播报";
-        if (s.readingId.equals(m.id)) meta = "正在朗读 · 点按停止";
+                                            ? ui.t("等待网络 · 已存本机")
+                                            : m.delivery == Message.SENDING
+                                                    ? ui.t("发送中…")
+                                                    : ui.t("已送达");
+        else if (m.spoken == Message.PARTLY_SPOKEN || m.truncated) meta = ui.t("只播了一部分");
+        else if (m.spoken == Message.SPOKEN) meta = ui.t("已播报");
+        if (s.readingId.equals(m.id)) meta = ui.t("正在朗读 · 点按停止");
         if (!meta.isEmpty()) {
             TextView note =
                     ui.label(
@@ -618,7 +639,7 @@ public final class ConversationPage implements PocketController.Listener {
             if (m.delivery == Message.FAILED) note.setOnClickListener(v -> messageActions(m));
             if (s.readingId.equals(m.id)) note.setOnClickListener(v -> controller.readAloud(m));
         }
-        row.setContentDescription((mine ? "我" : "回答") + "，" + m.text + "，" + meta);
+        row.setContentDescription((mine ? ui.t("我") : ui.t("回答")) + "，" + m.text + "，" + meta);
         return row;
     }
 
@@ -637,13 +658,13 @@ public final class ConversationPage implements PocketController.Listener {
     private void messageActions(Message m) {
         List<Sheets.Action> actions = new ArrayList<>();
         if (!m.text.isEmpty()) {
-            actions.add(new Sheets.Action("复制", () -> ui.copy("消息", m.text)));
-            actions.add(new Sheets.Action("分享", () -> ui.shareText(m.text)));
+            actions.add(new Sheets.Action(ui.t("复制"), () -> ui.copy(ui.t("消息"), m.text)));
+            actions.add(new Sheets.Action(ui.t("分享"), () -> ui.shareText(m.text)));
         }
         if (m.kind == Message.DUODUO && !m.text.isEmpty()) {
             actions.add(
                     new Sheets.Action(
-                            "回复",
+                            ui.t("回复"),
                             () -> {
                                 controller.quote(m.text);
                                 if (readOnly) {
@@ -662,26 +683,29 @@ public final class ConversationPage implements PocketController.Listener {
                             }));
             actions.add(
                     new Sheets.Action(
-                            controller.snapshot().readingId.equals(m.id) ? "停止朗读" : "朗读",
+                            controller.snapshot().readingId.equals(m.id)
+                                    ? ui.t("停止朗读")
+                                    : ui.t("朗读"),
                             () -> controller.readAloud(m)));
         }
         if (m.delivery == Message.FAILED || m.delivery == Message.QUEUED) {
             actions.add(
-                    new Sheets.Action(m.seq >= 0 ? "重新发送" : "重试", () -> controller.retry(m.id)));
+                    new Sheets.Action(
+                            m.seq >= 0 ? ui.t("重新发送") : ui.t("重试"), () -> controller.retry(m.id)));
             if (m.seq < 0)
                 actions.add(
                         new Sheets.Action(
-                                "删除待发送消息",
+                                ui.t("删除待发送消息"),
                                 true,
                                 () ->
                                         Sheets.confirm(
                                                 ui,
-                                                "删除待发送消息",
-                                                "这条消息和本机保留的录音会被删除。",
-                                                "删除",
+                                                ui.t("删除待发送消息"),
+                                                ui.t("这条消息和本机保留的录音会被删除。"),
+                                                ui.t("删除"),
                                                 () -> controller.discard(m.id))));
         }
-        Sheets.actions(ui, "消息", actions.toArray(new Sheets.Action[0]));
+        Sheets.actions(ui, ui.t("消息"), actions.toArray(new Sheets.Action[0]));
     }
 
     private void traceSheet(TurnState.Trace trace) {
@@ -690,8 +714,8 @@ public final class ConversationPage implements PocketController.Listener {
             rows.add(
                     new Sheets.Action(
                             (step.done ? "✓ " : "… ") + step.line(),
-                            () -> ui.copy("工具步骤", step.line())));
-        Sheets.actions(ui, "执行工具", rows.toArray(new Sheets.Action[0]));
+                            () -> ui.copy(ui.t("工具步骤"), step.line())));
+        Sheets.actions(ui, ui.t("执行工具"), rows.toArray(new Sheets.Action[0]));
     }
 
     private void updateWorking(PocketController.Snapshot s) {
@@ -699,11 +723,11 @@ public final class ConversationPage implements PocketController.Listener {
         anchor.capture(true);
         working.setVisibility(w == null ? View.GONE : View.VISIBLE);
         if (w == null) return;
-        String value = w.text.isEmpty() ? w.label() : w.text + " ▍";
+        String value = w.text.isEmpty() ? ui.t(w.label()) : w.text + " ▍";
         if (w.text.isEmpty() && !w.steps.isEmpty()) {
             TurnState.Step step = w.steps.get(w.steps.size() - 1);
             value +=
-                    (w.steps.size() > 1 ? " · +" + (w.steps.size() - 1) + " 步" : "")
+                    (w.steps.size() > 1 ? " · +" + ui.words.steps(w.steps.size() - 1) : "")
                             + "\n"
                             + step.line();
         }

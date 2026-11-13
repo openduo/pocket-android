@@ -28,13 +28,15 @@ public final class BottomNav {
         root.setPadding(ui.dp(10), ui.dp(5), ui.dp(10), ui.dp(5));
         for (String[] item :
                 new String[][] {
-                    {"messages_square", "对话", "conversation"},
-                    {"audio_lines", "环境", "ambient"},
-                    {"settings", "设置", "settings"}
+                    {"messages_square", ui.t("对话"), "conversation"},
+                    {"audio_lines", ui.t("环境"), "ambient"},
+                    {"settings", ui.t("设置"), "settings"}
                 }) {
             boolean active = item[2].equals(selected);
             LinearLayout control = ui.column();
             control.setGravity(Gravity.CENTER);
+            control.setMinimumHeight(ui.dp(50));
+            control.setPadding(0, ui.dp(6), 0, ui.dp(6));
             control.addView(ui.icon(item[0], active ? ui.palette.accent : ui.palette.subtle, 21));
             TextView text =
                     ui.label(item[1], 11, active ? ui.palette.text : ui.palette.subtle, active);
@@ -45,7 +47,7 @@ public final class BottomNav {
             control.setContentDescription(item[1]);
             ui.clickable(
                     control, active ? ui.palette.selected : 0, 12, () -> listener.select(item[2]));
-            root.addView(control, new LinearLayout.LayoutParams(0, ui.dp(50), 1));
+            root.addView(control, new LinearLayout.LayoutParams(0, -2, 1));
         }
         return root;
     }

@@ -39,6 +39,11 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            java.io.File[] screenshots =
+                    new java.io.File(context.getExternalCacheDir(), "qa").listFiles();
+            if (screenshots != null)
+                for (java.io.File file : screenshots)
+                    if (file.isFile() && file.getName().endsWith(".png")) file.delete();
             database(context);
             codec();
             assertions += top.kuaner.pockete2.core.SecretProbe.run(context);
@@ -479,6 +484,7 @@ public final class Probe extends Instrumentation {
             image.recycle();
         }
         if (!controller.configured()) {
+            boolean english = top.kuaner.pockete2.text.AppText.get(context).en;
             boolean originalVoice = controller.settings.voiceInput();
             String originalDraft = controller.draft();
             long originalCursor = controller.snapshot().cursor;
@@ -558,7 +564,8 @@ public final class Probe extends Instrumentation {
                                             row.kind == Message.DUODUO
                                                     && row.id.startsWith("ans:")
                                                     && row.seq >= 0
-                                                    && row.text.contains("体验模式"))
+                                                    && row.text.contains(
+                                                            english ? "try-it mode" : "体验模式"))
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             check(
                     controller.snapshot().rows.stream()
@@ -567,7 +574,8 @@ public final class Probe extends Instrumentation {
                                             row.kind == Message.DUODUO
                                                     && row.id.startsWith("ans:")
                                                     && row.seq >= 0
-                                                    && row.text.contains("体验模式")),
+                                                    && row.text.contains(
+                                                            english ? "try-it mode" : "体验模式")),
                     "try final settles through the ordinary channel log");
             check(
                     controller.snapshot().outbox.isEmpty(),
@@ -609,7 +617,7 @@ public final class Probe extends Instrumentation {
             check(
                     controller.snapshot().sessions.outcome.equals("sent")
                             && controller.snapshot().sessions.rows.stream()
-                                    .anyMatch(r -> r.text.contains("未发送")),
+                                    .anyMatch(r -> r.text.contains(english ? "not sent" : "未发送")),
                     "try scoped notify stays local and labelled");
             java.io.File photo = imageFile(context);
             final boolean[] pasted = {false};
@@ -755,8 +763,423 @@ public final class Probe extends Instrumentation {
                             && controller.snapshot().cursor == originalCursor
                             && restoredRows.equals(originalRows),
                     "try exit restores the actual room draft, rows and cursor");
+            localization(context, screen, controller);
         }
         runOnMainSync(screen::finish);
+    }
+
+    private void localization(Context context, Activity original, PocketController controller)
+            throws Exception {
+        String language = controller.settings.language();
+        String appearance = controller.settings.appearance();
+        boolean originalVoice = controller.settings.voiceInput();
+        android.app.Application application =
+                (android.app.Application) context.getApplicationContext();
+        java.util.concurrent.atomic.AtomicReference<Activity> current =
+                new java.util.concurrent.atomic.AtomicReference<>(original);
+        android.app.Application.ActivityLifecycleCallbacks lifecycle =
+                new android.app.Application.ActivityLifecycleCallbacks() {
+                    public void onActivityCreated(Activity activity, Bundle saved) {}
+
+                    public void onActivityStarted(Activity activity) {}
+
+                    public void onActivityResumed(Activity activity) {
+                        if (activity instanceof top.kuaner.pockete2.app.MainActivity)
+                            current.set(activity);
+                    }
+
+                    public void onActivityPaused(Activity activity) {}
+
+                    public void onActivityStopped(Activity activity) {}
+
+                    public void onActivitySaveInstanceState(Activity activity, Bundle saved) {}
+
+                    public void onActivityDestroyed(Activity activity) {}
+                };
+        application.registerActivityLifecycleCallbacks(lifecycle);
+        try {
+            if (language.equals("en")) {
+                controller.changeLanguage("zh-Hans");
+                runOnMainSync(original::recreate);
+                long until = android.os.SystemClock.elapsedRealtime() + 5000;
+                while (current.get() == original
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                check(
+                        current.get() != original,
+                        "language probe can start from an English preference");
+            }
+            Activity source = current.get();
+            controller.startTrying();
+            long until = android.os.SystemClock.elapsedRealtime() + 4000;
+            while ((!controller.snapshot().trying
+                            || controller.snapshot().connection
+                                    != PocketController.Connection.ONLINE)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            runOnMainSync(
+                    () -> ((top.kuaner.pockete2.app.MainActivity) source).navigate("settings"));
+            waitForIdleSync();
+            runOnMainSync(
+                    () -> {
+                        android.widget.TextView label =
+                                textView(
+                                        source.getWindow().getDecorView(),
+                                        top.kuaner.pockete2.text.AppText.get(context).t("语言"));
+                        if (label == null) throw new AssertionError("Language setting missing");
+                        android.view.View row = (android.view.View) label.getParent().getParent();
+                        label.requestRectangleOnScreen(
+                                new android.graphics.Rect(
+                                        0, 0, label.getWidth(), label.getHeight()),
+                                true);
+                        row.performClick();
+                    });
+            waitForIdleSync();
+            clickAccessibleText("English");
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while ((current.get() == source
+                            || !controller.settings.language().equals("en")
+                            || controller.snapshot().rows.stream()
+                                    .noneMatch(row -> row.text.startsWith("Welcome to Pocket E2")))
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            check(
+                    current.get() != source
+                            && controller.settings.language().equals("en")
+                            && controller.snapshot().rows.stream()
+                                    .anyMatch(row -> row.text.startsWith("Welcome to Pocket E2")),
+                    "language setting recreates native UI and restarts the disposable English"
+                            + " room");
+            Activity english = current.get();
+            runOnMainSync(
+                    () ->
+                            ((top.kuaner.pockete2.app.MainActivity) english)
+                                    .navigate("conversation"));
+            controller.setVoiceInput(false);
+            waitForIdleSync();
+            Thread.sleep(150);
+            android.widget.EditText[] input = {null};
+            runOnMainSync(() -> input[0] = visibleInput(english.getWindow().getDecorView()));
+            check(
+                    input[0] != null
+                            && input[0].getHint().toString().equals("Message…")
+                            && english.getResources()
+                                    .getConfiguration()
+                                    .getLocales()
+                                    .get(0)
+                                    .getLanguage()
+                                    .equals("en"),
+                    "English composer and native resource locale apply without a system-language"
+                            + " change");
+            controller.draft("设置是我的消息，不要翻译 / Settings stays literal");
+            controller.sendDraft();
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while (controller.snapshot().rows.stream().noneMatch(row -> row.id.startsWith("ans:"))
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            check(
+                    controller.snapshot().rows.stream()
+                                    .anyMatch(
+                                            row ->
+                                                    row.kind == Message.MINE
+                                                            && row.text.equals(
+                                                                    "设置是我的消息，不要翻译 / Settings stays"
+                                                                            + " literal"))
+                            && controller.snapshot().rows.stream()
+                                    .anyMatch(row -> row.text.startsWith("Hi, I'm DuoDuo")),
+                    "English try transport preserves user content and uses prepared English"
+                            + " replies");
+            Thread.sleep(150);
+            screenshot(context, "conversation-en");
+            visualVariant(context, english, controller, false, 1.35f);
+            runOnMainSync(
+                    () -> ((top.kuaner.pockete2.app.MainActivity) english).navigate("settings"));
+            waitForIdleSync();
+            check(
+                    textView(english.getWindow().getDecorView(), "Settings") != null
+                            && textView(
+                                            english.getWindow().getDecorView(),
+                                            "Use headset microphone")
+                                    != null,
+                    "settings controls use the selected English catalog");
+            screenshot(context, "settings-en");
+            runOnMainSync(
+                    () -> ((top.kuaner.pockete2.app.MainActivity) english).navigate("sessions"));
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (!controller.snapshot().sessions.listed
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            check(
+                    controller.snapshot().sessions.sessions.stream()
+                            .anyMatch(session -> session.name.equals("Sample: weekly report")),
+                    "English sample sessions use the same local watch transport");
+            boolean[] rendered = {false};
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (!rendered[0] && android.os.SystemClock.elapsedRealtime() < until) {
+                runOnMainSync(
+                        () ->
+                                rendered[0] =
+                                        textView(
+                                                        english.getWindow().getDecorView(),
+                                                        "Sample: weekly report",
+                                                        true)
+                                                != null);
+                if (!rendered[0]) Thread.sleep(20);
+            }
+            check(rendered[0], "English sample session list is rendered on the visible page");
+            screenshot(context, "sessions-en");
+            runOnMainSync(
+                    () ->
+                            ((android.view.View)
+                                            textView(
+                                                            english.getWindow().getDecorView(),
+                                                            "Sample: weekly report")
+                                                    .getParent()
+                                                    .getParent())
+                                    .performClick());
+            until = android.os.SystemClock.elapsedRealtime() + 4000;
+            while ((!controller.snapshot().sessions.openKey.equals("try-chat")
+                            || !controller.snapshot().sessions.loaded)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Thread.sleep(100);
+            runOnMainSync(
+                    () -> {
+                        android.widget.EditText field =
+                                visibleInput(english.getWindow().getDecorView());
+                        if (field != null) field.setText("QA draft for the weekly report");
+                    });
+            check(
+                    textView(english.getWindow().getDecorView(), "Notify Sample: weekly report")
+                                    != null
+                            && textView(
+                                            english.getWindow().getDecorView(),
+                                            "Notification · From",
+                                            true)
+                                    != null,
+                    "session thread names the notification recipient and the sending session");
+            screenshot(context, "session-thread-en");
+            controller.openSession("try-job");
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while ((!controller.snapshot().sessions.openKey.equals("try-job")
+                            || !controller.snapshot().sessions.loaded)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Thread.sleep(100);
+            check(
+                    visibleInput(english.getWindow().getDecorView()) == null,
+                    "sessions without notify capability have no editable composer");
+            controller.openSession("try-chat");
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while ((!controller.snapshot().sessions.openKey.equals("try-chat")
+                            || !controller.snapshot().sessions.loaded)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Thread.sleep(100);
+            boolean[] restoredSessionDraft = {false}, sentSessionDraft = {false};
+            runOnMainSync(
+                    () -> {
+                        android.widget.EditText field =
+                                visibleInput(english.getWindow().getDecorView());
+                        restoredSessionDraft[0] =
+                                field != null
+                                        && field.getText()
+                                                .toString()
+                                                .equals("QA draft for the weekly report");
+                        android.view.View send =
+                                describedView(
+                                        english.getWindow().getDecorView(), "Send notification");
+                        sentSessionDraft[0] =
+                                send != null && send.isEnabled() && send.performClick();
+                    });
+            check(
+                    restoredSessionDraft[0],
+                    "switching sessions preserves a draft only for its named recipient");
+            check(
+                    sentSessionDraft[0],
+                    "native session notification is reachable and enabled for its draft");
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (!controller.snapshot().sessions.outcome.equals("sent")
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Thread.sleep(100);
+            android.widget.EditText sentInput = visibleInput(english.getWindow().getDecorView());
+            check(
+                    controller.snapshot().sessions.notifyKey.equals("try-chat")
+                            && sentInput != null
+                            && sentInput.length() == 0,
+                    "native session send clears its draft only after the correlated local"
+                            + " acknowledgement");
+            runOnMainSync(() -> sentInput.setText("QA retained across theme"));
+            controller.sessionList();
+            android.app.NotificationChannel answers =
+                    context.getSystemService(android.app.NotificationManager.class)
+                            .getNotificationChannel("answers");
+            check(
+                    answers != null && "Background answers".contentEquals(answers.getName()),
+                    "language switch updates app-owned notification channel names");
+            controller.settings.appearance("light");
+            runOnMainSync(english::recreate);
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while (current.get() == english && android.os.SystemClock.elapsedRealtime() < until)
+                Thread.sleep(20);
+            Activity light = current.get();
+            check(
+                    light != english
+                            && top.kuaner.pockete2.ui.Ui.lightTheme(light)
+                            && controller.snapshot().rows.stream()
+                                    .anyMatch(
+                                            row ->
+                                                    row.text.equals(
+                                                            "设置是我的消息，不要翻译 / Settings stays"
+                                                                    + " literal")),
+                    "native light-theme recreation preserves the current room content");
+            controller.openSession("try-chat");
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while ((!controller.snapshot().sessions.openKey.equals("try-chat")
+                            || !controller.snapshot().sessions.loaded)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Thread.sleep(100);
+            android.widget.EditText[] retainedInput = {null};
+            runOnMainSync(
+                    () -> {
+                        retainedInput[0] = visibleInput(light.getWindow().getDecorView());
+                        if (retainedInput[0] != null) {
+                            retainedInput[0].requestFocus();
+                            light.getSystemService(
+                                            android.view.inputmethod.InputMethodManager.class)
+                                    .showSoftInput(
+                                            retainedInput[0],
+                                            android.view.inputmethod.InputMethodManager
+                                                    .SHOW_FORCED);
+                        }
+                    });
+            check(
+                    retainedInput[0] != null
+                            && retainedInput[0]
+                                    .getText()
+                                    .toString()
+                                    .equals("QA retained across theme"),
+                    "native theme recreation retains the named session notification draft");
+            Thread.sleep(900);
+            android.graphics.Rect notificationBounds = new android.graphics.Rect(),
+                    notificationWindow = new android.graphics.Rect();
+            runOnMainSync(
+                    () -> {
+                        retainedInput[0].getGlobalVisibleRect(notificationBounds);
+                        light.getWindow()
+                                .getDecorView()
+                                .getWindowVisibleDisplayFrame(notificationWindow);
+                    });
+            check(
+                    notificationBounds.height() >= 40
+                            && notificationBounds.bottom <= notificationWindow.bottom
+                            && context.getResources().getDisplayMetrics().heightPixels
+                                            - notificationWindow.bottom
+                                    >= 140,
+                    "named session notification remains editable above the real E2 keyboard");
+            screenshot(context, "session-notify-keyboard-en");
+            runOnMainSync(
+                    () ->
+                            light.getSystemService(
+                                            android.view.inputmethod.InputMethodManager.class)
+                                    .hideSoftInputFromWindow(retainedInput[0].getWindowToken(), 0));
+            runOnMainSync(
+                    () -> ((top.kuaner.pockete2.app.MainActivity) light).navigate("conversation"));
+            android.graphics.Rect lightComposer = new android.graphics.Rect();
+            until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while (lightComposer.height() < 40
+                    && android.os.SystemClock.elapsedRealtime() < until) {
+                runOnMainSync(
+                        () -> {
+                            android.widget.EditText field =
+                                    visibleInput(light.getWindow().getDecorView());
+                            if (field != null) field.getGlobalVisibleRect(lightComposer);
+                        });
+                if (lightComposer.height() < 40) Thread.sleep(20);
+            }
+            screenshot(context, "conversation-en-light-activity");
+            check(
+                    !controller.snapshot().voiceInput
+                            && lightComposer.height() >= 40
+                            && lightComposer.bottom <= light.getWindow().getDecorView().getHeight(),
+                    "native theme recreation retains the text composer inside the current"
+                            + " viewport");
+        } finally {
+            controller.settings.appearance(appearance);
+            controller.stopTrying();
+            controller.changeLanguage(language);
+            controller.setVoiceInput(originalVoice);
+            long until = android.os.SystemClock.elapsedRealtime() + 3000;
+            while ((controller.snapshot().trying
+                            || controller.settings.voiceInput() != originalVoice
+                            || !top.kuaner.pockete2.text.AppText.get(context)
+                                    .t("后台回答")
+                                    .contentEquals(
+                                            context.getSystemService(
+                                                            android.app.NotificationManager.class)
+                                                    .getNotificationChannel("answers")
+                                                    .getName()))
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            Activity last = current.get();
+            runOnMainSync(last::finish);
+            application.unregisterActivityLifecycleCallbacks(lifecycle);
+            check(
+                    context.getSharedPreferences("pocket-e2.settings", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("appearance", appearance)
+                            .putString("language", language)
+                            .putBoolean("voiceInput", originalVoice)
+                            .commit(),
+                    "localization probes synchronously restore only the app's original presentation"
+                            + " preferences");
+        }
+    }
+
+    private android.widget.TextView textView(android.view.View root, String text) {
+        return textView(root, text, false);
+    }
+
+    private android.view.View describedView(android.view.View root, String description) {
+        if (!root.isShown()) return null;
+        if (description.contentEquals(
+                root.getContentDescription() == null ? "" : root.getContentDescription()))
+            return root;
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.view.View result = describedView(group.getChildAt(i), description);
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private android.widget.TextView textView(android.view.View root, String text, boolean prefix) {
+        if (!root.isShown()) return null;
+        if (root instanceof android.widget.TextView
+                && (prefix
+                        ? ((android.widget.TextView) root).getText().toString().startsWith(text)
+                        : text.contentEquals(((android.widget.TextView) root).getText())))
+            return (android.widget.TextView) root;
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.widget.TextView result = textView(group.getChildAt(i), text, prefix);
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private void clickAccessibleText(String text) throws Exception {
+        long until = android.os.SystemClock.elapsedRealtime() + 3000;
+        while (android.os.SystemClock.elapsedRealtime() < until) {
+            android.view.accessibility.AccessibilityNodeInfo root =
+                    getUiAutomation().getRootInActiveWindow();
+            if (root != null) {
+                for (android.view.accessibility.AccessibilityNodeInfo node :
+                        root.findAccessibilityNodeInfosByText(text))
+                    if (node.getText() != null
+                            && text.contentEquals(node.getText())
+                            && node.performAction(
+                                    android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))
+                        return;
+            }
+            Thread.sleep(30);
+        }
+        throw new AssertionError("Could not activate language choice: " + text);
     }
 
     private void visualVariant(
@@ -816,7 +1239,6 @@ public final class Probe extends Instrumentation {
                             new top.kuaner.pockete2.ui.pages.ConversationPage(host, controller);
                     android.widget.LinearLayout shell = variant.column();
                     shell.setBackgroundColor(variant.palette.background);
-                    shell.setPadding(0, variant.dp(24), 0, 0);
                     shell.addView(
                             preview[0].render(),
                             new android.widget.LinearLayout.LayoutParams(-1, 0, 1));
@@ -828,16 +1250,21 @@ public final class Probe extends Instrumentation {
                                     screen,
                                     light
                                             ? top.kuaner.pockete2.R.style.PocketLightTheme
-                                            : top.kuaner.pockete2.R.style.PocketTheme);
-                    dialog[0].setContentView(shell);
+                                            : top.kuaner.pockete2.R.style.PocketTheme) {
+                                @Override
+                                public void onWindowFocusChanged(boolean focused) {
+                                    super.onWindowFocusChanged(focused);
+                                    if (focused) variant.immersive(getWindow());
+                                }
+                            };
+                    top.kuaner.pockete2.ui.InsetsFrame frame =
+                            new top.kuaner.pockete2.ui.InsetsFrame(variant);
+                    frame.setBackgroundColor(variant.palette.background);
+                    frame.addView(shell);
+                    dialog[0].setContentView(frame);
                     dialog[0].show();
                     dialog[0].getWindow().setLayout(-1, -1);
-                    dialog[0]
-                            .getWindow()
-                            .getDecorView()
-                            .setSystemUiVisibility(
-                                    android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                    variant.immersive(dialog[0].getWindow());
                 });
         try {
             waitForIdleSync();
@@ -856,7 +1283,12 @@ public final class Probe extends Instrumentation {
                     light
                             ? "light-theme compact composer reachable"
                             : "large-font compact composer reachable");
-            screenshot(context, light ? "conversation-light" : "conversation-large-font");
+            boolean english = top.kuaner.pockete2.text.AppText.get(context).en;
+            screenshot(
+                    context,
+                    english
+                            ? light ? "conversation-en-light" : "conversation-en-large-font"
+                            : light ? "conversation-light" : "conversation-large-font");
         } finally {
             runOnMainSync(
                     () -> {
@@ -880,6 +1312,9 @@ public final class Probe extends Instrumentation {
     }
 
     private void screenshot(Context context, String name) throws Exception {
+        waitForIdleSync();
+        getUiAutomation().waitForIdle(150, 2000);
+        Thread.sleep(350);
         android.graphics.Bitmap bitmap = getUiAutomation().takeScreenshot();
         if (bitmap == null) return;
         java.io.File directory = new java.io.File(context.getExternalCacheDir(), "qa");
@@ -923,6 +1358,47 @@ public final class Probe extends Instrumentation {
         }
     }
 
+    private final class HeldCamera implements AutoCloseable {
+        final AtomicInteger frames = new AtomicInteger();
+        final CountDownLatch first = new CountDownLatch(1);
+        volatile String failure = "";
+        final top.kuaner.pockete2.pairing.QrCapture capture;
+
+        HeldCamera(Context context) {
+            capture =
+                    new top.kuaner.pockete2.pairing.QrCapture(
+                            context,
+                            new top.kuaner.pockete2.pairing.QrCapture.Listener() {
+                                public void preview(android.graphics.Bitmap bitmap) {
+                                    bitmap.recycle();
+                                    frames.incrementAndGet();
+                                    first.countDown();
+                                }
+
+                                public void code(String ignored) {}
+
+                                public void failed(String reason) {
+                                    failure = reason;
+                                    first.countDown();
+                                }
+                            });
+        }
+
+        void ready() throws Exception {
+            check(
+                    first.await(8, TimeUnit.SECONDS) && failure.isEmpty(),
+                    "independent native camera owner is capturing before Sight opt-in");
+        }
+
+        @Override
+        public void close() throws Exception {
+            capture.close();
+            check(
+                    capture.awaitStopped(4_000),
+                    "independent camera owner releases its native session");
+        }
+    }
+
     private void sightSession(Context context) throws Exception {
         java.util.concurrent.ExecutorService serial =
                 java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -930,8 +1406,11 @@ public final class Probe extends Instrumentation {
                 java.util.concurrent.Executors.newSingleThreadExecutor();
         CountDownLatch first = new CountDownLatch(2),
                 resumed = new CountDownLatch(1),
-                rotated = new CountDownLatch(1);
+                rotated = new CountDownLatch(1),
+                renegotiated = new CountDownLatch(1);
         AtomicInteger phase = new AtomicInteger(1), declines = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<String> lastDecline =
+                new java.util.concurrent.atomic.AtomicReference<>("");
         java.util.concurrent.atomic.AtomicLong lastSeq =
                 new java.util.concurrent.atomic.AtomicLong(-1);
         java.util.concurrent.atomic.AtomicBoolean monotone =
@@ -950,8 +1429,10 @@ public final class Probe extends Instrumentation {
                             public void changed() {}
 
                             public void text(org.json.JSONObject frame) {
-                                if (frame.optString("type").equals("camera_declined"))
+                                if (frame.optString("type").equals("camera_declined")) {
                                     declines.incrementAndGet();
+                                    lastDecline.set(frame.optString("reason"));
+                                }
                             }
 
                             public void binary(byte[] frame) {
@@ -979,7 +1460,10 @@ public final class Probe extends Instrumentation {
                                 }
                                 if (phase.get() == 1) first.countDown();
                                 else if (phase.get() == 2) resumed.countDown();
-                                else if ((frame[1] & 1) != 0) rotated.countDown();
+                                else if (phase.get() == 3 && (frame[1] & 1) != 0)
+                                    rotated.countDown();
+                                else if (phase.get() == 4 && (frame[1] & 1) != 0)
+                                    renegotiated.countDown();
                             }
                         });
         org.json.JSONObject ask =
@@ -1019,10 +1503,27 @@ public final class Probe extends Instrumentation {
                             .get(3, TimeUnit.SECONDS);
             check(gated, "SightSession requires explicit opt-in after server ask");
             session.previewWanted(true);
-            serial.submit(session::toggle).get(3, TimeUnit.SECONDS);
+            try (HeldCamera peer = new HeldCamera(context)) {
+                peer.ready();
+                serial.submit(session::toggle).get(3, TimeUnit.SECONDS);
+                long until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (!lastDecline.get().equals("camera_taken")
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                int before = peer.frames.get();
+                Thread.sleep(500);
+                check(
+                        serial.submit(() -> !session.snapshot().on && session.snapshot().requested)
+                                        .get(3, TimeUnit.SECONDS)
+                                && lastSeq.get() == -1
+                                && peer.failure.isEmpty()
+                                && peer.frames.get() > before,
+                        "Sight waits for the occupied camera without preempting its native owner or"
+                                + " clearing opt-in");
+            }
             check(
                     first.await(10, TimeUnit.SECONDS),
-                    "SightSession admits real native video after opt-in");
+                    "SightSession automatically admits a key frame after the occupied camera is"
+                            + " released");
             long previewUntil = android.os.SystemClock.elapsedRealtime() + 3000;
             while (session.preview() == null
                     && android.os.SystemClock.elapsedRealtime() < previewUntil) Thread.sleep(10);
@@ -1089,10 +1590,67 @@ public final class Probe extends Instrumentation {
                                     == rotatedConfig.get().optInt("width")
                             && monotone.get(),
                     "camera orientation restarts with swapped dimensions and preserves connection"
-                        + " sequence");
+                            + " sequence");
+
+            org.json.JSONObject unsupported = new org.json.JSONObject(ask.toString());
+            unsupported.getJSONObject("capture").getJSONObject("video").put("codec", "avc1.7b001f");
+            serial.submit(() -> session.asked(unsupported)).get(3, TimeUnit.SECONDS);
+            long until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while (!lastDecline.get().equals("no_h264")
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            check(
+                    lastDecline.get().equals("no_h264")
+                            && serial.submit(
+                                            () ->
+                                                    session.snapshot().requested
+                                                            && !session.snapshot().on)
+                                    .get(3, TimeUnit.SECONDS),
+                    "unsupported H264 holds the format failure while retaining the user's camera"
+                            + " switch");
+            int heldDeclines = declines.get();
+            for (int i = 0; i < 5; i++)
+                serial.submit(() -> session.update(true, true, true, true, 0))
+                        .get(3, TimeUnit.SECONDS);
+            Thread.sleep(600);
+            check(
+                    declines.get() == heldDeclines,
+                    "identical room publishes do not restart an unsupported encoder or repeat its"
+                            + " decline");
+            serial.submit(
+                            () -> {
+                                phase.set(4);
+                                session.asked(ask);
+                            })
+                    .get(3, TimeUnit.SECONDS);
+            check(
+                    renegotiated.await(10, TimeUnit.SECONDS) && monotone.get(),
+                    "a valid replacement ask resumes with a key frame and the existing connection"
+                            + " sequence");
+
+            serial.submit(() -> session.update(true, true, true, false, 0))
+                    .get(3, TimeUnit.SECONDS);
+            closer.submit(() -> {}).get(5, TimeUnit.SECONDS);
+            try (HeldCamera peer = new HeldCamera(context)) {
+                peer.ready();
+                serial.submit(() -> session.update(true, true, true, true, 0))
+                        .get(3, TimeUnit.SECONDS);
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (!lastDecline.get().equals("camera_taken")
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                serial.submit(session::toggle).get(3, TimeUnit.SECONDS);
+            }
+            long stoppedSeq = lastSeq.get();
+            Thread.sleep(700);
+            check(
+                    serial.submit(() -> !session.snapshot().requested && !session.snapshot().on)
+                                    .get(3, TimeUnit.SECONDS)
+                            && lastSeq.get() == stoppedSeq,
+                    "turning the camera off while occupied cancels availability recovery and late"
+                            + " video");
         } finally {
             serial.submit(session::clear).get(3, TimeUnit.SECONDS);
             closer.submit(() -> {}).get(5, TimeUnit.SECONDS);
+            runOnMainSync(() -> {});
             serial.shutdown();
             closer.shutdown();
         }
@@ -1100,8 +1658,9 @@ public final class Probe extends Instrumentation {
 
     private static android.widget.EditText input(android.view.View view) {
         if (view instanceof android.widget.EditText
-                && String.valueOf(((android.widget.EditText) view).getHint()).contains("发消息"))
-            return (android.widget.EditText) view;
+                && (String.valueOf(((android.widget.EditText) view).getHint()).contains("发消息")
+                        || String.valueOf(((android.widget.EditText) view).getHint())
+                                .equals("Message…"))) return (android.widget.EditText) view;
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {

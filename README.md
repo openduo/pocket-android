@@ -13,9 +13,15 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 Passport central/press/reply logic, a scoped session viewer, attachment import/sharing, native map
 selection and Camera2 H.264 media-v1 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **98 host contract assertions and 57 E2 device assertions**,
+The latest local checkpoint passed **126 host contract assertions and 85 E2 device assertions**,
 plus Go vet/tests and the Android build. Real-room login, API/audio integration and an external
 Passport have not been verified. These checks are regression evidence, not a parity-completion claim.
+
+The checkpoint includes native Chinese/English switching, literal user-content preservation,
+language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
+with source/activity, grouped lists and recipient-specific notification drafts. English conversation,
+settings and session screens were inspected at ~259 dp, including 1.35 font scale, light theme and
+the real E2 keyboard. `docs/migration.md` keeps external-service/hardware gaps separate.
 
 ## Build
 
@@ -52,6 +58,8 @@ it never changes the user's density, overscan, launcher or E2Studio.
 - `sight/`, `location/`: H.264 capture/framing and the location/map picker.
 - `trymode/`: disposable API-v2 channel behind the same HTTP/live/speech boundary; in-memory SQLite
   room, isolated temporary files, idempotent receipts and prepared scenarios.
+- `text/`: immutable application-copy catalogs, scoped native language configuration and Markdown
+  processing. UI content and localization boundaries are documented in `docs/localization.md`.
 - `ui/`: retained native pages, compact sheets, semantic themes, Markdown and scroll anchoring.
 - `tests/`: host contracts and a separately signed instrumentation APK with a disposable database.
 

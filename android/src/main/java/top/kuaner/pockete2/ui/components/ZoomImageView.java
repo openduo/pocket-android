@@ -19,7 +19,7 @@ public final class ZoomImageView extends ImageView {
     public ZoomImageView(Context context) {
         super(context);
         setScaleType(ScaleType.MATRIX);
-        setContentDescription("图片，可双击或双指缩放，拖动查看");
+        setContentDescription(top.kuaner.pockete2.text.AppText.get(context).t("图片，可双击或双指缩放，拖动查看"));
         scales =
                 new ScaleGestureDetector(
                         context,

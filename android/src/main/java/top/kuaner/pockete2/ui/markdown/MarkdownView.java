@@ -88,7 +88,7 @@ public final class MarkdownView extends LinearLayout {
             TextView text = text(13);
             text.setTypeface(Typeface.MONOSPACE);
             text.setText(code.endsWith("\n") ? code.substring(0, code.length() - 1) : code);
-            text.setContentDescription("代码块");
+            text.setContentDescription(ui.t("代码块"));
             text.setHorizontallyScrolling(false);
             ui.add(box, text, 4);
             add(target, box, 10);
@@ -123,7 +123,7 @@ public final class MarkdownView extends LinearLayout {
             else if (node instanceof SoftLineBreak) out.append(' ');
             else if (node instanceof HardLineBreak) out.append('\n');
             else if (node instanceof Image) {
-                out.append("[图片：");
+                out.append(ui.t("[图片："));
                 inline(node, out);
                 out.append(']');
             } else if (!(node instanceof HtmlInline)) inline(node, out);
@@ -164,7 +164,7 @@ public final class MarkdownView extends LinearLayout {
         out.setSpan(span, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     }
 
-    private static final class SafeLinkSpan extends URLSpan {
+    private final class SafeLinkSpan extends URLSpan {
         SafeLinkSpan(String url) {
             super(url);
         }
@@ -176,7 +176,7 @@ public final class MarkdownView extends LinearLayout {
             } catch (android.content.ActivityNotFoundException ignored) {
                 android.widget.Toast.makeText(
                                 widget.getContext(),
-                                "没有可打开链接的应用",
+                                ui.t("没有可打开链接的应用"),
                                 android.widget.Toast.LENGTH_SHORT)
                         .show();
             }

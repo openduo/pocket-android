@@ -37,20 +37,24 @@ public final class PairingPage implements PocketController.Listener {
         if (root != null) return root;
         root = ui.column();
         LinearLayout header = ui.row();
-        header.addView(ui.iconButton("chevron_left", "返回", ui.palette.text, host::back));
-        header.addView(ui.label("连接房间", 18, ui.palette.text, true));
+        header.addView(ui.iconButton("chevron_left", ui.t("返回"), ui.palette.text, host::back));
+        header.addView(ui.label(ui.t("连接房间"), 18, ui.palette.text, true));
         root.addView(header);
         LinearLayout body = ui.column();
         ui.inset(body, 16, 10);
         ui.add(
                 body,
-                ui.label("在房间管理页生成配对链接，粘贴到这里。房间和设备凭据会由配对结果保存。", 14, ui.palette.secondary, false),
+                ui.label(
+                        ui.t("在房间管理页生成配对链接，粘贴到这里。房间和设备凭据会由配对结果保存。"),
+                        14,
+                        ui.palette.secondary,
+                        false),
                 0);
-        link = field(body, "配对链接", "");
+        link = field(body, ui.t("配对链接"), "");
         ui.add(
                 body,
                 ui.button(
-                        "扫描房间二维码",
+                        ui.t("扫描房间二维码"),
                         ui.palette.accent,
                         ui.palette.raised,
                         () ->
@@ -67,14 +71,14 @@ public final class PairingPage implements PocketController.Listener {
         ui.add(
                 body,
                 ui.button(
-                        "读取链接",
+                        ui.t("读取链接"),
                         ui.palette.accent,
                         ui.palette.raised,
                         () -> parseLink(link.getText().toString())),
                 6);
-        address = field(body, "主机地址", controller.settings.host());
+        address = field(body, ui.t("主机地址"), controller.settings.host());
         LinearLayout advanced = ui.row();
-        port = ui.input("端口", String.valueOf(controller.settings.port()), false);
+        port = ui.input(ui.t("端口"), String.valueOf(controller.settings.port()), false);
         port.setInputType(InputType.TYPE_CLASS_NUMBER);
         advanced.addView(port, new LinearLayout.LayoutParams(0, -2, 1));
         tls = new Switch(ui.context);
@@ -84,17 +88,20 @@ public final class PairingPage implements PocketController.Listener {
         tls.setPadding(ui.dp(12), 0, 0, 0);
         advanced.addView(tls, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
         ui.add(body, advanced, 8);
-        code = field(body, "配对码", "");
+        code = field(body, ui.t("配对码"), "");
         code.setInputType(
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-        error = ui.label("配对需要先登录同一个 Tailscale 网络。", 12, ui.palette.secondary, false);
+        error = ui.label(ui.t("配对需要先登录同一个 Tailscale 网络。"), 12, ui.palette.secondary, false);
         ui.add(body, error, 12);
         root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = ui.column();
         ui.inset(actions, 16, 8);
-        commit = ui.button("配对并连接", ui.palette.onAccent, ui.palette.accent, this::pair);
+        commit = ui.button(ui.t("配对并连接"), ui.palette.onAccent, ui.palette.accent, this::pair);
         actions.addView(commit);
-        ui.add(actions, ui.button("登录 Tailscale", ui.palette.secondary, 0, host::loginTailnet), 4);
+        ui.add(
+                actions,
+                ui.button(ui.t("登录 Tailscale"), ui.palette.secondary, 0, host::loginTailnet),
+                4);
         root.addView(actions);
         controller.addListener(this);
         return root;
@@ -116,9 +123,9 @@ public final class PairingPage implements PocketController.Listener {
             tls.setChecked(p.endpoint.tls);
             code.setText(p.code);
             link.setText(value);
-            error.setText("链接已读取，点按「配对并连接」继续。");
+            error.setText(ui.t("链接已读取，点按「配对并连接」继续。"));
         } catch (IllegalArgumentException failure) {
-            error.setText(failure.getMessage());
+            error.setText(ui.explain(failure.getMessage()));
         }
     }
 
@@ -127,7 +134,7 @@ public final class PairingPage implements PocketController.Listener {
         String hostValue = address.getText().toString().trim(),
                 pairCode = code.getText().toString().trim();
         if (pairCode.isEmpty()) {
-            error.setText("请填写配对码，或先读取配对链接");
+            error.setText(ui.t("请填写配对码，或先读取配对链接"));
             return;
         }
         int portValue;
@@ -135,13 +142,13 @@ public final class PairingPage implements PocketController.Listener {
             portValue = Integer.parseInt(port.getText().toString().trim());
             new Endpoint(hostValue, portValue, tls.isChecked());
         } catch (IllegalArgumentException failure) {
-            error.setText("请检查主机和端口（1–65535）");
+            error.setText(ui.t("请检查主机和端口（1–65535）"));
             return;
         }
         pairing = true;
         commit.setEnabled(false);
-        commit.setText("正在配对…");
-        error.setText("正在连接房间，请稍候…");
+        commit.setText(ui.t("正在配对…"));
+        error.setText(ui.t("正在连接房间，请稍候…"));
         ui.hideKeyboard(code);
         controller.pair(
                 hostValue,
@@ -153,11 +160,11 @@ public final class PairingPage implements PocketController.Listener {
                 () -> {
                     pairing = false;
                     commit.setEnabled(true);
-                    commit.setText("配对并连接");
+                    commit.setText(ui.t("配对并连接"));
                     PocketController.Snapshot s = controller.snapshot();
                     if (s != null && s.lastError.isEmpty() && controller.configured())
                         host.navigate("conversation");
-                    else if (s != null) error.setText(s.lastError);
+                    else if (s != null) error.setText(ui.explain(s.lastError));
                 });
     }
 
@@ -165,7 +172,7 @@ public final class PairingPage implements PocketController.Listener {
     public void changed() {
         if (root != null && pairing) {
             PocketController.Snapshot s = controller.snapshot();
-            if (s != null && !s.lastError.isEmpty()) error.setText(s.lastError);
+            if (s != null && !s.lastError.isEmpty()) error.setText(ui.explain(s.lastError));
         }
     }
 

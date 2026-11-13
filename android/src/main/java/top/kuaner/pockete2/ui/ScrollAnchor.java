@@ -61,6 +61,13 @@ public final class ScrollAnchor implements ViewTreeObserver.OnPreDrawListener, A
         follow = true;
     }
 
+    public void toTop() {
+        pending = true;
+        offset = 0;
+        follow = false;
+        start = null;
+    }
+
     @Override
     public boolean onPreDraw() {
         if (!pending) return true;

@@ -25,21 +25,28 @@ public final class AnswerNotifications {
     private final Settings settings;
     private boolean foreground;
 
+    private top.kuaner.pockete2.text.TextCatalog words() {
+        return top.kuaner.pockete2.text.AppText.get(context);
+    }
+
     public AnswerNotifications(Context context, Settings settings) {
         this.context = context.getApplicationContext();
         this.settings = settings;
         manager = context.getSystemService(NotificationManager.class);
         prefs = context.getSharedPreferences("answer.notices", Context.MODE_PRIVATE);
         manager.createNotificationChannel(
-                new NotificationChannel("answers", "后台回答", NotificationManager.IMPORTANCE_DEFAULT));
+                new NotificationChannel(
+                        "answers", words().t("后台回答"), NotificationManager.IMPORTANCE_DEFAULT));
         NotificationChannel silent =
                 new NotificationChannel(
-                        "answers-silent", "配件已提醒的回答", NotificationManager.IMPORTANCE_LOW);
+                        "answers-silent",
+                        words().t("配件已提醒的回答"),
+                        NotificationManager.IMPORTANCE_LOW);
         silent.setSound(null, null);
         manager.createNotificationChannel(silent);
         NotificationChannel interruptions =
                 new NotificationChannel(
-                        "interruptions", "音频中断", NotificationManager.IMPORTANCE_DEFAULT);
+                        "interruptions", words().t("音频中断"), NotificationManager.IMPORTANCE_DEFAULT);
         interruptions.setSound(null, null);
         manager.createNotificationChannel(interruptions);
     }
@@ -49,6 +56,19 @@ public final class AnswerNotifications {
         if (value) {
             for (StatusBarNotificationCompat notice : active())
                 manager.cancel(notice.tag, notice.id);
+        }
+    }
+
+    public void language() {
+        for (String[] entry :
+                new String[][] {
+                    {"answers", "后台回答"}, {"answers-silent", "配件已提醒的回答"}, {"interruptions", "音频中断"}
+                }) {
+            NotificationChannel channel = manager.getNotificationChannel(entry[0]);
+            if (channel != null) {
+                channel.setName(words().t(entry[1]));
+                manager.createNotificationChannel(channel);
+            }
         }
     }
 
@@ -87,8 +107,8 @@ public final class AnswerNotifications {
                         29,
                         new Notification.Builder(context, "interruptions")
                                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                                .setContentTitle("环境模式被打断了")
-                                .setContentText("点这里返回 Pocket E2，继续听房间里的声音")
+                                .setContentTitle(words().t("环境模式被打断了"))
+                                .setContentText(words().t("点这里返回 Pocket E2，继续听房间里的声音"))
                                 .setContentIntent(open())
                                 .setAutoCancel(true)
                                 .build());
@@ -130,7 +150,7 @@ public final class AnswerNotifications {
                     28,
                     new Notification.Builder(context, passportAlert ? "answers-silent" : "answers")
                             .setSmallIcon(android.R.drawable.ic_dialog_email)
-                            .setContentTitle("Pocket E2 · 新回答")
+                            .setContentTitle(words().t("Pocket E2 · 新回答"))
                             .setContentText(plain)
                             .setStyle(new Notification.BigTextStyle().bigText(plain))
                             .setGroup("pocket-e2-answers")

@@ -16,6 +16,9 @@ for name in PocketProtocol PressAssembler ReplyTracker; do sources+=("$project_d
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/pairing/QrCode.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/sight/SightProtocol.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/audio/PacketStream.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/net/ChannelTransport.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/net/ChannelClient.java" "$project_dir/tests/host/Contracts.java")
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/net/ChannelConnection.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/trymode/TryChannel.java" "$project_dir/android/src/main/java/top/kuaner/pockete2/trymode/TryScript.java" "$project_dir/tests/host/TryChannelContracts.java")
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/sight/PreviewFrame.java")
+sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/sight/SightRecovery.java")
+sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/text/TextCatalog.java")
+sources+=("$project_dir/tests/host/SessionViewerContracts.java")
 zxing="$project_dir/android/libs/zxing-core-3.5.3.jar"
 javac -encoding UTF-8 --release 8 -classpath "$json:$android_jar:$zxing" -d "$build/classes" "${sources[@]}"
-java -ea -classpath "$json:$build/classes:$android_jar:$zxing" Contracts
+java -ea -Dpocket.e2.root="$project_dir" -classpath "$json:$build/classes:$android_jar:$zxing" Contracts

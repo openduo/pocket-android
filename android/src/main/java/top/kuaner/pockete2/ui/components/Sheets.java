@@ -79,7 +79,7 @@ public final class Sheets {
                             action.run();
                         }),
                 12);
-        ui.add(body, ui.button("取消", ui.palette.secondary, 0, dialog::dismiss), 4);
+        ui.add(body, ui.button(ui.t("取消"), ui.palette.secondary, 0, dialog::dismiss), 4);
         show(dialog);
         return dialog;
     }
@@ -87,12 +87,12 @@ public final class Sheets {
     public static Dialog edit(Ui ui, String title, String initial, Consumer<String> action) {
         LinearLayout body = ui.column();
         Dialog dialog = build(ui, title, body);
-        EditText input = ui.input("输入文字", initial, true);
+        EditText input = ui.input(ui.t("输入文字"), initial, true);
         body.addView(input);
         ui.add(
                 body,
                 ui.button(
-                        "确定",
+                        ui.t("确定"),
                         ui.palette.onAccent,
                         ui.palette.accent,
                         () -> {
@@ -105,7 +105,14 @@ public final class Sheets {
     }
 
     private static Dialog build(Ui ui, String title, LinearLayout body) {
-        Dialog dialog = new Dialog(ui.context);
+        Dialog dialog =
+                new Dialog(ui.context) {
+                    @Override
+                    public void onWindowFocusChanged(boolean focused) {
+                        super.onWindowFocusChanged(focused);
+                        if (focused) ui.immersive(getWindow());
+                    }
+                };
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout sheet =
                 new LinearLayout(ui.context) {
@@ -125,7 +132,7 @@ public final class Sheets {
         TextView label = ui.label(title, 16, ui.palette.text, true);
         heading.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
         heading.addView(
-                ui.iconButton("chevron_down", "关闭面板", ui.palette.secondary, dialog::dismiss),
+                ui.iconButton("chevron_down", ui.t("关闭面板"), ui.palette.secondary, dialog::dismiss),
                 new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
         sheet.addView(heading);
         ScrollView scroll = new ScrollView(ui.context);
@@ -136,6 +143,7 @@ public final class Sheets {
         Window window = dialog.getWindow();
         window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         window.setGravity(Gravity.BOTTOM);
+        ui.immersive(window);
         return dialog;
     }
 

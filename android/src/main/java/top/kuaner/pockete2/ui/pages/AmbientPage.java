@@ -40,15 +40,18 @@ public final class AmbientPage implements PocketController.Listener {
         bar.addView(
                 ui.iconButton(
                         "chevron_down",
-                        "最小化环境模式",
+                        ui.t("最小化环境模式"),
                         ui.palette.secondary,
                         () -> host.navigate("conversation")));
         bar.addView(
-                ui.label("环境模式", 17, ui.palette.text, true),
+                ui.label(ui.t("环境模式"), 17, ui.palette.text, true),
                 new LinearLayout.LayoutParams(0, -2, 1));
         bar.addView(
                 ui.iconButton(
-                        "settings", "设置", ui.palette.secondary, () -> host.navigate("settings")));
+                        "settings",
+                        ui.t("设置"),
+                        ui.palette.secondary,
+                        () -> host.navigate("settings")));
         root.addView(bar);
         LinearLayout center = ui.column();
         ui.inset(center, 18, 12);
@@ -62,7 +65,7 @@ public final class AmbientPage implements PocketController.Listener {
         center.addView(
                 new HoldToTalkView.Meter(ui, controller),
                 new LinearLayout.LayoutParams(-1, ui.dp(70)));
-        status = ui.label("环境模式已关闭", 24, ui.palette.text, true);
+        status = ui.label(ui.t("环境模式已关闭"), 24, ui.palette.text, true);
         status.setGravity(Gravity.CENTER);
         ui.add(center, status, 12);
         detail = ui.label("", 13, ui.palette.secondary, false);
@@ -80,15 +83,15 @@ public final class AmbientPage implements PocketController.Listener {
         root.addView(transcript, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout controls = ui.row();
         ui.inset(controls, 12, 6);
-        mute = ui.button("静音", ui.palette.text, ui.palette.raised, controller::ambientMute);
-        hush = ui.button("别说了", ui.palette.text, ui.palette.raised, controller::ambientHush);
+        mute = ui.button(ui.t("静音"), ui.palette.text, ui.palette.raised, controller::ambientMute);
+        hush = ui.button(ui.t("别说了"), ui.palette.text, ui.palette.raised, controller::ambientHush);
         controls.addView(mute, new LinearLayout.LayoutParams(0, ui.dp(52), 1));
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ui.dp(52), 1);
         hp.leftMargin = ui.dp(8);
         controls.addView(hush, hp);
         transcriptToggle =
                 ui.button(
-                        "对话",
+                        ui.t("对话"),
                         ui.palette.accent,
                         ui.palette.raised,
                         () -> {
@@ -104,20 +107,25 @@ public final class AmbientPage implements PocketController.Listener {
         ui.inset(cameras, 12, 4);
         camera =
                 ui.button(
-                        "开启相机",
+                        ui.t("开启相机"),
                         ui.palette.accent,
                         ui.palette.raised,
-                        () ->
+                        () -> {
+                            PocketController.Snapshot s = controller.snapshot();
+                            if (s != null && s.cameraRequested && !s.cameraRetry)
+                                controller.toggleSight();
+                            else
                                 host.permission(
                                         new String[] {android.Manifest.permission.CAMERA},
-                                        controller::toggleSight));
+                                        controller::toggleSight);
+                        });
         cameras.addView(camera, new LinearLayout.LayoutParams(0, -2, 1));
-        flip = ui.button("切换镜头", ui.palette.secondary, 0, controller::flipSight);
+        flip = ui.button(ui.t("切换镜头"), ui.palette.secondary, 0, controller::flipSight);
         cameras.addView(flip, new LinearLayout.LayoutParams(0, -2, 1));
         root.addView(cameras);
         action =
                 ui.button(
-                        "打开环境模式",
+                        ui.t("打开环境模式"),
                         ui.palette.onAccent,
                         ui.palette.accent,
                         () -> {
@@ -151,59 +159,67 @@ public final class AmbientPage implements PocketController.Listener {
         room.setVisibility(expanded ? View.GONE : View.VISIBLE);
         viewfinder.setVisibility(
                 !expanded && s.cameraOn && !s.cameraFront ? View.VISIBLE : View.GONE);
-        Ui.updateText(transcriptToggle, expanded ? "收起" : "对话");
-        transcriptToggle.setContentDescription(expanded ? "隐藏对话" : "展开完整对话");
+        Ui.updateText(transcriptToggle, expanded ? ui.t("收起") : ui.t("对话"));
+        transcriptToggle.setContentDescription(expanded ? ui.t("隐藏对话") : ui.t("展开完整对话"));
         String phase =
                 s.ambient == PocketController.Ambient.OFF
-                        ? "环境模式已关闭"
+                        ? ui.t("环境模式已关闭")
                         : s.ambient == PocketController.Ambient.SEAT_TAKEN
-                                ? "另一台设备在听"
+                                ? ui.t("另一台设备在听")
                                 : s.ambient == PocketController.Ambient.DEAF
-                                        ? "听不到了"
+                                        ? ui.t("听不到了")
                                         : s.ambient == PocketController.Ambient.PAUSED
-                                                ? "收音已暂停"
+                                                ? ui.t("收音已暂停")
                                                 : s.ambient == PocketController.Ambient.STARTING
-                                                        ? "正在打开麦克风…"
+                                                        ? ui.t("正在打开麦克风…")
                                                         : s.ambient
                                                                         == PocketController.Ambient
                                                                                 .OFFLINE
-                                                                ? "连不上，正在重试"
+                                                                ? ui.t("连不上，正在重试")
                                                                 : s.ambient
                                                                                 == PocketController
                                                                                         .Ambient
                                                                                         .FAILED
-                                                                        ? "收音失败"
+                                                                        ? ui.t("收音失败")
                                                                         : s.ambient
                                                                                         == PocketController
                                                                                                 .Ambient
                                                                                                 .SPEAKING
-                                                                                ? "正在说"
+                                                                                ? ui.t("正在说")
                                                                                 : s.working != null
-                                                                                        ? s.working
-                                                                                                .label()
+                                                                                        ? ui.t(
+                                                                                                s
+                                                                                                        .working
+                                                                                                        .label())
                                                                                         : s.ambientMuted
-                                                                                                ? "在听 · 静音"
-                                                                                                : "在听";
+                                                                                                ? ui
+                                                                                                        .t(
+                                                                                                                "在听 · 静音")
+                                                                                                : ui
+                                                                                                        .t(
+                                                                                                                "在听");
         cameras.setVisibility(s.cameraOffered ? View.VISIBLE : View.GONE);
-        flip.setVisibility(s.cameraCanFlip ? View.VISIBLE : View.GONE);
-        Ui.updateText(camera, s.cameraOn ? "关闭相机" : "开启相机");
-        camera.setContentDescription(s.sight);
+        flip.setVisibility(s.cameraCanFlip && s.cameraRequested ? View.VISIBLE : View.GONE);
+        Ui.updateText(
+                camera,
+                s.cameraRetry ? ui.t("重试相机") : s.cameraRequested ? ui.t("关闭相机") : ui.t("开启相机"));
+        camera.setContentDescription(camera.getText() + " · " + ui.explain(s.sight));
         Ui.updateText(status, phase);
         Ui.updateText(
                 action,
                 s.ambient == PocketController.Ambient.SEAT_TAKEN
-                        ? "在这台 E2 上听"
+                        ? ui.t("在这台 E2 上听")
                         : s.ambient == PocketController.Ambient.DEAF
                                         || s.ambient == PocketController.Ambient.PAUSED
-                                ? "重新打开"
-                                : on ? "关闭环境模式" : "打开环境模式");
+                                ? ui.t("重新打开")
+                                : on ? ui.t("关闭环境模式") : ui.t("打开环境模式"));
         Ui.updateText(
                 detail,
                 !s.lastError.isEmpty()
-                        ? s.lastError
+                        ? ui.explain(s.lastError)
                         : s.ambientMuted
-                                ? "还在听，回复只显示在屏幕上"
-                                : on ? "说话就能打断它 · 返回对话仍会继续听" : "打开后会持续收音，回答会在 E2 上播放");
+                                ? ui.t("还在听，回复只显示在屏幕上")
+                                : on ? ui.t("说话就能打断它 · 返回对话仍会继续听") : ui.t("打开后会持续收音，回答会在 E2 上播放"));
         String latest = s.working == null ? "" : s.working.text;
         if (latest.isEmpty())
             for (int i = s.rows.size() - 1; i >= 0; i--)
@@ -211,16 +227,16 @@ public final class AmbientPage implements PocketController.Listener {
                     latest = s.rows.get(i).text;
                     break;
                 }
-        if (s.cameraOffered) Ui.updateText(detail, s.sight);
+        if (s.cameraOffered) Ui.updateText(detail, ui.explain(s.sight));
         else if (!s.lastHeard.isEmpty() && s.working == null)
-            Ui.updateText(detail, "听到 · " + s.lastHeard);
-        if (s.pressMuted) Ui.updateText(detail, "按键语音进行中，房间收音暂时静音");
-        else if (s.heatLevel > 0) Ui.updateText(detail, "设备温度较高，视频已降低功耗；过热时相机会暂停");
+            Ui.updateText(detail, ui.t("听到 · ") + s.lastHeard);
+        if (s.pressMuted) Ui.updateText(detail, ui.t("按键语音进行中，房间收音暂时静音"));
+        else if (s.heatLevel > 0) Ui.updateText(detail, ui.t("设备温度较高，视频已降低功耗；过热时相机会暂停"));
         Ui.updateText(caption, latest);
         caption.setVisibility(latest.isEmpty() ? View.GONE : View.VISIBLE);
         mute.setEnabled(on);
         hush.setEnabled(s.ambient == PocketController.Ambient.SPEAKING);
-        Ui.updateText(mute, s.ambientMuted ? "取消静音" : "静音");
+        Ui.updateText(mute, s.ambientMuted ? ui.t("取消静音") : ui.t("静音"));
     }
 
     public void close() {

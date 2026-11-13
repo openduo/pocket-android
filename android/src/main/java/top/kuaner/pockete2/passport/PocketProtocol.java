@@ -34,6 +34,12 @@ public final class PocketProtocol {
 
     private PocketProtocol() {}
 
+    /** Protocol 1.2 adds the language byte; older devices ignore that trailing byte. */
+    public static byte[] appState(int state, boolean english) {
+        if (state < 0 || state > 2) throw new IllegalArgumentException("Invalid app state");
+        return new byte[] {(byte) state, (byte) (english ? 1 : 0)};
+    }
+
     public static int u16(byte[] b, int at) {
         return (b[at] & 255) | ((b[at + 1] & 255) << 8);
     }

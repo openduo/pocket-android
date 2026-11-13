@@ -32,6 +32,9 @@ import android.widget.Toast;
 public final class Ui {
     public final Context context;
     public final ThemePalette palette;
+    public final top.kuaner.pockete2.text.TextCatalog words;
+    public final int systemBarBackground;
+    private final boolean lightSystemBars;
     private final float density;
 
     public Ui(Context context) {
@@ -39,9 +42,32 @@ public final class Ui {
     }
 
     public Ui(Context context, ThemePalette palette) {
+        this(context, palette, top.kuaner.pockete2.text.AppText.get(context));
+    }
+
+    public Ui(Context context, ThemePalette palette, top.kuaner.pockete2.text.TextCatalog words) {
         this.context = context;
         this.palette = palette;
+        this.words = words;
+        // E2 firmware keeps white system icons, including in a light application window.
+        boolean e2 =
+                android.os.Build.VERSION.SDK_INT == 27
+                        && "E2 AI Recorder".equals(android.os.Build.MODEL);
+        lightSystemBars = palette.light && !e2;
+        systemBarBackground = e2 ? 0xff0e0e0d : palette.background;
         density = context.getResources().getDisplayMetrics().density;
+    }
+
+    public String t(String authored) {
+        return words.t(authored);
+    }
+
+    public String explain(String authored) {
+        return words.explain(authored);
+    }
+
+    public String format(String authored, Object... values) {
+        return words.format(authored, values);
     }
 
     public static boolean lightTheme(Context context) {
@@ -183,7 +209,7 @@ public final class Ui {
     public void copy(String label, String value) {
         context.getSystemService(ClipboardManager.class)
                 .setPrimaryClip(ClipData.newPlainText(label, value));
-        toast("已复制");
+        toast(t("已复制"));
     }
 
     public void shareText(String text) {
@@ -193,9 +219,9 @@ public final class Ui {
                             new Intent(Intent.ACTION_SEND)
                                     .setType("text/plain")
                                     .putExtra(Intent.EXTRA_TEXT, text),
-                            "分享"));
+                            t("分享")));
         } catch (android.content.ActivityNotFoundException ignored) {
-            toast("没有可接收分享的应用");
+            toast(t("没有可接收分享的应用"));
         }
     }
 
@@ -207,13 +233,22 @@ public final class Ui {
 
     public void immersive() {
         if (!(context instanceof Activity)) return;
-        Window window = ((Activity) context).getWindow();
-        window.setStatusBarColor(palette.background);
-        window.setNavigationBarColor(palette.background);
+        immersive(((Activity) context).getWindow());
+    }
+
+    public void immersive(Window window) {
+        window.clearFlags(
+                WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+                        | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        window.setStatusBarColor(systemBarBackground);
+        window.setNavigationBarColor(systemBarBackground);
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         window.getDecorView()
                 .setSystemUiVisibility(
-                        (palette.light ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : 0)
+                        (lightSystemBars
+                                        ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                                                | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                                        : 0)
                                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION

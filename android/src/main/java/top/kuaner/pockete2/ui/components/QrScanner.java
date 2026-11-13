@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 
 /** A small-screen scan sheet with one pending preview bitmap, owned until dismissal. */
 public final class QrScanner implements QrCapture.Listener {
+    private final Ui ui;
     private final Dialog dialog;
     private final ImageView image;
     private final TextView hint;
@@ -32,16 +33,22 @@ public final class QrScanner implements QrCapture.Listener {
     }
 
     private QrScanner(Ui ui, Consumer<String> result) {
+        this.ui = ui;
         this.result = result;
         LinearLayout body = ui.column();
         image = new ImageView(ui.context);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setContentDescription("房间二维码相机画面");
+        image.setContentDescription(ui.t("房间二维码相机画面"));
         body.addView(image, new LinearLayout.LayoutParams(-1, ui.dp(230)));
-        hint = ui.label("对准房间管理页的配对二维码。扫码在本机完成，读取后可检查地址再连接。", 13, ui.palette.secondary, false);
+        hint =
+                ui.label(
+                        ui.t("对准房间管理页的配对二维码。扫码在本机完成，读取后可检查地址再连接。"),
+                        13,
+                        ui.palette.secondary,
+                        false);
         ui.inset(hint, 8, 12);
         body.addView(hint);
-        dialog = Sheets.content(ui, "扫描房间二维码", body);
+        dialog = Sheets.content(ui, ui.t("扫描房间二维码"), body);
         capture = new QrCapture(ui.context, this);
         dialog.setOnDismissListener(
                 ignored -> {
@@ -106,7 +113,7 @@ public final class QrScanner implements QrCapture.Listener {
     public void failed(String reason) {
         main.post(
                 () -> {
-                    if (!dismissed.get()) hint.setText(reason);
+                    if (!dismissed.get()) hint.setText(ui.explain(reason));
                 });
     }
 }

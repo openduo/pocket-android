@@ -31,7 +31,7 @@ final class MarkdownTableView extends HorizontalScrollView {
     MarkdownTableView(Ui ui, Node node, Function<Node, CharSequence> inline) {
         super(ui.context);
         this.ui = ui;
-        setContentDescription("横向滚动表格");
+        setContentDescription(ui.t("横向滚动表格"));
         setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
         setPadding(0, 0, 0, ui.dp(3));
         LinearLayout table = ui.column();
