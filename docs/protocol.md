@@ -52,6 +52,11 @@ samples stay local and are explicitly labelled. Closing try invalidates the loca
 turns and streams, removes owned files and restores the permanent room repository. Entering try
 does not initialise tsnet or use stored room credentials.
 
+Attachment wire rows retain remote name, MIME, digest, size and path; they cannot supply an Android
+local file path or a local upload-state flag. App-owned local paths are restored only through local
+draft/outbox persistence or the committed import inbox. The share handoff and its transactional
+delivery receipts are specified in `imports.md`.
+
 Rear viewfinder pixels come from the currently owned Camera2 YUV image and never require a second
 camera. The UI receives one bounded RGB frame, not a recording. Encoding and viewfinder use the same
 buffer rotation. Serious heat lowers the declared rate and bitrate in place; critical heat and

@@ -23,9 +23,10 @@ public final class AttachmentStore {
         this.context = context.getApplicationContext();
     }
 
-    public Attachment importFile(Uri uri, boolean trying, long remoteLimit) throws IOException {
+    public Attachment importFile(Uri uri, File file, long remoteLimit) throws IOException {
+        if (uri == null || !"content".equals(uri.getScheme()))
+            throw new IOException("Import requires a content URI");
         String name = "附件", mime = context.getContentResolver().getType(uri);
-        if (mime == null) mime = "application/octet-stream";
         try (android.database.Cursor c =
                 context.getContentResolver()
                         .query(
@@ -34,14 +35,25 @@ public final class AttachmentStore {
                                 null,
                                 null,
                                 null)) {
-            if (c != null && c.moveToFirst() && c.getString(0) != null) name = c.getString(0);
+            if (c != null && c.moveToFirst()) {
+                int column = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (column >= 0 && c.getString(column) != null && !c.getString(column).isEmpty())
+                    name = c.getString(column);
+            }
+        } catch (UnsupportedOperationException | IllegalArgumentException ignored) {
+            // Some readable providers do not support a display-name query.
         }
-        File dir =
-                new File(
-                        trying ? context.getCacheDir() : context.getFilesDir(),
-                        trying ? "try-attachments" : "attachments/drafts");
-        ensure(dir);
-        File file = new File(dir, UUID.randomUUID().toString());
+        if (mime == null || mime.isEmpty()) {
+            int dot = name.lastIndexOf('.');
+            mime =
+                    dot < 0
+                            ? null
+                            : android.webkit.MimeTypeMap.getSingleton()
+                                    .getMimeTypeFromExtension(
+                                            name.substring(dot + 1).toLowerCase(Locale.ROOT));
+        }
+        if (mime == null) mime = "application/octet-stream";
+        ensure(file.getParentFile());
         long size = 0;
         long limit =
                 remoteLimit > 0

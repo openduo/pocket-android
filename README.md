@@ -13,7 +13,7 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 Passport central/press/reply logic, a scoped session viewer, attachment import/sharing, native map
 selection and Camera2 H.264 media-v1 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **126 host contract assertions and 85 E2 device assertions**,
+The latest local checkpoint passed **148 host contract assertions and 122 E2 device assertions**,
 plus Go vet/tests and the Android build. Real-room login, API/audio integration and an external
 Passport have not been verified. These checks are regression evidence, not a parity-completion claim.
 
@@ -21,7 +21,11 @@ The checkpoint includes native Chinese/English switching, literal user-content p
 language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
 with source/activity, grouped lists and recipient-specific notification drafts. English conversation,
 settings and session screens were inspected at ~259 dp, including 1.35 font scale, light theme and
-the real E2 keyboard. `docs/migration.md` keeps external-service/hardware gaps separate.
+the real E2 keyboard. Shares now use an atomic file inbox and transactional delivery receipts,
+preserve names/MIME and order, retain concurrent typing, and recover without duplication through
+recreation. Real system document-picker and camera returns exercise the same import path.
+`docs/migration.md` keeps external-service/hardware gaps separate; `docs/imports.md` describes the
+handoff and its remaining failure/lifecycle acceptance work.
 
 ## Build
 
@@ -31,13 +35,18 @@ scripts/test-host.sh           # pure protocol/reducer contracts
 (cd bridge/tsbridge && go vet ./... && go test ./...)
 # Install the built app before device tests:
 adb install -r dist/PocketE2.apk
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 scripts/test-device.sh
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
 Android Platform 35, Build Tools 35.0.0 and NDK 28.2.13676358. The scripts accept `ANDROID_SDK_ROOT`,
 `ANDROID_NDK_ROOT` and `POCKET_E2_SIGN_DIR`. A private signing identity is generated once outside the
 repository. Only arm64-v8a is currently built.
+
+The optional native import UI probe currently targets API 27, including a disposable document source
+in a separate UID. It declines the stock camera's optional location request and restores its prior
+user-decision permission flags with an Android-8-only shell helper. The helper, provider and test APK
+are removed after the run. The application APK does not include them.
 
 The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
 or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the

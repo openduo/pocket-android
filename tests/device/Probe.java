@@ -45,6 +45,7 @@ public final class Probe extends Instrumentation {
                 for (java.io.File file : screenshots)
                     if (file.isFile() && file.getName().endsWith(".png")) file.delete();
             database(context);
+            assertions += ImportProbe.run(context);
             codec();
             assertions += top.kuaner.pockete2.core.SecretProbe.run(context);
             images(context);
@@ -264,7 +265,7 @@ public final class Probe extends Instrumentation {
         }
     }
 
-    private java.io.File imageFile(Context context) throws Exception {
+    java.io.File imageFile(Context context) throws Exception {
         java.io.File dir = new java.io.File(context.getCacheDir(), "shared");
         dir.mkdirs();
         java.io.File file = new java.io.File(dir, "qa-image.jpg");
@@ -540,13 +541,33 @@ public final class Probe extends Instrumentation {
                             composer[0].getGlobalVisibleRect(bounds);
                         });
             }
+            until = android.os.SystemClock.elapsedRealtime() + 2500;
+            long stableSince = 0;
+            while (android.os.SystemClock.elapsedRealtime() < until) {
+                runOnMainSync(
+                        () -> {
+                            screen.getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
+                            composer[0].getGlobalVisibleRect(bounds);
+                        });
+                boolean settled =
+                        bounds.height() > 0
+                                && bounds.bottom <= visible.bottom
+                                && context.getResources().getDisplayMetrics().heightPixels
+                                                - visible.bottom
+                                        >= 140;
+                if (settled) {
+                    if (stableSince == 0) stableSince = android.os.SystemClock.elapsedRealtime();
+                    if (android.os.SystemClock.elapsedRealtime() - stableSince >= 200) break;
+                } else stableSince = 0;
+                Thread.sleep(30);
+            }
+            screenshot(context, "conversation-keyboard");
             check(
                     context.getResources().getDisplayMetrics().heightPixels - visible.bottom >= 140,
                     "real system IME is visible for avoidance check");
             check(
                     bounds.height() > 0 && bounds.bottom <= visible.bottom,
-                    "composer stays above IME");
-            screenshot(context, "conversation-keyboard");
+                    "composer stays above IME: input=" + bounds + " window=" + visible);
             runOnMainSync(
                     () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("settings"));
             runOnMainSync(
@@ -773,6 +794,8 @@ public final class Probe extends Instrumentation {
         String language = controller.settings.language();
         String appearance = controller.settings.appearance();
         boolean originalVoice = controller.settings.voiceInput();
+        String originalRoomDraft = controller.draft();
+        int originalRoomChips = controller.snapshot().chips.size();
         android.app.Application application =
                 (android.app.Application) context.getApplicationContext();
         java.util.concurrent.atomic.AtomicReference<Activity> current =
@@ -1096,6 +1119,14 @@ public final class Probe extends Instrumentation {
                             && lightComposer.bottom <= light.getWindow().getDecorView().getHeight(),
                     "native theme recreation retains the text composer inside the current"
                             + " viewport");
+            assertions +=
+                    new ImportUiProbe(this, arguments)
+                            .run(
+                                    context,
+                                    current,
+                                    controller,
+                                    originalRoomDraft,
+                                    originalRoomChips);
         } finally {
             controller.settings.appearance(appearance);
             controller.stopTrying();
@@ -1127,11 +1158,11 @@ public final class Probe extends Instrumentation {
         }
     }
 
-    private android.widget.TextView textView(android.view.View root, String text) {
+    android.widget.TextView textView(android.view.View root, String text) {
         return textView(root, text, false);
     }
 
-    private android.view.View describedView(android.view.View root, String description) {
+    android.view.View describedView(android.view.View root, String description) {
         if (!root.isShown()) return null;
         if (description.contentEquals(
                 root.getContentDescription() == null ? "" : root.getContentDescription()))
@@ -1298,7 +1329,7 @@ public final class Probe extends Instrumentation {
         }
     }
 
-    private android.widget.EditText visibleInput(android.view.View view) {
+    android.widget.EditText visibleInput(android.view.View view) {
         if (!view.isShown()) return null;
         if (view instanceof android.widget.EditText) return (android.widget.EditText) view;
         if (view instanceof android.view.ViewGroup) {
@@ -1311,7 +1342,7 @@ public final class Probe extends Instrumentation {
         return null;
     }
 
-    private void screenshot(Context context, String name) throws Exception {
+    void screenshot(Context context, String name) throws Exception {
         waitForIdleSync();
         getUiAutomation().waitForIdle(150, 2000);
         Thread.sleep(350);

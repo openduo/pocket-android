@@ -54,10 +54,14 @@ public final class ConversationPage implements PocketController.Listener {
     private View voiceToggle, send, holdSend;
     private HoldToTalkView hold;
     private ScrollView scroll;
+    private HorizontalScrollView chipScroll;
+    private final java.util.Set<String> chipPaths = new java.util.HashSet<>();
+    private int pendingChipScroll = -1;
     private ScrollAnchor anchor;
     private boolean applying;
-    private String chipKey = "", previousLatest = "", lastDraft = "", lastReading = "";
+    private String chipKey = "", previousLatest = "", lastReading = "";
     private long revision = -1;
+    private long draftGeneration, pendingEdit;
 
     public ConversationPage(PageHost host, PocketController controller) {
         this(host, controller, false);
@@ -151,7 +155,25 @@ public final class ConversationPage implements PocketController.Listener {
         working = ui.label("", 14, ui.palette.secondary, false);
         ui.inset(working, 12, 12);
         working.setBackground(ui.surface(ui.palette.raised, 12));
-        root.getViewTreeObserver().addOnGlobalLayoutListener(images::refreshVisible);
+        root.getViewTreeObserver()
+                .addOnGlobalLayoutListener(
+                        () -> {
+                            images.refreshVisible();
+                            if (chipScroll != null
+                                    && pendingChipScroll >= 0
+                                    && chipScroll.getWidth() > 0) {
+                                int target = pendingChipScroll;
+                                pendingChipScroll = -1;
+                                chipScroll.scrollTo(
+                                        Math.min(
+                                                target,
+                                                Math.max(
+                                                        0,
+                                                        chipRow.getWidth()
+                                                                - chipScroll.getWidth())),
+                                        0);
+                            }
+                        });
         if (readOnly) {
             controller.addListener(this);
             changed();
@@ -181,8 +203,9 @@ public final class ConversationPage implements PocketController.Listener {
                 ui.iconButton(
                         "minus", ui.t("取消引用"), ui.palette.secondary, () -> controller.quote("")));
         composer.addView(quoteRow);
-        HorizontalScrollView chipScroll = new HorizontalScrollView(ui.context);
-        chipScroll.setHorizontalScrollBarEnabled(false);
+        chipScroll = new HorizontalScrollView(ui.context);
+        chipScroll.setHorizontalScrollBarEnabled(true);
+        chipScroll.setScrollbarFadingEnabled(false);
         chipScroll.setOnScrollChangeListener((v, x, y, ox, oy) -> images.refreshVisible());
         chipRow = ui.row();
         chipScroll.addView(chipRow);
@@ -203,10 +226,16 @@ public final class ConversationPage implements PocketController.Listener {
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.addTextChangedListener(
                 new TextWatcher() {
-                    public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+                    private String before = "";
+
+                    public void beforeTextChanged(CharSequence s, int st, int c, int a) {
+                        if (!applying) before = s.toString();
+                    }
 
                     public void onTextChanged(CharSequence s, int st, int b, int c) {
-                        if (!applying) controller.draft(s.toString());
+                        if (!applying)
+                            pendingEdit =
+                                    controller.editDraft(before, s.toString(), draftGeneration);
                     }
 
                     public void afterTextChanged(Editable e) {}
@@ -276,15 +305,18 @@ public final class ConversationPage implements PocketController.Listener {
         hold.setVisibility(voice ? View.VISIBLE : View.GONE);
         input.setVisibility(voice ? View.GONE : View.VISIBLE);
         if (voice) ui.hideKeyboard(input);
-        if (!TextUtils.equals(input.getText(), s.draft)
-                && (!input.hasFocus()
-                        || s.draft.isEmpty() && TextUtils.equals(input.getText(), lastDraft))) {
+        boolean editing = draftGeneration == s.draftGeneration && s.draftEditAck < pendingEdit;
+        if (!TextUtils.equals(input.getText(), s.draft) && !editing) {
+            int start = input.getSelectionStart(), end = input.getSelectionEnd();
+            boolean focused = input.hasFocus();
             applying = true;
             input.setText(s.draft);
-            input.setSelection(input.length());
+            if (focused && start >= 0 && end >= 0)
+                input.setSelection(Math.min(start, input.length()), Math.min(end, input.length()));
+            else input.setSelection(input.length());
             applying = false;
         }
-        lastDraft = s.draft;
+        draftGeneration = s.draftGeneration;
         send.setVisibility(
                 (!voice && !s.draft.trim().isEmpty() || !s.chips.isEmpty())
                         ? View.VISIBLE
@@ -295,6 +327,16 @@ public final class ConversationPage implements PocketController.Listener {
         for (Attachment a : s.chips) ck.append(a.localPath).append(':').append(a.state).append('|');
         if (!chipKey.equals(ck.toString())) {
             chipKey = ck.toString();
+            java.util.Set<String> nextPaths = new java.util.HashSet<>();
+            boolean added = false;
+            for (Attachment a : s.chips) {
+                nextPaths.add(a.localPath);
+                if (!chipPaths.contains(a.localPath)) added = true;
+            }
+            if (added) pendingChipScroll = Integer.MAX_VALUE;
+            else if (pendingChipScroll < 0) pendingChipScroll = chipScroll.getScrollX();
+            chipPaths.clear();
+            chipPaths.addAll(nextPaths);
             chipRow.removeAllViews();
             for (Attachment a : s.chips) {
                 LinearLayout chip = ui.row();
@@ -325,7 +367,11 @@ public final class ConversationPage implements PocketController.Listener {
                                         ? ui.palette.attention
                                         : ui.palette.secondary,
                                 false);
-                name.setMaxWidth(ui.dp(180));
+                int viewport = ui.context.getResources().getDisplayMetrics().widthPixels;
+                name.setMaxWidth(
+                        Math.min(
+                                ui.dp(180),
+                                Math.max(ui.dp(48), viewport - ui.dp(a.inlineImage() ? 120 : 84))));
                 name.setMaxLines(1);
                 name.setEllipsize(TextUtils.TruncateAt.MIDDLE);
                 chip.addView(name);
@@ -333,6 +379,7 @@ public final class ConversationPage implements PocketController.Listener {
                         v -> {
                             if (a.state == Attachment.FAILED)
                                 controller.retryAttachment(a.localPath);
+                            else if (a.state == Attachment.UPLOADED) host.openAttachment(a);
                         });
                 chip.addView(
                         ui.iconButton(

@@ -115,7 +115,7 @@ public final class PocketController {
                 pressMuted,
                 echoCancellation;
         public final int latencyMs;
-        public final long cursor, holdDurationMs, revision;
+        public final long cursor, holdDurationMs, revision, draftGeneration, draftEditAck;
 
         Snapshot(PocketController c) {
             connection = c.connection;
@@ -143,6 +143,8 @@ public final class PocketController {
             roomName = c.trying ? "体验房间" : c.settings.roomName();
             lastError = c.lastError;
             draft = c.draft;
+            draftGeneration = c.draftGeneration;
+            draftEditAck = c.draftEditAck;
             quote = c.quote;
             tailnetState = c.tailnetState;
             authUrl = c.authUrl;
@@ -244,6 +246,9 @@ public final class PocketController {
     private volatile int connectionEpoch;
     private volatile long sendEpoch;
     private long revision, holdPackets, lastHoldPublish, speechPlayed, lastReport;
+    private long draftGeneration, draftEditAck;
+    private final java.util.concurrent.atomic.AtomicLong draftEdits =
+            new java.util.concurrent.atomic.AtomicLong();
     private boolean foreground, trying, opening, sending, ambientWanted, ambientMuted;
     private boolean holdRequested, holdLive, olderLoading, captureStopping;
     private final java.util.concurrent.atomic.AtomicBoolean publishing =
@@ -267,6 +272,7 @@ public final class PocketController {
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
+    private final ImportCoordinator imports;
     private final top.kuaner.pockete2.sight.DeviceHeat deviceHeat;
     private int heatLevel;
 
@@ -282,6 +288,34 @@ public final class PocketController {
         top.kuaner.pockete2.app.BackgroundSync.schedule(context);
         realRepo = new RoomRepository(context);
         repo = realRepo;
+        imports =
+                new ImportCoordinator(
+                        context,
+                        state,
+                        main,
+                        realRepo,
+                        attachmentStore,
+                        new ImportCoordinator.Host() {
+                            public RoomRepository repository() {
+                                return repo;
+                            }
+
+                            public boolean trying() {
+                                return trying;
+                            }
+
+                            public long uploadLimit() {
+                                return !trying && roomState != null ? roomState.uploadMaxBytes : 0;
+                            }
+
+                            public void admit(ImportBatch batch) {
+                                admitImportedDraft(batch);
+                            }
+
+                            public void notice(String message) {
+                                PocketController.this.notice(message);
+                            }
+                        });
         transport = new GoTransport(context);
         channel = transport;
         sightSession =
@@ -389,12 +423,21 @@ public final class PocketController {
         state.execute(
                 () -> {
                     repo.select(settings);
+                    if (settings.isComplete()) {
+                        try {
+                            repo.inheritUnpairedDraft();
+                        } catch (Exception failure) {
+                            log.event("import", "unpaired_restore_deferred");
+                            lastError = "导入内容尚未保存，重新打开应用后会重试";
+                        }
+                    }
                     passport.room(repo.roomIdentity());
                     if (snapshot == null) {
                         cleanupTry();
                         chips.clear();
                     }
                     restoreDraft();
+                    imports.recover(true);
                     reload();
                     publish();
                     if (settings.isComplete()) startNetwork();
@@ -506,7 +549,32 @@ public final class PocketController {
         state.execute(
                 () -> {
                     draft = value == null ? "" : value;
+                    draftGeneration++;
                     if (!trying) saveDraft();
+                    publish();
+                });
+    }
+
+    public long editDraft(String before, String after, long generation) {
+        long ticket = draftEdits.incrementAndGet();
+        state.execute(
+                () -> {
+                    if (generation == draftGeneration) {
+                        draft = DraftText.edit(draft, before, after);
+                        if (!trying) saveDraft();
+                    }
+                    draftEditAck = Math.max(draftEditAck, ticket);
+                    publish();
+                });
+        return ticket;
+    }
+
+    public void appendDraft(String text) {
+        state.execute(
+                () -> {
+                    draft = DraftText.append(draft, text);
+                    settings.voiceInput(false);
+                    saveDraft();
                     publish();
                 });
     }
@@ -1109,6 +1177,7 @@ public final class PocketController {
                     repo.enqueue(Message.mine(id, text, "", 0, Message.QUEUED, chips), item);
                     if (textMode) {
                         draft = "";
+                        draftGeneration++;
                         quote = "";
                     }
                     chips.clear();
@@ -1310,35 +1379,29 @@ public final class PocketController {
     }
 
     public void importAttachment(Uri uri, Runnable finished) {
-        state.execute(() -> importOnState(uri, finished));
+        importContent(UUID.randomUUID().toString(), "", Collections.singletonList(uri), finished);
     }
 
-    private void importOnState(Uri uri, Runnable finished) {
-        String identity = repo.roomIdentity();
-        boolean demo = trying;
-        long limit = !demo && roomState != null ? roomState.uploadMaxBytes : 0;
-        network.execute(
-                () -> {
-                    try {
-                        Attachment attachment = attachmentStore.importFile(uri, demo, limit);
-                        File file = new File(attachment.localPath);
-                        state.execute(
-                                () -> {
-                                    if (!identity.equals(repo.roomIdentity()) || demo != trying) {
-                                        file.delete();
-                                        return;
-                                    }
-                                    chips.add(attachment);
-                                    saveDraft();
-                                    publish();
-                                    upload(attachment);
-                                });
-                    } catch (Exception failure) {
-                        state.execute(() -> notice("无法导入文件，请检查文件大小与读取权限"));
-                    } finally {
-                        main.post(finished);
-                    }
-                });
+    public void importContent(String delivery, String text, List<Uri> files, Runnable finished) {
+        imports.content(delivery, text, files, finished);
+    }
+
+    public void importPhoto(String delivery, File original) {
+        imports.photo(delivery, original);
+    }
+
+    private void admitImportedDraft(ImportBatch batch) {
+        List<Attachment> combined = new ArrayList<>(chips);
+        combined.addAll(batch.attachments);
+        String next = batch.appendTo(draft);
+        if (repo.importDraft(batch.id, next, quote, encodeChips(combined))) {
+            draft = next;
+            chips.clear();
+            chips.addAll(combined);
+            if (!batch.text.isEmpty()) settings.voiceInput(false);
+            publish();
+            for (Attachment attachment : batch.attachments) upload(attachment);
+        }
     }
 
     public void removeAttachment(String path) {
@@ -1398,24 +1461,25 @@ public final class PocketController {
                                 () -> {
                                     if (!identity.equals(repo.roomIdentity()) || demo != trying)
                                         return;
-                                    replaceChip(attachment.failed());
-                                    notice(
-                                            failure.status == 413
-                                                    ? "文件太大，请移除或选择较小文件"
-                                                    : "附件上传失败，点按重试");
+                                    if (replaceChip(attachment.failed()))
+                                        notice(
+                                                failure.status == 413
+                                                        ? "文件太大，请移除或选择较小文件"
+                                                        : "附件上传失败，点按重试");
                                 });
                     }
                 });
     }
 
-    private void replaceChip(Attachment value) {
+    private boolean replaceChip(Attachment value) {
         for (int i = 0; i < chips.size(); i++)
             if (chips.get(i).localPath.equals(value.localPath)) {
                 chips.set(i, value);
                 saveDraft();
                 publish();
-                return;
+                return true;
             }
+        return false;
     }
 
     public void beginHold() {
@@ -2101,9 +2165,17 @@ public final class PocketController {
                                                     turn.reset();
                                                     resetRoomTransient();
                                                     chips.clear();
+                                                    boolean wasUnpaired =
+                                                            repo.roomIdentity().equals("unpaired");
                                                     repo.select(settings);
+                                                    if (wasUnpaired) repo.inheritUnpairedDraft();
                                                     passport.room(repo.roomIdentity());
                                                     restoreDraft();
+                                                    imports.recover(false);
+                                                    for (Attachment attachment :
+                                                            new ArrayList<>(chips))
+                                                        if (attachment.sha256.isEmpty())
+                                                            upload(attachment);
                                                     connection = Connection.CONNECTING;
                                                     lastError = "";
                                                     reload();
@@ -2167,6 +2239,7 @@ public final class PocketController {
                     repo.select(settings);
                     connection = Connection.NEEDS_SETUP;
                     draft = "";
+                    draftGeneration++;
                     quote = "";
                     chips.clear();
                     turn.reset();
@@ -2217,6 +2290,7 @@ public final class PocketController {
         resetRoomTransient();
         chips.clear();
         draft = quote = lastError = "";
+        draftGeneration++;
         refreshService();
         connection = Connection.CONNECTING;
         reload();
@@ -2249,6 +2323,7 @@ public final class PocketController {
         repo.select(settings);
         passport.room(repo.roomIdentity());
         restoreDraft();
+        imports.recover(false);
         if (resumeReal) refreshService();
         connection = settings.isComplete() ? Connection.CONNECTING : Connection.NEEDS_SETUP;
         reload();
@@ -2282,6 +2357,7 @@ public final class PocketController {
         for (String name :
                 new String[] {"try-channel", "try-attachments", "try-downloads", "try-voice"})
             deleteTryFiles(new File(context.getCacheDir(), name));
+        imports.clearTry();
         File[] shared = new File(context.getCacheDir(), "shared").listFiles();
         if (shared != null)
             for (File file : shared) if (file.getName().startsWith("try-")) file.delete();
@@ -2601,6 +2677,7 @@ public final class PocketController {
     }
 
     private void restoreDraft() {
+        draftGeneration++;
         draft = repo.metadata("draft");
         quote = repo.metadata("quote");
         chips.clear();
@@ -2616,13 +2693,17 @@ public final class PocketController {
     }
 
     private void saveDraft() {
+        repo.draft(draft, quote, encodeChips(chips));
+    }
+
+    private static String encodeChips(List<Attachment> values) {
         JSONArray a = new JSONArray();
         try {
-            for (Attachment chip : chips) a.put(chip.json(true));
+            for (Attachment chip : values) a.put(chip.json(true));
         } catch (org.json.JSONException impossible) {
             throw new AssertionError(impossible);
         }
-        repo.draft(draft, quote, a.toString());
+        return a.toString();
     }
 
     public void clearNotice() {

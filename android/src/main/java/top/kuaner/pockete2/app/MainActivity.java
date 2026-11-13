@@ -43,6 +43,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private String page;
     private Runnable permissionAction;
     private Intent pendingIntent;
+    private String deliveryId, cameraDeliveryId;
+    private boolean pairIntentHandled, cameraReady, inboundPresented;
     private File cameraFile;
     private Dialog imagePreview;
     private boolean loginWaiting;
@@ -78,6 +80,14 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                         : saved.getString("page", "conversation");
         if (saved != null && saved.containsKey("camera"))
             cameraFile = new File(saved.getString("camera"));
+        deliveryId =
+                saved == null
+                        ? java.util.UUID.randomUUID().toString()
+                        : saved.getString("deliveryId", java.util.UUID.randomUUID().toString());
+        cameraDeliveryId = saved == null ? null : saved.getString("cameraDeliveryId");
+        cameraReady = saved != null && saved.getBoolean("cameraReady");
+        pairIntentHandled = saved != null && saved.getBoolean("pairIntentHandled");
+        inboundPresented = saved != null && saved.getBoolean("inboundPresented");
         loginWaiting = saved != null && saved.getBoolean("loginWaiting");
         shell = ui.column();
         shell.setBackgroundColor(ui.palette.background);
@@ -97,7 +107,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         frame.addView(shell);
         setContentView(frame);
         controller.addListener(this);
-        pendingIntent = getIntent();
+        handleIntent(getIntent());
+        if (cameraReady && cameraFile != null) importPhoto();
         changed();
     }
 
@@ -146,6 +157,11 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     public void changed() {
+        if (cameraReady && cameraFile != null && !cameraFile.exists()) {
+            cameraFile = null;
+            cameraReady = false;
+            cameraDeliveryId = null;
+        }
         if (controller.snapshot() == null) {
             if (pages.getChildCount() == 0)
                 pages.addView(ui.label(ui.t("正在读取对话…"), 16, ui.palette.secondary, false));
@@ -319,6 +335,11 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     protected void onSaveInstanceState(Bundle saved) {
         saved.putString("page", page);
         if (cameraFile != null) saved.putString("camera", cameraFile.getPath());
+        saved.putString("deliveryId", deliveryId);
+        saved.putString("cameraDeliveryId", cameraDeliveryId);
+        saved.putBoolean("cameraReady", cameraReady);
+        saved.putBoolean("pairIntentHandled", pairIntentHandled);
+        saved.putBoolean("inboundPresented", inboundPresented);
         saved.putBoolean("loginWaiting", loginWaiting);
         super.onSaveInstanceState(saved);
     }
@@ -327,8 +348,11 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (controller.snapshot() == null) pendingIntent = intent;
-        else handleIntent(intent);
+        deliveryId = java.util.UUID.randomUUID().toString();
+        pairIntentHandled = false;
+        inboundPresented = false;
+        pendingIntent = null;
+        handleIntent(intent);
     }
 
     private void handleIntent(Intent intent) {
@@ -336,28 +360,44 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         if (Intent.ACTION_VIEW.equals(intent.getAction())
                 && intent.getData() != null
                 && "duoduopocket".equals(intent.getData().getScheme())) {
+            if (pairIntentHandled) return;
+            if (controller.snapshot() == null) {
+                pendingIntent = intent;
+                return;
+            }
             navigate("pairing");
             pairing.parseLink(intent.getDataString());
+            pairIntentHandled = true;
             return;
         }
         if (!Intent.ACTION_SEND.equals(intent.getAction())
                 && !Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction())) return;
-        navigate("conversation");
-        CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-        if (text != null && text.toString().contains("duoduopocket://pair?")) {
-            navigate("pairing");
-            pairing.parseLink(text.toString());
-            return;
+        try {
+            InboundContent content = InboundContent.share(intent);
+            if (content.text.contains("duoduopocket://pair?")) {
+                if (pairIntentHandled) return;
+                if (controller.snapshot() == null) {
+                    pendingIntent = intent;
+                    return;
+                }
+                navigate("pairing");
+                pairing.parseLink(content.text);
+                pairIntentHandled = true;
+                return;
+            }
+            if (!inboundPresented) {
+                if (controller.snapshot() == null) page = "conversation";
+                else navigate("conversation");
+                inboundPresented = true;
+            }
+            controller.importContent(
+                    deliveryId,
+                    content.text,
+                    content.files,
+                    content.retainReads(getApplicationContext(), intent.getFlags()));
+        } catch (RuntimeException failure) {
+            toast(ui.t("无法导入文件，请检查文件大小与读取权限"));
         }
-        if (text != null) {
-            String draft = controller.draft();
-            controller.draft(draft.isEmpty() ? text.toString() : draft + "\n" + text);
-            controller.setVoiceInput(false);
-        }
-        Uri uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-        if (uri != null) controller.importAttachment(uri);
-        ArrayList<Uri> multiple = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
-        if (multiple != null) for (Uri item : multiple) controller.importAttachment(item);
     }
 
     @Override
@@ -403,6 +443,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                     new Intent(Intent.ACTION_OPEN_DOCUMENT)
                             .setType(mime)
                             .addCategory(Intent.CATEGORY_OPENABLE)
+                            .addFlags(
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                             .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
                     PICK);
         } catch (android.content.ActivityNotFoundException failure) {
@@ -412,10 +455,16 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     public void takePhoto() {
+        permission(new String[] {android.Manifest.permission.CAMERA}, this::launchCamera);
+    }
+
+    private void launchCamera() {
         try {
             File dir = new File(getCacheDir(), "shared");
             if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException();
             cameraFile = File.createTempFile("photo-", ".jpg", dir);
+            cameraDeliveryId = java.util.UUID.randomUUID().toString();
+            cameraReady = false;
             Uri uri = PocketFiles.uri(this, cameraFile);
             Intent camera =
                     new Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -427,9 +476,19 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
             startActivityForResult(camera, CAMERA);
         } catch (android.content.ActivityNotFoundException failure) {
             if (cameraFile != null) cameraFile.delete();
+            cameraFile = null;
+            cameraDeliveryId = null;
             toast(ui.t("这台设备没有可用的相机应用"));
         } catch (java.io.IOException failure) {
+            if (cameraFile != null) cameraFile.delete();
+            cameraFile = null;
+            cameraDeliveryId = null;
             toast(ui.t("无法创建照片文件"));
+        } catch (SecurityException failure) {
+            if (cameraFile != null) cameraFile.delete();
+            cameraFile = null;
+            cameraDeliveryId = null;
+            toast(ui.t("无法启动相机，请检查相机权限"));
         }
     }
 
@@ -437,18 +496,36 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request == PICK && result == RESULT_OK && data != null) {
-            if (data.getClipData() != null)
-                for (int i = 0; i < data.getClipData().getItemCount(); i++)
-                    controller.importAttachment(data.getClipData().getItemAt(i).getUri());
-            else if (data.getData() != null) controller.importAttachment(data.getData());
+            try {
+                InboundContent content = InboundContent.picked(data);
+                controller.importContent(
+                        java.util.UUID.randomUUID().toString(),
+                        "",
+                        content.files,
+                        content.retainReads(getApplicationContext(), data.getFlags()));
+                navigate("conversation");
+            } catch (RuntimeException failure) {
+                toast(ui.t("无法导入文件，请检查文件大小与读取权限"));
+            }
         }
         if (request == CAMERA && cameraFile != null) {
             if (result == RESULT_OK && cameraFile.length() > 0) {
-                controller.importAttachment(PocketFiles.uri(this, cameraFile));
+                cameraReady = true;
+                importPhoto();
                 navigate("conversation");
-            } else cameraFile.delete();
-            cameraFile = null;
+            } else {
+                cameraFile.delete();
+                cameraFile = null;
+                cameraDeliveryId = null;
+                cameraReady = false;
+            }
         }
+    }
+
+    private void importPhoto() {
+        File original = cameraFile;
+        if (cameraDeliveryId == null) cameraDeliveryId = java.util.UUID.randomUUID().toString();
+        controller.importPhoto(cameraDeliveryId, original);
     }
 
     @Override
@@ -461,7 +538,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         controller.download(
                 attachment,
                 (file, mime) -> {
-                    Uri uri = PocketFiles.uri(this, file);
+                    Uri uri = PocketFiles.uri(this, file, attachment.name, mime);
                     if (mime.startsWith("image/")) {
                         if (imagePreview != null) imagePreview.dismiss();
                         imagePreview =
@@ -470,9 +547,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                     } else
                         try {
                             startActivity(
-                                    new Intent(Intent.ACTION_VIEW)
-                                            .setDataAndType(uri, mime)
-                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+                                    readable(
+                                            new Intent(Intent.ACTION_VIEW)
+                                                    .setDataAndType(uri, mime),
+                                            uri));
                         } catch (android.content.ActivityNotFoundException failure) {
                             shareFile(uri, mime);
                         }
@@ -483,14 +561,20 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         try {
             startActivity(
                     Intent.createChooser(
-                            new Intent(Intent.ACTION_SEND)
-                                    .setType(mime)
-                                    .putExtra(Intent.EXTRA_STREAM, uri)
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                            readable(
+                                    new Intent(Intent.ACTION_SEND)
+                                            .setType(mime)
+                                            .putExtra(Intent.EXTRA_STREAM, uri),
+                                    uri),
                             ui.t("分享附件")));
         } catch (android.content.ActivityNotFoundException failure) {
             toast(ui.t("没有可接收文件的应用"));
         }
+    }
+
+    private static Intent readable(Intent intent, Uri uri) {
+        intent.setClipData(android.content.ClipData.newRawUri("Attachment", uri));
+        return intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
     }
 
     @Override

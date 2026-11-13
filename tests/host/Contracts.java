@@ -68,6 +68,40 @@ public final class Contracts {
                 ChannelClient.mapEntry(
                         Json.object("seq", 40, "kind", "heard", "speaker", "V2", "text", "nearby"),
                         40);
+        Attachment localAttachment =
+                new Attachment(
+                        "original.pdf",
+                        "application/pdf",
+                        "/private/app/local-file",
+                        String.join("", Collections.nCopies(64, "a")),
+                        "/uploaded.pdf",
+                        42,
+                        Attachment.FAILED);
+        Message remoteAttachment =
+                ChannelClient.mapEntry(
+                        Json.object(
+                                "kind",
+                                "typed",
+                                "attachments",
+                                new JSONArray().put(localAttachment.json(true))),
+                        39);
+        check(
+                remoteAttachment.attachments.get(0).localPath.isEmpty()
+                        && remoteAttachment.attachments.get(0).state == Attachment.UPLOADED
+                        && remoteAttachment.attachments.get(0).name.equals("original.pdf")
+                        && remoteAttachment
+                                .attachments
+                                .get(0)
+                                .sha256
+                                .equals(localAttachment.sha256),
+                "wire attachments retain remote metadata without authority to read a private local"
+                        + " file or impersonate an upload state");
+        check(
+                Attachment.from(localAttachment.json(true))
+                                .localPath
+                                .equals(localAttachment.localPath)
+                        && Attachment.from(localAttachment.json(true)).state == Attachment.FAILED,
+                "local draft persistence still restores its owned file and upload lifecycle state");
         check(
                 heard.speaker.equals("V2") && heard.kind == Message.HEARD,
                 "heard speaker labels survive mapping");
@@ -681,6 +715,7 @@ public final class Contracts {
                 "date labels use translated patterns and the selected locale");
         checked += TryChannelContracts.run();
         checked += SessionViewerContracts.run();
+        checked += ImportInboxContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

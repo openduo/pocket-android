@@ -8,13 +8,20 @@ tools="$sdk/build-tools/${POCKET_E2_BUILD_TOOLS:-35.0.0}"
 android_jar="$sdk/platforms/${POCKET_E2_ANDROID_PLATFORM:-android-35}/android.jar"
 build="$project_dir/.build/device-tests"
 sign_dir="${POCKET_E2_SIGN_DIR:-$HOME/.local/share/pocket-e2/signing}"
+if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" != 27 ]]; then
+  echo 'Native import UI probe currently requires API 27 to restore camera-location decisions.' >&2
+  exit 1
+fi
 [[ -f "$project_dir/.build/android/classes.jar" ]] || "$project_dir/scripts/build-android.sh"
+rm -rf "$build/classes" "$build/dex"
 mkdir -p "$build/classes" "$build/dex"
 cat > "$build/AndroidManifest.xml" <<'MANIFEST'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.kuaner.pockete2.qa"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/><application android:label="Pocket E2 QA"/><instrumentation android:name="top.kuaner.pockete2.qa.Probe" android:targetPackage="top.kuaner.pockete2" android:functionalTest="true"/></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.kuaner.pockete2.qa"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/><application android:label="Pocket E2 QA"><activity android:name=".ProviderWarmup" android:theme="@android:style/Theme.NoDisplay" android:exported="true" android:excludeFromRecents="true"/><provider android:name=".Documents" android:authorities="top.kuaner.pockete2.qa.documents" android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS"><intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER"/></intent-filter></provider></application><instrumentation android:name="top.kuaner.pockete2.qa.Probe" android:targetPackage="top.kuaner.pockete2" android:functionalTest="true"/></manifest>
 MANIFEST
 "$tools/aapt2" link -I "$android_jar" --manifest "$build/AndroidManifest.xml" -o "$build/base.apk"
-javac -encoding UTF-8 --release 8 -classpath "$android_jar:$project_dir/.build/android/classes.jar" -d "$build/classes" "$project_dir/tests/device/Probe.java" "$project_dir/tests/device/SecretProbe.java"
+test_sources=()
+while IFS= read -r -d '' file; do test_sources+=("$file"); done < <(rg --files -0 "$project_dir/tests/device" -g '*.java')
+javac -encoding UTF-8 --release 8 -classpath "$android_jar:$project_dir/.build/android/classes.jar" -d "$build/classes" "${test_sources[@]}"
 jar cf "$build/tests.jar" -C "$build/classes" .
 "$tools/d8" --min-api 26 --lib "$android_jar" --classpath "$project_dir/.build/android/classes.jar" --output "$build/dex" "$build/tests.jar"
 (cd "$build/dex" && zip -q "$build/base.apk" ./*.dex)
@@ -26,9 +33,26 @@ if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 ]]; then
 fi
 if [[ "${POCKET_E2_TEST_CAMERA:-0}" == 1 ]]; then adb shell pm grant top.kuaner.pockete2 android.permission.CAMERA; fi
 adb install -r "$build/probe.apk"
+camera_location_flags=""
+cleanup_probe() {
+  local restore_failed=0
+  if [[ "$camera_location_flags" =~ ^[0-9]+,[0-9]+$ ]]; then
+    adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin top.kuaner.pockete2.qa.PermissionFlags "$camera_location_flags" || restore_failed=1
+  fi
+  adb shell rm -f /data/local/tmp/pocket-e2-qa.apk >/dev/null
+  adb uninstall top.kuaner.pockete2.qa >/dev/null 2>&1 || true
+  return "$restore_failed"
+}
+trap cleanup_probe EXIT
+if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" == 27 ]]; then
+  adb push "$build/probe.apk" /data/local/tmp/pocket-e2-qa.apk >/dev/null
+  camera_location_flags="$(adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin top.kuaner.pockete2.qa.PermissionFlags | tr -d '\r')"
+  [[ "$camera_location_flags" =~ ^[0-9]+,[0-9]+$ ]] || { echo 'Could not preserve native camera location decisions' >&2; exit 1; }
+fi
 adb shell input keyevent 224
 adb shell wm dismiss-keyguard
-adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
+if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
+adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"
 adb pull /sdcard/Android/data/top.kuaner.pockete2/cache/qa "$build/screenshots" >/dev/null

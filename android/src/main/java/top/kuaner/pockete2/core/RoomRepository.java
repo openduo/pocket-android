@@ -9,6 +9,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -18,6 +19,7 @@ import java.util.List;
 
 /** Room-isolated SQLite cache. Cursor advancement and row admission are one durable transaction. */
 public final class RoomRepository extends SQLiteOpenHelper {
+    private static final String IMPORT_RECEIPTS = "@import-receipts";
     private String room = "unpaired";
 
     public RoomRepository(Context context) {
@@ -157,6 +159,94 @@ public final class RoomRepository extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    public boolean imported(String delivery) {
+        return !importDestination(delivery).isEmpty();
+    }
+
+    public String importDestination(String delivery) {
+        ImportBatch.requireId(delivery);
+        return roomMetadata(IMPORT_RECEIPTS, delivery);
+    }
+
+    public java.util.Set<String> importReceipts() {
+        java.util.Set<String> deliveries = new java.util.HashSet<>();
+        try (Cursor c =
+                getReadableDatabase()
+                        .rawQuery(
+                                "SELECT name FROM metadata WHERE room=?",
+                                new String[] {IMPORT_RECEIPTS})) {
+            while (c.moveToNext()) deliveries.add(c.getString(0));
+        }
+        return deliveries;
+    }
+
+    /** Disposable-room deliveries must never replay into a real room after process death. */
+    public void reserveTransientImport(String delivery, String scope) {
+        ImportBatch.requireId(delivery);
+        if (!scope.startsWith("try:"))
+            throw new IllegalArgumentException("Invalid transient import scope");
+        ImportBatch.requireId(scope.substring(4));
+        metadata(IMPORT_RECEIPTS, delivery, scope);
+    }
+
+    /** The receipt and the complete composer change either both commit or both roll back. */
+    public boolean importDraft(String delivery, String text, String quote, String chips) {
+        ImportBatch.requireId(delivery);
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            if (imported(delivery)) return false;
+            draft(text, quote, chips);
+            metadata(IMPORT_RECEIPTS, delivery, "received");
+            db.setTransactionSuccessful();
+            return true;
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /** Content received before the first room belongs to the user's next paired composer. */
+    public void inheritUnpairedDraft() {
+        if (room.equals("unpaired")) return;
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String oldText = roomMetadata("unpaired", "draft");
+            String oldQuote = roomMetadata("unpaired", "quote");
+            String oldChips = roomMetadata("unpaired", "chips");
+            String text = metadata("draft");
+            if (!oldText.isEmpty()) text = text.isEmpty() ? oldText : text + "\n" + oldText;
+            String quote = metadata("quote");
+            draft(
+                    text,
+                    quote.isEmpty() ? oldQuote : quote,
+                    mergeChips(metadata("chips"), oldChips));
+            for (String key : new String[] {"draft", "quote", "chips"})
+                metadata("unpaired", key, "");
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    private static String mergeChips(String current, String incoming) {
+        JSONArray value = new JSONArray();
+        java.util.Set<String> paths = new java.util.HashSet<>();
+        for (String encoded : new String[] {current, incoming}) {
+            if (encoded.isEmpty()) continue;
+            try {
+                JSONArray entries = new JSONArray(encoded);
+                for (int i = 0; i < entries.length(); i++) {
+                    JSONObject entry = entries.getJSONObject(i);
+                    if (paths.add(entry.optString("localPath"))) value.put(entry);
+                }
+            } catch (org.json.JSONException failure) {
+                throw new IllegalStateException("Invalid unpaired attachment draft", failure);
+            }
+        }
+        return value.toString();
     }
 
     public void enqueue(Message row, Outbox.Item item) {
@@ -306,18 +396,26 @@ public final class RoomRepository extends SQLiteOpenHelper {
     }
 
     public String metadata(String name) {
+        return roomMetadata(room, name);
+    }
+
+    private String roomMetadata(String identity, String name) {
         try (Cursor c =
                 getReadableDatabase()
                         .rawQuery(
                                 "SELECT value FROM metadata WHERE room=? AND name=?",
-                                new String[] {room, name})) {
+                                new String[] {identity, name})) {
             return c.moveToFirst() ? c.getString(0) : "";
         }
     }
 
     public void metadata(String name, String value) {
+        metadata(room, name, value);
+    }
+
+    private void metadata(String identity, String name, String value) {
         ContentValues values = new ContentValues();
-        values.put("room", room);
+        values.put("room", identity);
         values.put("name", name);
         values.put("value", value);
         if (getWritableDatabase()

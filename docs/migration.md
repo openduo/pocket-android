@@ -4,8 +4,8 @@ The long-term goal is **1:1 functional parity** with `openduo/pocket-ios`, initi
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. Milestones are checkpoints, not reduced scope.
 A prepared reply, placeholder, compiled page or unit contract is not end-to-end verification.
 
-Evidence at the 2026-11-14 local checkpoint: **126 host contract assertions, Go vet/test, Android APK
-build and 85 real E2 device assertions passed**. The device checks cover SQLite recovery/isolation,
+Evidence at the 2026-11-14 local checkpoint: **148 host contract assertions, Go vet/test, Android APK
+build and 122 real E2 device assertions passed**. The device checks cover SQLite recovery/isolation,
 AndroidKeyStore binding, Opus JNI, real array capture/release, muted AudioTrack watermarks,
 Camera2→H.264 and teardown, QR camera frames/release, foreground camera resume, encoder restart with
 swapped dimensions and continuous sequence, and bounded RGB viewfinder frames. The same suite checks
@@ -21,6 +21,17 @@ contracts, not an induced physical encoder fault. Dark/light conversation, Engli
 views and scoped 1.35 font-scale screenshots were inspected. The actual camera scene was almost black;
 recognisable-scene aiming and physical orientation have not been accepted.
 
+The same final device run covers imported draft/receipt transactions (including an injected receipt
+write failure), literal provider names/MIME, ordered multi-file URI deduplication, repeated share
+recreation and page retention, focused editor updates and typing/appending interleavings, and
+try-to-real isolation. It drives the actual system picker against a disposable provider in another
+UID, releases its persisted grant, and takes/confirms a stock-camera photo through the granted output
+URI. The returned JPEG decodes and its latest chip/removal target is visible in the narrow viewport.
+The first-use camera path was also exercised with optional location access declined; its original
+permission decision flags were restored. Tests remove their provider, APK and shell helper. Inbox
+crash contracts and reopened SQLite are distinct from an actual process kill during an unfinished
+external-provider read, which remains outstanding.
+
 No real room is paired yet: the embedded node is at Tailscale login, so room API/audio, accessory
 and session integration remain unverified against the user's services. Prepared mode exercises
 the real client boundary, reducers and hardware; its content is still prepared. Test counts do
@@ -31,7 +42,8 @@ not represent a completion percentage, and none of the rows below is a claim of 
 | Tailscale / pairing | `GoTransport`, `Endpoint`, `SecretStore`, editable pasted/opened/shared links, local QR decode and scan sheet, asynchronous one-tap auth URL handoff | Real browser/login/pair/revoke/re-pair, actual displayed pairing QR into a room, network-path and BLE-wake ping acceptance |
 | Live/cache/outbox | API v2 `/live`, SQLite cursor transaction, replay, stable ids, persisted retry surface/draft/chips, generation guards; after-row `brain_unreachable` resend preserves the failed logged row | Real offline/reconnect/history and send lifecycle; process death during admission/replay; historical identity and failure acceptance |
 | Thread and tools | Keyed bubbles, day/time separators, heard fold and speaker labels, spoken/partly-spoken metadata, live room notes, Markdown, copy/share/reply/read, tool archive and jump-to-latest | Full accessibility and more pages/font sizes; real live/log interruptions and tool identity edge cases |
-| Composer | Text/voice modes, saved draft, raw-touch hold/cancel/resume, file/photo/share import, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips | Real upload limit/error/progress acceptance; clipboard/share and camera-picker return; full attachment removal/retry lifecycle |
+| Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal | Real upload limit/error/progress acceptance; full clipboard and attachment removal/retry lifecycle; more dense composer/font/keyboard combinations |
+| File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release, original share names/MIME; safe photo-source cleanup, recreation/page retention, first-pair draft transfer and try isolation; real separate-UID provider via system picker and stock camera capture/confirmation | Process kill during an unfinished provider copy, pending permission/picker restoration, revocation/blocking, low storage, import progress/cancellation and large batches; additional decodable-image conversion to JPEG; modern Android and real-room upload/retry acceptance. See `imports.md` |
 | Voice notes | Exclusive E2/native/headset input, real RMS, Opus framing, outbox admission and idempotent retries | Real recognition/empty/failed/delivery outcomes, held-note interruptions, external mic/SCO routing, background upload lifetime |
 | Ambient | `AmbientInput` handles capture-before-hello, meta/seat/takeover, microphone-on semantics and overlapping presses; mute/hush/surface, foreground service, hardware receipts, full read-only conversation, transcript/room notes and interruptions | Real room ASR/TTS and reconnect, actual focus/route changes and external headsets, background/process death and energy trials |
 | Read aloud | Shared incremental speech transport, PacketStream, cancellable Go/local streaming, bounded PCM and cut/error distinctions; actual prepared Opus/AudioTrack path tested | Real synthesis/stop/restart, live-output overlap, failed synthesis and prolonged/cancelled-stream acceptance |

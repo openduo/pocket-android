@@ -334,7 +334,7 @@ public final class ChannelClient {
         JSONArray a = row.optJSONArray("attachments");
         if (a != null)
             for (int i = 0; i < a.length(); i++) {
-                Attachment value = Attachment.from(a.optJSONObject(i));
+                Attachment value = Attachment.fromWire(a.optJSONObject(i));
                 if (value != null) attachments.add(value);
             }
         boolean answer = kind.equals("answer") || row.optString("speaker").equals("多多");

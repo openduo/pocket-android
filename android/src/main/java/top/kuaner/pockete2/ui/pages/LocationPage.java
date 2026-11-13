@@ -272,9 +272,7 @@ public final class LocationPage implements AutoCloseable {
                         + (address.isEmpty() ? "" : "，" + address)
                         + String.format(Locale.ROOT, ui.t("（地图坐标：%.6f, %.6f）"), latitude, longitude)
                         + (approximate ? ui.t("，大致位置") : "");
-        String previous = controller.draft();
-        controller.draft(previous.isEmpty() ? text : previous + "\n" + text);
-        controller.setVoiceInput(false);
+        controller.appendDraft(text);
         host.navigate("conversation");
     }
 

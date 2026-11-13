@@ -19,8 +19,13 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
 - Actual microphone RMS drives the meter. A static placeholder is never presented as live audio.
 - Ambient capture and held notes share one input. Audio focus loss keeps an interrupted note as a
   failed draft, pauses ambient capture, and drops playback. Camera stops on backgrounding.
-- Geographical selection only appends editable text to the draft. Camera starts only after a
-  server ask, capture-master ownership, foreground state and explicit camera opt-in/permission.
+- Geographical selection appends editable text on the state owner. Sight streaming starts only
+  after a server ask, capture-master ownership, foreground state and explicit opt-in/permission.
+  Still photos use a separate explicit native-camera action and its granted output URI.
+- External shares enter the composer as a complete ordered batch, without sending. Focused editors
+  apply acknowledged draft updates and preserve typing that overlaps an incoming append; room/send
+  resets invalidate stale editor changes. Attachment chips expose horizontal overflow and size their
+  names around the actual viewport, thumbnail and 44 dp removal target. See `imports.md`.
 - The rear camera has an actual colour viewfinder from the same Camera2 image stream, bounded to
   a 240 px edge and 5 fps. Only a visible rear viewfinder requests those pixels. Front-camera
   preview is hidden, and a one-camera E2 has no unavailable lens-switch button. Physical rotation

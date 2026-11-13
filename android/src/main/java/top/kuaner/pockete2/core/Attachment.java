@@ -70,4 +70,19 @@ public final class Attachment {
                 o.optLong("size", 0),
                 o.optInt("state", UPLOADED));
     }
+
+    /** Wire rows cannot nominate an app-private path or a local upload lifecycle state. */
+    public static Attachment fromWire(JSONObject o) {
+        Attachment value = from(o);
+        return value == null
+                ? null
+                : new Attachment(
+                        value.name,
+                        value.mime,
+                        "",
+                        value.sha256,
+                        value.remotePath,
+                        value.size,
+                        UPLOADED);
+    }
 }
