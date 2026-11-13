@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="PocketTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item><item name="android:windowBackground">#0E0E0D</item>
+        <item name="android:colorBackground">#0E0E0D</item><item name="android:colorAccent">#1FD9DE</item>
+        <item name="android:statusBarColor">#0E0E0D</item><item name="android:navigationBarColor">#0E0E0D</item>
+        <item name="android:windowLightStatusBar">false</item><item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="PocketLightTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item><item name="android:windowBackground">#F5F4ED</item>
+        <item name="android:colorBackground">#F5F4ED</item><item name="android:colorAccent">#1A7175</item>
+        <item name="android:statusBarColor">#F5F4ED</item><item name="android:navigationBarColor">#F5F4ED</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

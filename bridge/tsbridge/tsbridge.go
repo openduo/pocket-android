@@ -1,0 +1,458 @@
+// Copyright 2026 openduo
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+
+// Package tsbridge is the app's embedded Tailscale node, bound into an
+// xcframework with gomobile. It owns:
+//
+//   - the tsnet node (userspace, state in the app container);
+//   - native HTTP requests to the channel;
+//   - the room's one `/live` WebSocket: conversation events always; with
+//     ambient mode on, the app's hello and binary audio both ways.
+//
+// Nothing listens on the phone: every call dials out through tsnet.
+package tsbridge
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"tailscale.com/ipn"
+	"tailscale.com/logtail"
+	"tailscale.com/tsnet"
+)
+
+var (
+	mu  sync.Mutex
+	srv *tsnet.Server
+	// logMu guards logFile, logDir and events only. tsnet logs from inside
+	// Start, which holds mu, so the logger must not take mu.
+	logMu   sync.Mutex
+	logFile *os.File
+	logDir  string
+	events  EventHandler
+	tr      *http.Transport
+	client  *http.Client
+	target  chanTarget
+)
+
+// chanTarget is the channel host that native requests and both sockets reach,
+// with the device token for that host. The token is bound to its host so a
+// request never carries one host's token to another: a pairing request points
+// the bridge at a new host with no token.
+type chanTarget struct {
+	Host  string
+	Port  int
+	TLS   bool
+	Token string
+}
+
+// authorize adds the target's device token unless the caller set the header.
+func (t chanTarget) authorize(h http.Header) {
+	if t.Token != "" && h.Get("Authorization") == "" {
+		h.Set("Authorization", "Bearer "+t.Token)
+	}
+}
+
+func (t chanTarget) hostPort() string {
+	if (t.TLS && t.Port == 443) || (!t.TLS && t.Port == 80) || t.Port == 0 {
+		if strings.Contains(t.Host, ":") {
+			return "[" + t.Host + "]"
+		}
+		return t.Host
+	}
+	return net.JoinHostPort(t.Host, fmt.Sprint(t.Port))
+}
+
+func (t chanTarget) scheme() string {
+	if t.TLS {
+		return "https"
+	}
+	return "http"
+}
+
+func (t chanTarget) origin() string { return t.scheme() + "://" + t.hostPort() }
+
+// EventHandler receives the few tsnet lines the app always keeps: the ones the
+// Tailscale patches mark with "pocket: " (Bridge/tailscale-patches), and the
+// node's status as StatusPrefix + the JSON of Status each time it changes.
+type EventHandler interface {
+	Event(line string)
+}
+
+// SetEventHandler sets (or with nil clears) the receiver of marked lines.
+func SetEventHandler(h EventHandler) {
+	logMu.Lock()
+	events = h
+	logMu.Unlock()
+}
+
+// logf is tsnet's logger. Marked lines go to the event handler. Everything
+// else goes to tsnet.log only while logging is on, without Tailscale's
+// verbose ([v1], [v2]) lines.
+func logf(format string, args ...any) {
+	logMu.Lock()
+	h, f := events, logFile
+	logMu.Unlock()
+	// Loggers add their prefixes and the verbose marks to the format, so a line nobody takes is
+	// dropped before it is formatted.
+	marked := h != nil && strings.Contains(format, "pocket: ")
+	if !marked && (f == nil || strings.Contains(format, "[v1] ") || strings.Contains(format, "[v2] ")) {
+		return
+	}
+	line := fmt.Sprintf(format, args...)
+	if marked {
+		h.Event(line)
+	}
+	if f == nil || strings.Contains(line, "[v1] ") || strings.Contains(line, "[v2] ") {
+		return
+	}
+	logMu.Lock()
+	defer logMu.Unlock()
+	if logFile != nil {
+		fmt.Fprintln(logFile, time.Now().UTC().Format(time.RFC3339Nano)+" "+line)
+	}
+}
+
+// SetLogging turns the tsnet log file on or off. Off (the default) closes and
+// removes it, so a battery-bound device writes nothing per probe or packet.
+// Takes effect at once, also before Start.
+func SetLogging(on bool) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	setLoggingLocked(on)
+}
+
+var loggingOn bool
+
+func setLoggingLocked(on bool) {
+	loggingOn = on
+	if logDir == "" {
+		return
+	}
+	path := filepath.Join(logDir, "tsnet.log")
+	if on && logFile == nil {
+		logFile, _ = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	}
+	if !on {
+		if logFile != nil {
+			logFile.Close()
+			logFile = nil
+		}
+		os.Remove(path)
+	}
+}
+
+// Start creates and starts the tsnet node. stateDir must persist across
+// launches so the node identity survives. A second call is a no-op.
+func Start(stateDir, hostname string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if srv != nil {
+		return nil
+	}
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return err
+	}
+	// Android apps have no writable HOME, /tmp or working directory. Tailscale
+	// still needs a private location for log-policy state with logtail disabled.
+	if runtime.GOOS == "android" {
+		os.Setenv("TS_LOGS_DIR", stateDir)
+		tmp := filepath.Join(stateDir, "tmp")
+		if err := os.MkdirAll(tmp, 0o700); err != nil {
+			return err
+		}
+		os.Setenv("TMPDIR", tmp)
+	}
+	// Do not upload tailscaled logs to log.tailscale.io from the app, and do
+	// not run logtail's local pipeline either (encoding, buffer files, a flush
+	// timer per line): the app keeps its own log.
+	os.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
+	logtail.Disable()
+	logMu.Lock()
+	logDir = stateDir
+	setLoggingLocked(loggingOn)
+	logMu.Unlock()
+	s := &tsnet.Server{
+		Dir:      stateDir,
+		Hostname: hostname,
+		Logf:     func(format string, args ...any) { logf(format, args...) },
+		UserLogf: func(format string, args ...any) { logf(format, args...) },
+	}
+	if err := s.Start(); err != nil {
+		return err
+	}
+	srv = s
+	go watchStatus(s)
+	// One shared transport so connections are reused. Go's DefaultTransport
+	// timeouts are kept; only the dialer changes.
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.Proxy = nil
+	t.DialContext = s.Dial
+	tr = t
+	client = &http.Client{Transport: t}
+	return nil
+}
+
+func server() (*tsnet.Server, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	if srv == nil {
+		return nil, errors.New("tsbridge: not started")
+	}
+	return srv, nil
+}
+
+// TSLogPath returns the tsnet log file path (for log export).
+func TSLogPath() string {
+	logMu.Lock()
+	defer logMu.Unlock()
+	if logFile == nil {
+		return ""
+	}
+	return logFile.Name()
+}
+
+type status struct {
+	BackendState string   `json:"backend_state"`
+	AuthURL      string   `json:"auth_url,omitempty"`
+	IPs          []string `json:"ips,omitempty"`
+	DNSName      string   `json:"dns_name,omitempty"`
+	Error        string   `json:"error,omitempty"`
+}
+
+// Status returns JSON: backend state, login URL when login is needed,
+// tailnet IPs and DNS name.
+func Status() string {
+	out := status{}
+	s, err := server()
+	if err != nil {
+		out.BackendState = "NotStarted"
+		return mustJSON(out)
+	}
+	lc, err := s.LocalClient()
+	if err != nil {
+		out.Error = err.Error()
+		return mustJSON(out)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	st, err := lc.StatusWithoutPeers(ctx)
+	if err != nil {
+		out.Error = err.Error()
+		return mustJSON(out)
+	}
+	out.BackendState = st.BackendState
+	out.AuthURL = st.AuthURL
+	for _, ip := range st.TailscaleIPs {
+		out.IPs = append(out.IPs, ip.String())
+	}
+	if st.Self != nil {
+		out.DNSName = st.Self.DNSName
+	}
+	return mustJSON(out)
+}
+
+// Logout logs the node out of the tailnet. The next Status reports
+// NeedsLogin with a fresh auth URL.
+func Logout() error {
+	s, err := server()
+	if err != nil {
+		return err
+	}
+	lc, err := s.LocalClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return lc.Logout(ctx)
+}
+
+// Up blocks until the backend reports Running or the timeout elapses.
+func Up(timeoutMs int64) error {
+	s, err := server()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	_, err = s.Up(ctx)
+	return err
+}
+
+// SetTarget sets the channel host and the device token sent to it (empty:
+// none). Host is a tailnet name or address.
+func SetTarget(host string, port int, useTLS bool, token string) {
+	mu.Lock()
+	target = chanTarget{Host: strings.TrimSpace(host), Port: port, TLS: useTLS, Token: token}
+	mu.Unlock()
+}
+
+func currentTarget() chanTarget {
+	mu.Lock()
+	defer mu.Unlock()
+	return target
+}
+
+// BaseURL returns scheme://host[:port] for the current target, or "".
+func BaseURL() string {
+	t := currentTarget()
+	if t.Host == "" {
+		return ""
+	}
+	return t.origin()
+}
+
+// CloseIdle drops pooled connections. Call after a wake: connections that
+// sat through a suspension are usually dead and would cost one timeout.
+func CloseIdle() {
+	mu.Lock()
+	t := tr
+	mu.Unlock()
+	if t != nil {
+		t.CloseIdleConnections()
+	}
+}
+
+// Rebind tells the node the network may have changed: it rebinds its sockets
+// and probes paths again. The app calls it on a network path change, because
+// a node outside a Network Extension cannot watch the route socket itself
+// (Bridge/tailscale-patches). Returns at once; the work runs in the node.
+func Rebind() {
+	s, err := server()
+	if err != nil {
+		return
+	}
+	lc, err := s.LocalClient()
+	if err != nil {
+		return
+	}
+	// As Tailscale's own reaction to a major link change: rebind the sockets,
+	// then probe the paths again. The probe also ends a periodic-probe pause
+	// (Bridge/tailscale-patches) when the new network has a UDP path.
+	// In-process local API calls that only schedule the work: no deadline.
+	go func() {
+		for _, action := range []string{"rebind", "restun"} {
+			if err := lc.DebugAction(context.Background(), action); err != nil {
+				logf("pocket: %s failed: %v", action, err)
+			}
+		}
+	}()
+}
+
+// Response is the result of Do.
+type Response struct {
+	Status int
+	Body   []byte
+}
+
+// Do performs one HTTP request over the tailnet. path is appended to the
+// target base URL (it must start with "/"). headersJSON is a JSON object of
+// header name to value. A transport error returns err; any HTTP status
+// returns a Response.
+func Do(method, path, headersJSON string, body []byte, timeoutMs int64) (*Response, error) {
+	return doTarget(currentTarget(), method, path, headersJSON, body, timeoutMs)
+}
+
+// DoAt binds a concurrent Android request to an immutable origin and token.
+func DoAt(host string, port int, tls bool, token, method, path, headersJSON string, body []byte, timeoutMs int64) (*Response, error) {
+	return doTarget(chanTarget{host, port, tls, token}, method, path, headersJSON, body, timeoutMs)
+}
+
+func doTarget(t chanTarget, method, path, headersJSON string, body []byte, timeoutMs int64) (*Response, error) {
+	mu.Lock()
+	c := client
+	mu.Unlock()
+	if c == nil {
+		return nil, errors.New("tsbridge: not started")
+	}
+	if t.Host == "" {
+		return nil, errors.New("tsbridge: no target host")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, t.origin()+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if headersJSON != "" {
+		var h map[string]string
+		if err := json.Unmarshal([]byte(headersJSON), &h); err != nil {
+			return nil, fmt.Errorf("tsbridge: headers: %w", err)
+		}
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
+	}
+	t.authorize(req.Header)
+	req.ContentLength = int64(len(body))
+	res, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	return &Response{Status: res.StatusCode, Body: b}, nil
+}
+
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+// StatusPrefix marks a status line sent to the EventHandler.
+const StatusPrefix = "pocket-status: "
+
+// watchStatus sends Status to the event handler when it changes, so the app
+// does not poll it. The IPN bus says when the backend state, the login URL or
+// the node itself changed; peers are not watched.
+func watchStatus(s *tsnet.Server) {
+	lc, err := s.LocalClient()
+	if err != nil {
+		logf("pocket: status watch failed: %v", err)
+		return
+	}
+	w, err := lc.WatchIPNBus(context.Background(), ipn.NotifyInitialState)
+	if err != nil {
+		logf("pocket: status watch failed: %v", err)
+		return
+	}
+	defer w.Close()
+	last := ""
+	for {
+		n, err := w.Next()
+		if err != nil {
+			logf("pocket: status watch ended: %v", err)
+			return
+		}
+		if n.State == nil && n.BrowseToURL == nil && n.LoginFinished == nil && n.SelfChange == nil {
+			continue
+		}
+		st := Status()
+		if st == last {
+			continue
+		}
+		last = st
+		logMu.Lock()
+		h := events
+		logMu.Unlock()
+		if h != nil {
+			h.Event(StatusPrefix + st)
+		}
+	}
+}

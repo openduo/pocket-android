@@ -1,0 +1,211 @@
+// Copyright 2026 pocket-e2 contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+
+package top.kuaner.pockete2.ui.components;
+
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.accessibility.AccessibilityManager;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import top.kuaner.pockete2.core.PocketController;
+import top.kuaner.pockete2.ui.PageHost;
+import top.kuaner.pockete2.ui.Ui;
+
+/** Touch-only presentation. The application controller owns capture across Activity lifecycles. */
+public final class HoldToTalkView extends LinearLayout {
+    private final PageHost host;
+    private final PocketController controller;
+    private final Ui ui;
+    private final TextView label;
+    private boolean held, cancel, live, accessible;
+
+    public HoldToTalkView(PageHost host, PocketController controller) {
+        super(host.activity());
+        this.host = host;
+        this.controller = controller;
+        ui = host.ui();
+        setGravity(Gravity.CENTER);
+        setMinimumHeight(ui.dp(48));
+        setOrientation(VERTICAL);
+        label = ui.label("按住说话", 14, ui.palette.text, true);
+        label.setGravity(Gravity.CENTER);
+        addView(label);
+        setBackground(ui.surface(ui.palette.raised, 12));
+        setClickable(true);
+        setFocusable(true);
+        setContentDescription("按住说话，手指移出按钮可取消");
+        setOnClickListener(
+                v -> {
+                    if (!((AccessibilityManager)
+                                    getContext()
+                                            .getSystemService(
+                                                    android.content.Context.ACCESSIBILITY_SERVICE))
+                            .isTouchExplorationEnabled()) return;
+                    accessible = !accessible;
+                    if (accessible)
+                        host.permission(
+                                new String[] {android.Manifest.permission.RECORD_AUDIO},
+                                this::begin);
+                    else finish(false);
+                });
+    }
+
+    private void begin() {
+        if (held) return;
+        held = true;
+        cancel = false;
+        controller.beginHold();
+        update(controller.snapshot());
+    }
+
+    private void finish(boolean canceled) {
+        if (!held) return;
+        held = false;
+        accessible = false;
+        controller.releaseHold(canceled);
+        cancel = false;
+        live = false;
+        setScaleX(1);
+        setScaleY(1);
+        update(controller.snapshot());
+    }
+
+    public void cancel() {
+        finish(true);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (((AccessibilityManager)
+                        getContext()
+                                .getSystemService(android.content.Context.ACCESSIBILITY_SERVICE))
+                .isTouchExplorationEnabled()) return super.onTouchEvent(event);
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                if (getContext().checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    host.permission(
+                            new String[] {android.Manifest.permission.RECORD_AUDIO},
+                            () -> host.toast("麦克风已允许，请再次按住说话"));
+                    return true;
+                }
+                getParent().requestDisallowInterceptTouchEvent(true);
+                begin();
+                setScaleX(.98f);
+                setScaleY(.98f);
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (!held) return true;
+                boolean outside =
+                        event.getX() < 0
+                                || event.getX() > getWidth()
+                                || event.getY() < 0
+                                || event.getY() > getHeight();
+                if (cancel != outside) {
+                    cancel = outside;
+                    haptic(HapticFeedbackConstants.CLOCK_TICK);
+                    update(controller.snapshot());
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+                finish(cancel);
+                getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                finish(true);
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    public void update(PocketController.Snapshot s) {
+        if (s == null) return;
+        if (held && s.holdLive && !live) {
+            live = true;
+            haptic(HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+        label.setText(
+                held
+                        ? cancel ? "松手取消" : live ? "松开发送 · " + duration(s.holdDurationMs) : "准备中…"
+                        : "按住说话");
+        label.setTextColor(held && live && !cancel ? ui.palette.onAccent : ui.palette.text);
+        setBackground(
+                ui.surface(
+                        held
+                                ? cancel
+                                        ? ui.palette.attentionTint
+                                        : live ? ui.palette.accent : ui.palette.selected
+                                : ui.palette.raised,
+                        12));
+        setContentDescription(
+                held ? cancel ? "松手取消，移回按钮继续录音" : live ? "正在录音，松开发送" : "准备麦克风" : "按住说话");
+    }
+
+    public boolean cancelArmed() {
+        return cancel;
+    }
+
+    private void haptic(int kind) {
+        if (controller.settings.haptics())
+            performHapticFeedback(kind, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cancel();
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (!focused) cancel();
+    }
+
+    public static String duration(long ms) {
+        long sec = ms / 1000;
+        return String.format(java.util.Locale.ROOT, "%d:%02d", sec / 60, sec % 60);
+    }
+
+    public static final class Meter extends View {
+        private final Ui ui;
+        private final PocketController controller;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        public Meter(Ui ui, PocketController controller) {
+            super(ui.context);
+            this.ui = ui;
+            this.controller = controller;
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float level = controller.level();
+            paint.setColor(ui.palette.accent);
+            paint.setStrokeWidth(ui.dp(3));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            int count = 27;
+            float gap = getWidth() / (float) (count + 1), center = getHeight() / 2f;
+            for (int i = 0; i < count; i++) {
+                float taper = (float) Math.sin((i + 1) * Math.PI / (count + 1));
+                float amplitude = ui.dp(2) + level * taper * getHeight() * .42f;
+                canvas.drawLine(
+                        gap * (i + 1),
+                        center - amplitude,
+                        gap * (i + 1),
+                        center + amplitude,
+                        paint);
+            }
+            if (isShown()) postInvalidateDelayed(50);
+        }
+    }
+}

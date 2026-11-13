@@ -1,0 +1,51 @@
+# Protocol boundaries
+
+Source: `../pocket-ios/docs/ble-protocol.md`, client API major 2, Pocket link 1.3. The real upstream
+Go bridge is used for HTTP and `/live`; there is no cursor-polling substitute for live events.
+
+Anonymous requests are limited to `/healthz` and `/api/pair`. `DoAt` and `StreamAt` bind each
+concurrent request to an immutable endpoint/token, while the one `/live` socket is guarded by a
+connection generation. Device tokens use AndroidKeyStore AES-GCM and are excluded from backups.
+The Android bridge sets private Tailscale log/temp directories; iOS-only Tailscale patches are not
+applied.
+
+A SQLite transaction admits server rows, reconciles matching `utt_id` outbox entries, and advances
+the cursor. A 202 remains pending until the server row arrives. Text transport errors queue until
+reconnect; HTTP errors (including 5xx) need manual retry. Voice retries transport/5xx errors under
+one idempotency key and deadline. The initial display/spoken/place surface survives retries and
+process death. Cleaned/failed events may arrive before the 202 and must retain precedence.
+
+Voice bodies are `[u16 little-endian length][20 ms 16 kHz mono Opus packet]…`. `hello` follows actual
+input capture, `mute.on=true` means the room microphone is ON, and downlink speech declarations
+reset decoder state without discarding prior queued PCM. Playback watermarks come from AudioTrack's
+hardware head and are cumulative per speech id. Read aloud streams incrementally and detects cut
+packets. Outgoing JSON/audio/video share an ordered bounded writer.
+
+Media version 1 prefixes audio with 0x01. Video uses 0x02, flags, u32 LE sequence, u64 LE capture
+milliseconds, optional u16 LE JSON config blocks and Annex-B H.264. Dropped/oversized chunks require
+a new key frame. Capture parameters come from the server; unsupported sizes/profiles are declined.
+
+Passport uses the upstream service/TX/RX UUIDs. It is a BLE **central**, writes CCCD before link-ready,
+uses negotiated MTU, and serializes GATT operations. Direction-specific PDU validation, 4 KiB bounds,
+UTF-8 fitting, sequence wrap/loss/duplicates, implicit press and link-loss completion are explicit.
+RESULT follows cleaned/failed settlement; answers correlate through `message_ids`, and quiet replies,
+monotone persisted ids and live/log deduplication are separate from press assembly.
+
+Session watches follow visible foreground UI, are restored after `/live` reconnect, and end on page
+exit. One correlated notification may be in flight. A connection loss marks its delivery uncertain.
+
+`ChannelConnection` is the common HTTP/live/incremental-speech boundary. `GoTransport` owns the
+native tsnet implementation; `TryChannel` handles those same API-v2 paths locally and cannot accept
+a real origin. Try-mode rows, outbox, drafts and cursors use a separate in-memory SQLite repository.
+Receipts remain idempotent, delayed voice recognition and turn frames use the real application
+reducers, and attachments carry actual SHA-256 digests and are downloaded through the ordinary API.
+Prepared speech traverses PacketStream, Opus and AudioTrack, including cancellation. Session notify
+samples stay local and are explicitly labelled. Closing try invalidates the local socket, scheduled
+turns and streams, removes owned files and restores the permanent room repository. Entering try
+does not initialise tsnet or use stored room credentials.
+
+Rear viewfinder pixels come from the currently owned Camera2 YUV image and never require a second
+camera. The UI receives one bounded RGB frame, not a recording. Encoding and viewfinder use the same
+buffer rotation. Serious heat lowers the declared rate and bitrate in place; critical heat and
+backgrounding stop the camera. API27's battery-temperature hint is an Android substitute and is not
+equivalent to a calibrated system thermal-pressure signal.

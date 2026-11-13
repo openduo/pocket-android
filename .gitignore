@@ -1,0 +1,13 @@
+.build/
+dist/
+local.properties
+*.keystore
+*.p12
+*.apk
+
+.DS_Store
+private/
+*.log
+*.wav
+*.packets
+*.opus
