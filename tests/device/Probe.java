@@ -41,6 +41,12 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("permissionOnly"))) {
+                report.putString(
+                        "result", new PermissionServiceProbe(this).run(context, arguments));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("sightRoomOnly"))) {
                 if (!"1".equals(arguments.getString("capture"))
                         || !"1".equals(arguments.getString("camera")))

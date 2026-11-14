@@ -72,6 +72,13 @@ dependencies {
             manifest.write_text(re.sub(r'\s+package="[^"]+"', '', text))
             original += f"\nandroid {{ namespace '{namespace}'; compileSdk 35 }}\n"
         (source / module / 'build.gradle').write_text(original)
+    service_path = 'switchaccess/src/main/res/xml/switch_access_accessibilityservice.xml'
+    service_metadata = subprocess.check_output(
+        ['git', '-C', str(source), 'show', f'{PIN}:{service_path}'], text=True)
+    # Switch Access is an assistive service. API 34+ hides sensitive permission controls from
+    # services without this API 31 declaration, which did not exist in the pinned release.
+    (source / service_path).write_text(service_metadata.replace(
+        'android:accessibilityEventTypes=', 'android:isAccessibilityTool="true"\n    android:accessibilityEventTypes=', 1))
     wrapper = source / 'gradle/wrapper/gradle-wrapper.properties'
     wrapper.write_text(wrapper.read_text().replace('gradle-4.3.1-bin.zip', 'gradle-8.9-bin.zip'))
     directory = ROOT / '.build/acceptance/accessibility'
@@ -83,7 +90,8 @@ dependencies {
     (directory / 'switch-source.json').write_text(json.dumps({
         'repository': 'https://github.com/google/talkback', 'commit': PIN,
         'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
-        'changes': 'Gradle, namespace and standalone QA manifest only; upstream Java is unchanged',
+        'changes': 'Gradle, namespace, standalone QA manifest and isAccessibilityTool metadata; upstream Java is unchanged',
+        'isAccessibilityTool': True,
         'scope': 'Legacy actual source service; current Google Play Switch Access remains separate'
     }, indent=2))
     if args.serial:

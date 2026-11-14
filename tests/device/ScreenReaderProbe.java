@@ -666,7 +666,7 @@ final class ScreenReaderProbe {
         check(ordered, page + " focus order follows the visual control sequence: " + sequence);
     }
 
-    private static String spokenLabel(AccessibilityNodeInfo node, int depth) {
+    static String spokenLabel(AccessibilityNodeInfo node, int depth) {
         if (node.getContentDescription() != null) return node.getContentDescription().toString();
         StringBuilder label = new StringBuilder();
         if (node.getText() != null) label.append(node.getText());

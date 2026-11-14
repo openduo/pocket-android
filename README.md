@@ -42,6 +42,7 @@ scenarios also remain open. Prepared Try replies never count as real server resp
 | Host / source checks | 325 contracts, architecture boundaries, 616-entry localization catalog, Go vet/test and Android build |
 | Emulator UI | 22 API 35 window/font/language/theme cases, 9,616 checks; actual display rotation 20, freeform 8 and system split 12 checks |
 | Actual accessibility services | TalkBack 15.0 expanded runner: 12 scenes, 404 checks; legacy Google source Switch Access 6.1.1 scan/order/scroll/activation 113 checks |
+| Actual system camera permission | TalkBack 46 / Switch Access 33 checks: real denial, repeated request/grant and scan-sheet return; other permissions remain separate |
 | Physical E2 | Previous APK checkpoint: complete capture/camera/paired-Try regression 342 checks; current APK after feed accessibility fix: native accessibility/capture target 27 checks |
 | Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
 | Physical E2 lifetime | 900 seconds idle background, process present at 60 samples, trim request and actual foreground Online; not natural LMK/overnight/ambient acceptance |

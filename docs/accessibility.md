@@ -55,7 +55,8 @@ Google 官方 API 35 镜像未提供 Switch Access，当前 Google Play APK 在�
 [google/talkback 6.1.1](https://github.com/google/talkback/tree/fa67c12fce7242b97ce864c4c6b86a0b758e6332)
 中的实际 Switch Access 服务，固定源码 SHA：`fa67c12fce7242b97ce864c4c6b86a0b758e6332`。
 
-构建脚本只替换 Gradle、namespace 和独立 QA manifest，**未修改上游 Java 行为**。QA 包名为
+构建脚本调整 Gradle、namespace 和独立 QA manifest，并补充现代 Android 的 `isAccessibilityTool=true`
+服务声明，**未修改上游 Java 扫描行为**。QA 包名为
 `top.kuaner.pockete2.switchqa`，包含服务所需 WAKE_LOCK/VIBRATE，不进入产品 APK。使用 NDK 测试 helper
 注册 uinput USB 键盘，A 为 next、B 为 select，C/D 映射服务原生向前/向后滚动，经原始 InputReader
 送入 Switch Access。本次实际执行向前滚动，不以直接调用 `View.scrollTo` 替代服务操作。
@@ -72,6 +73,29 @@ session notify 验收。旧基线为 11 项。
 `.build/acceptance/accessibility/switch-source.json`。这证明旧版服务在上述页面的扫描/滚动/激活；
 **不等于当前 Google Play Switch Access、全部滚动子树或所有系统对话框已验收**。位置页未选点时的
 “使用这个位置”按钮是禁用状态，未将其计为可扫描操作；只读设置说明也不要求成为 Switch 停靠点。
+
+## 实际系统相机权限
+
+另一个专项通过实际服务激活配对页的扫码按钮，进入原生 Permission Controller，遍历“使用应用时允许”、
+“仅限这一次”和“拒绝”的顺序；先拒绝并关闭 app 的权限说明，再次请求、实际授权，打开扫码相机面板并
+关闭返回配对表单。**TalkBack 46 项、Switch Access 33 项通过**。记录真实系统节点、原始输入和截图，
+没有用准备的权限 callback 或直接 node click 替代。
+
+Android 第二次请求把拒绝控件改为 `permission_deny_and_dont_ask_again_button`，测试保留实际 ID，按同一
+拒绝选项校验顺序。配对字段的 hint 和较深的原生层级也纳入返回条件，不以截短的聚合文字判断页面消失。
+这些是测试检测方式的修正，实际授权决定仍由 Permission Controller 处理。
+
+最初旧版 Switch QA 服务只有自身菜单可扫描，无法取得权限决策节点。
+[Android 14 的敏感无障碍节点](https://developer.android.com/reference/android/R.attr#accessibilityDataSensitive)
+仅向声明为辅助工具的服务提供；固定源码发布时尚无 API 31 的 `isAccessibilityTool` 属性。补充该真实
+辅助服务的元数据后，三个选项和实际拒绝/授权流程通过。失败轨迹在 ignored
+`.build/acceptance/accessibility/switch-permissions-legacy-metadata-trial/`；旧构建摘要保存在
+`switch-source-before-tool-metadata.json`，新元数据由 `prepare-switch-access.py` 可重复生成。
+同一新构建随后完整页面回归再次通过 113 项，旧完整结果另存 `switch-before-tool-metadata/`。
+
+证据：`.build/acceptance/accessibility/{talkback-permissions,switch-permissions}/`。专项保留 app 草稿和
+未配对状态；退出时恢复原相机授权和 USER_SET/USER_FIXED 决定标记、无障碍服务及临时通知权限。此项只覆盖
+系统相机权限的拒绝/前台授权与返回，不接受真实 Sight、麦克风/地点/通知等其他系统权限流程。
 
 ## 真 E2 原生专项
 
@@ -99,16 +123,21 @@ python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULAT
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene message-actions
 python3 scripts/prepare-switch-access.py --serial YOUR_ROOTED_API35_EMULATOR
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch
+# Actual camera permission denial, grant and app return through either service.
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch --scene permissions
 ```
 
 runner 拒绝真实设备，共享 UI 验收锁，保存/恢复原无障碍服务和临时授予的 TalkBack 通知权限。服务源码和
 NDK helper 仅在 ignored `.build/` 编译，不是产品依赖。当前 TalkBack helper 使用此镜像的 touchscreen
 `/dev/input/event1` 和坐标范围；换镜像需先核对 getevent 信息，不能无条件外推。
 每次起跑删除旧场景缓存；超时会停止隔离模拟器中的目标 app，保留失败报告，退出时清理服务和测试键盘。
+runner 另记录实际安装的服务 APK 摘要；早期报告的服务摘要作为独立 `service-identity.json` 记录，
+不回写成当时 runner 已经产生的字段。
 
 ## 尚未覆盖
 
 本次实际服务遍历覆盖上述 12 个场景及准备的长内容。其余历史消息/附件/长会话折叠、所有滚动层级、
-其他弹层和系统权限对话框、跨外部 Activity 的返回/取消以及当前 Play 版 Switch Access 仍需扩大覆盖。
+其他弹层和其余系统权限对话框、跨外部 Activity 的返回/取消以及当前 Play 版 Switch Access 仍需扩大覆盖。
 字体/窗口矩阵是独立 UI 验证，不能宣称每一组都执行了两种服务的完整组合。Escape 有实现，采集专项重点
 执行了 DPAD click 与具名取消 action。自然声学 ASR 与可听回复仍单独开放。

@@ -6,7 +6,7 @@ Passport 暂缓。已通过只针对下列实际条件，不以断言数量替�
 | 范围 | 当前结果 | 仍开放的范围 |
 | --- | --- | --- |
 | UI 窗口和字体 | 22 组截图/真实 IME，9,616 项检查通过；真实显示旋转 20 项、自由窗口 8 项、系统双应用分屏 12 项通过 | OEM、刘海/折叠/外接显示器、所有外部操作中的配置变化和系统权限弹窗 |
-| 无障碍 | 实际 TalkBack 15.0 扩展运行 12 个场景、404 项；Google 源码 Switch Access 6.1.1 扫描/滚动/激活 113 项；当前 E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、其余动态消息/滚动层级、系统权限对话框的全流程 |
+| 无障碍 | 实际 TalkBack 15.0 扩展运行 12 个场景、404 项；Google 源码 Switch Access 6.1.1 扫描/滚动/激活 113 项；系统相机权限专项分别 46/33 项；当前 E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、其余动态消息/滚动层级、其余系统权限对话框的全流程 |
 | 真实服务 | 既有实际历史/文本/文件/会话读取、合成语音 ASR/brain/tool/静音播放；新增 API 35 实际 Geocoder 搜索/反查通过 | 自然人声 ASR 和可听回复、真实 Sight 协商、session notify 收件、physical visit 和 E2 geocoder |
 | 身份、网络和生命周期 | 既有短 Wi-Fi 断开恢复、前后台、force-stop/cold-launch；新增 900 秒真 E2 idle 后台和 trim 请求后恢复 Online | 实际 logout/relogin、revoke/re-pair、两条真实网络切换、外部音频路由、过夜/长期 ambient、自然 LMK |
 
@@ -73,6 +73,17 @@ Switch Access 扩展运行 **113 项全部通过**：A/B 为 next/select，C/D �
 扫描框按 native View 的可见裁剪区域和 Dialog 的实际显示偏移匹配；长对话扫描预算不再在到达输入框前
 结束。会话测试同时等待 controller loaded 与真实编辑器渲染，仍保留原 5 秒期限。
 两种服务报告均为 schema 2；runner 删除旧证据、校验完整报告，异常/超时会停止隔离模拟器中的 app 并清理。
+
+### 实际系统权限补验
+
+系统相机权限专项中，TalkBack 46 项、Switch Access 33 项通过。实际服务从配对页请求权限，按可见顺序
+遍历三个系统决定；拒绝后返回 app 的权限说明，关闭、再次请求并授权，打开扫码面板再返回原配对表单。
+不注入权限 callback，也不直接 click 系统节点。保留草稿与未配对状态，恢复原相机授权和用户决定标记。
+
+旧版 Switch QA 服务最初未声明 `isAccessibilityTool`，受 API 35 的敏感节点限制而只能扫描自身菜单。
+构建脚本现补充 API 31 服务声明，上游 Java 保持原样；新专项和完整 113 项页面回归均通过。实际 Android 第二次请求使用不同的拒绝
+按钮 ID，保留原始 ID 并按拒绝选项校验。证据和旧构建失败边界见 [`accessibility.md`](accessibility.md)。
+其他系统权限、外部 picker/Activity 返回与全部系统对话框组合仍未接受；系统相机权限不等于真实 Sight。
 
 ## 真 E2 与真实 Geocoder
 

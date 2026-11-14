@@ -33,6 +33,7 @@ outbox 和设备资源，不读取屏幕尺寸。新增适配规则时首先修�
 | 自由窗口/系统分屏 | 分别 8/12 项通过；实际 multi-window，八页分屏截图和草稿保留 | `.build/acceptance/ui/windows/` |
 | 实际 TalkBack 15.0 | 扩展运行 404 项通过，八页加四个弹层/详情；原始触屏滑动、双击/长按、明确控件顺序及真实焦点轨迹 | `.build/acceptance/accessibility/talkback/` |
 | 实际 Switch Access 源码 6.1.1 | 扩展 113 项通过，八页关键控件/顺序、长对话、两次设置滚动、会话与编辑/操作 sheet 激活；不是当前 Google Play 版本 | `.build/acceptance/accessibility/switch/` |
+| 实际系统相机权限 | TalkBack 46 项、Switch Access 33 项通过；实际拒绝/再次授权、关闭扫码面板返回表单，恢复原权限决定；其他权限仍开放 | `.build/acceptance/accessibility/{talkback-permissions,switch-permissions}/` |
 | 真 E2 采集/相机/paired-Try | 上一 APK 完整回归 342 项通过；移除重复 feed 朗读节点后，当前 APK 无障碍专项重新通过 27 项 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility-expanded.txt` |
 | 实际系统 Geocoder | API 35 公共地标搜索/反查均返回结果，5,664ms；没有替换后端或注入位置 | `.build/acceptance/ui/location-service/` |
 | E2 地点能力查询 | API 27 `Geocoder.isPresent=false`，仅 passive/gps 且无 enabled provider；真实查询为 NOT_RUN，不计通过 | `.build/acceptance/e2-location-service/`、`e2-geocoder-run.txt` |
@@ -60,7 +61,7 @@ Activity 前后台，也没有制造自然 LMK。它不等于过夜待机、真�
 | P1 验收 | 真实 Sight | 当前服务器未确认 media=1；需实际服务支持后，再做 ask/参数协商、可识别画面和关闭/重启。Camera2 和准备控制帧不能替代 |
 | P1 验收 | 真实 session notify | 明确自有且可收件的测试会话，验证单次发送、确认和收件端记录；当前配对 room 不满足资格，未向其他会话发送 |
 | P1 验收 | E2 地点与真实到达 | 当前 E2 无系统 Geocoder、无 enabled provider，继续依赖手动坐标/地图选点；需可用位置源及地理编码后端再做真实停留/到达。API 35 查询通过不能替代 |
-| 后续兼容性 | 无障碍和更多设备 | 当前 Play Switch Access、所有滚动层级/长会话/系统权限对话框、OEM/折叠/刘海/外接显示器、外部操作中的重建 |
+| 后续兼容性 | 无障碍和更多设备 | 当前 Play Switch Access、其余滚动层级/长会话/系统权限对话框、OEM/折叠/刘海/外接显示器、外部操作中的重建 |
 
 ## 距离完整 1:1 仍有什么
 

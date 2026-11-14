@@ -485,7 +485,7 @@ final class SwitchUiProbe {
                 page + " actual scan follows the visible control order: " + sequence);
     }
 
-    private Rect highlight(Bitmap image) {
+    static Rect highlight(Bitmap image) {
         Rect highlight = new Rect(image.getWidth(), image.getHeight(), 0, 0);
         java.util.Map<Integer, Integer> colors = new java.util.HashMap<>();
         for (int y = 0; y < image.getHeight(); y += 2)

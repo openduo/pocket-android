@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--service', choices=['talkback', 'switch'], required=True)
     parser.add_argument('--installed', action='store_true')
-    parser.add_argument('--scene', choices=['full', 'message-actions'], default='full')
+    parser.add_argument('--scene', choices=['full', 'message-actions', 'permissions'], default='full')
     args = parser.parse_args()
 
     def adb(*command, timeout=30, check=True):
@@ -36,7 +36,7 @@ def main():
         raise SystemExit('Use a root-capable Google APIs emulator; a production device is not supported.')
     if int(adb('shell', 'getprop', 'ro.build.version.sdk')) < 35:
         raise SystemExit('This service acceptance harness requires API 35 or later.')
-    if args.scene != 'full' and args.service != 'talkback':
+    if args.scene == 'message-actions' and args.service != 'talkback':
         raise SystemExit('The focused message-action scene currently uses TalkBack.')
     directory = ROOT / '.build/acceptance/accessibility' / (
         args.service if args.scene == 'full' else args.service + '-' + args.scene)
@@ -67,6 +67,7 @@ def main():
     notifications_were_granted = bool(re.search(
         r'android.permission.POST_NOTIFICATIONS: granted=true', talkback_permissions))
     keyboard = None
+    camera_permission = None
     report = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
               'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk'),
               'passed': False}
@@ -119,6 +120,30 @@ def main():
                 private + '/' + SWITCH + '_preferences.xml')
             options = ['-e', 'switchKeyboard', device]
             mode, cache = 'switchOnly', 'switch-ui'
+        service_package = 'com.google.android.marvin.talkback' if args.service == 'talkback' else SWITCH
+        apk_paths = [line.removeprefix('package:') for line in adb('shell', 'pm', 'path', service_package).splitlines()]
+        service_apk = next((path for path in apk_paths if path.endswith('/base.apk')), apk_paths[0] if apk_paths else '')
+        if not re.fullmatch(r'/[A-Za-z0-9._~/+=-]+\.apk', service_apk):
+            raise RuntimeError('Could not identify the installed accessibility service APK.')
+        digest = adb('shell', 'sha256sum', service_apk).split()[0]
+        if not re.fullmatch('[a-f0-9]{64}', digest):
+            raise RuntimeError('Could not hash the installed accessibility service APK.')
+        report['serviceApkSha256'] = digest
+        if args.scene == 'permissions':
+            permission = 'android.permission.CAMERA'
+            package = adb('shell', 'dumpsys', 'package', PACKAGE)
+            decision = re.search(r'android.permission.CAMERA: granted=(true|false), flags=\[([^\]]*)\]', package)
+            if not decision:
+                raise RuntimeError('Could not preserve the emulator camera permission decision.')
+            camera_permission = {'granted': decision[1] == 'true',
+                                 'userFlags': [flag for flag, token in [('user-set', 'USER_SET'), ('user-fixed', 'USER_FIXED')]
+                                               if token in [value.strip() for value in decision[2].split('|')]]}
+            report['originalCameraPermission'] = camera_permission
+            adb('shell', 'am', 'force-stop', PACKAGE)
+            adb('shell', 'pm', 'revoke', PACKAGE, permission)
+            adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
+            options += ['-e', 'accessibilityService', args.service]
+            mode, cache = 'permissionOnly', 'permission-service'
         adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', component)
         adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1')
         time.sleep(1)
@@ -154,6 +179,12 @@ def main():
         raise
     finally:
         adb('shell', 'am', 'force-stop', PACKAGE, check=False)
+        if camera_permission is not None:
+            permission = 'android.permission.CAMERA'
+            adb('shell', 'pm', 'grant' if camera_permission['granted'] else 'revoke', PACKAGE, permission)
+            adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
+            if camera_permission['userFlags']:
+                adb('shell', 'pm', 'set-permission-flags', PACKAGE, permission, *camera_permission['userFlags'])
         for key, value in original.items():
             adb('shell', 'settings', 'delete' if value == 'null' else 'put', 'secure', key,
                 *([] if value == 'null' else [value]))
