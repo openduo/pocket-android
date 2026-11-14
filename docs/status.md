@@ -33,6 +33,36 @@ version code 2). This adds the localization follow-up to the first preview and c
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
 
+## Outbox and read-aloud ownership refactor
+
+After the input refactor, `:core/OutboxSender` owns the active HTTP delivery, immutable voice
+body/surface, request registration, retry budget, cancellation and bounded send worker.
+`:core/SpeechReader` owns read identity, stream framing/cancellation and current completion;
+`:app/ReadAloudOutput` owns the stream-thread decoder and shared playback admission. Database
+transactions, foreground-service gating, audio focus and room effects remain in the controller,
+on the same state executor. There is no duplicate controller send/read generation state or
+device-specific delivery implementation. See [architecture and handoffs](architecture.md).
+
+The 71 new deterministic assertions cover the changed asynchronous boundaries, including
+pre-dispatch storage rejection, stale/unauthorized completions, fixed retry identity/body,
+voice/Passport budgets, occupied worker recovery, stream framing/cancellation, decoder ownership
+and playback-drain identity. The full lightweight JVM check totals 2,577 assertions. Generic
+Debug and same-package local E2 Release builds pass; all retained device probes compile, and
+source/localization checks pass (646 catalog entries, 135 production Java sources).
+
+One original-package E2 check passes 14 bounded coordination assertions: Try-only text and
+prepared voice sends, actual silent Opus/AudioTrack playback and drain, shared stop/cancellation,
+and restoration of the existing room Online with pairing/composer retained. It does not record
+audio or send actual room content. Human speech, notification receipt, physical keys and broad
+device/lifecycle tests were not repeated. The updated local legacy build is installed; the
+published Preview 2 APK is unchanged. The explicit short runner is
+`POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 scripts/test-device.sh`
+with `ANDROID_SERIAL` set to the intended device and a matching local build/classpath.
+
+Connection/reconnect, draft/attachment/history orchestration and ambient audio coordination
+remain controller responsibilities. Further extraction should follow those owners; the controller
+is not declared fully decomposed.
+
 ## Foreground input refactor after Preview 2
 
 The current source adds a pure `:input` module and shared touch/key/remote actions. E2 REC
@@ -132,7 +162,7 @@ unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
 | Deferred: Sight | Explicitly deferred by the user on 2026-11-15; implementation retained, actual negotiation/uplink unaccepted | Resume only at the user's request with a media-capable room service; no automatic release polling or service changes |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and actual remote/key delivery remain open; shared foreground no-touch navigation is implemented | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
-| Maintenance | Android controller remains large; persistence/system services remain in app | Owned voice-note persistence/recovery is extracted; continue by business owner within the protocol/window/input/hardware boundaries |
+| Maintenance | Connection/reconnect, draft/attachment/history orchestration and ambient audio coordination remain in the Android controller; persistence/system services remain in app | VoiceNotes, OutboxSender and SpeechReader now own their respective state/resources; continue along actual ownership within the existing boundaries |
 | Passport physical acceptance | Protocol 1.3 fixed vectors and E2 ART pass; actual BLE pairing/CCCD, physical press/reply/alert and background wake remain open | Use an explicitly available accessory without taking E2Studio's connection; see [protocol evidence](passport.md) |
 | Deferred | Android push registration/relay/receiver, AES-GCM/HMAC/ledger/upstream vectors | Explicitly resume those areas in a later milestone |
 | Old-package migration | No cross-package database/AndroidKeyStore migration | Use the explicit same-package/same-signature build to retain the original node and data; the separate public package requires its own login/pairing |

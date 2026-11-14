@@ -50,6 +50,17 @@ final class AccessRecoveryProbe {
         this.probe = probe;
     }
 
+    private ThreadPoolExecutor senderWorker() throws Exception {
+        Object sender = field("outboxSender");
+        Field worker = sender.getClass().getDeclaredField("worker");
+        worker.setAccessible(true);
+        return (ThreadPoolExecutor) worker.get(sender);
+    }
+
+    private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
+        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -910,7 +921,7 @@ final class AccessRecoveryProbe {
             if (operation.equals("speech"))
                 check(
                         controller.snapshot().readingId.isEmpty()
-                                && !(Boolean) onState(() -> field("readInFlight")),
+                                && !onState(() -> reader().inFlight()),
                         "unauthorized speech releases native read state");
             recover(settings);
         }
@@ -1104,7 +1115,7 @@ final class AccessRecoveryProbe {
         controller.discard(id);
         onState(() -> null);
         discarded.release.countDown();
-        Executor network = (Executor) field("sendNetwork");
+        Executor network = (Executor) senderWorker();
         CountDownLatch returned = new CountDownLatch(1);
         network.execute(returned::countDown);
         check(

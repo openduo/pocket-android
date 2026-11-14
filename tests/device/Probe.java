@@ -53,6 +53,11 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && "1".equals(arguments.getString("coordinationOnly"))) {
+                report.putString("result", new OwnerCoordinationProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("hardwareSmokeOnly"))) {
                 check(
                         "1".equals(arguments.getString("capture")),

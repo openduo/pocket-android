@@ -32,6 +32,8 @@ public final class Contracts {
     public static void main(String[] args) throws Exception {
         checked += InputContracts.run();
         checked += VoiceNotesContracts.run();
+        checked += OutboxSenderContracts.run();
+        checked += SpeechReaderContracts.run();
         checked +=
                 PassportContracts.run(
                         java.nio.file.Paths.get(System.getProperty("pocket.android.root", ".")));

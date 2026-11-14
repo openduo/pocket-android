@@ -39,6 +39,13 @@ final class VoiceUploadProbe {
         source = new Delayed(original);
     }
 
+    private ThreadPoolExecutor senderWorker() throws Exception {
+        Object sender = field("outboxSender");
+        Field worker = sender.getClass().getDeclaredField("worker");
+        worker.setAccessible(true);
+        return (ThreadPoolExecutor) worker.get(sender);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -300,8 +307,7 @@ final class VoiceUploadProbe {
         check(
                 onState(
                                 () ->
-                                        ((java.util.concurrent.ThreadPoolExecutor)
-                                                        field("sendNetwork"))
+                                        ((java.util.concurrent.ThreadPoolExecutor) senderWorker())
                                                 .getQueue()
                                                 .size())
                         == 1,
@@ -323,7 +329,7 @@ final class VoiceUploadProbe {
                         && onState(
                                         () ->
                                                 ((java.util.concurrent.ThreadPoolExecutor)
-                                                                field("sendNetwork"))
+                                                                senderWorker())
                                                         .getLargestPoolSize())
                                 == 1,
                 "the next request keeps its original key/body without accumulating request groups"

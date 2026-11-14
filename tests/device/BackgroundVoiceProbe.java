@@ -386,9 +386,7 @@ final class BackgroundVoiceProbe {
             onState(
                     () -> {
                         field("context", originalContext);
-                        field("sendEpoch", (Long) field("sendEpoch") + 1);
-                        field("sending", null);
-                        field("uploadForeground", false);
+                        invoke("finishSend");
                         try {
                             field("voiceUploadDeferred", false);
                         } catch (NoSuchFieldException olderBuild) {

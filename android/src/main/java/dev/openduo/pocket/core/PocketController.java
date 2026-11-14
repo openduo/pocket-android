@@ -14,7 +14,9 @@ import android.os.Looper;
 import dev.openduo.pocket.app.PocketSessionService;
 import dev.openduo.pocket.audio.CaptureSession;
 import dev.openduo.pocket.audio.OpusDecoder;
+import dev.openduo.pocket.audio.ReadAloudOutput;
 import dev.openduo.pocket.audio.SpeechPlayer;
+import dev.openduo.pocket.audio.SpeechReader;
 import dev.openduo.pocket.net.ChannelClient;
 import dev.openduo.pocket.net.ChannelConnection;
 import dev.openduo.pocket.net.GoTransport;
@@ -27,7 +29,6 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -172,7 +173,7 @@ public final class PocketController {
             tailnetState = c.tailnetState;
             authUrl = c.authUrl;
             olderLabel = c.olderLabel;
-            readingId = c.readingId;
+            readingId = c.speechReader.id();
             voiceInput = c.settings.voiceInput();
             voiceAvailable = c.voiceAvailable();
             daemonAvailable = c.roomState == null || c.roomState.daemonOk;
@@ -230,7 +231,6 @@ public final class PocketController {
     private ChannelConnection channel;
     private RoomAccess roomAccess;
     private TryChannel tryChannel;
-    private ChannelConnection readChannel;
     private final dev.openduo.pocket.audio.AudioFocus audioFocus;
     private final dev.openduo.pocket.audio.AudioDevices audioDevices;
     private String outputRoute = "系统音频输出";
@@ -239,14 +239,8 @@ public final class PocketController {
             Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "DuoDuo Pocket state"));
     private final ExecutorService network =
             Executors.newFixedThreadPool(3, r -> new Thread(r, "DuoDuo Pocket network"));
-    private final java.util.concurrent.ThreadPoolExecutor sendNetwork =
-            new java.util.concurrent.ThreadPoolExecutor(
-                    1,
-                    1,
-                    0,
-                    TimeUnit.MILLISECONDS,
-                    new java.util.concurrent.ArrayBlockingQueue<>(1),
-                    r -> new Thread(r, "DuoDuo Pocket send"));
+    private final OutboxSender outboxSender = new OutboxSender(state);
+    private final SpeechReader speechReader = new SpeechReader(state, network);
     private final ExecutorService liveConnector =
             new java.util.concurrent.ThreadPoolExecutor(
                     1,
@@ -282,8 +276,7 @@ public final class PocketController {
             quote = "",
             tailnetState = "NotStarted",
             authUrl = "",
-            olderLabel = "查看更早的记录",
-            readingId = "";
+            olderLabel = "查看更早的记录";
     private String oldestDate = "";
     private final AmbientInput ambientInput = new AmbientInput();
     private final AmbientOutput ambientOutput = new AmbientOutput();
@@ -295,7 +288,6 @@ public final class PocketController {
     private volatile int connectionEpoch;
     private int roomStateRequestEpoch = -1;
     private volatile int closingEpoch = -1, closingSourceEpoch = -1;
-    private volatile long sendEpoch;
     private volatile long tailnetActionEpoch;
     private boolean tailnetLogoutRequested;
     private boolean restoreOutboxBeforeConnect;
@@ -304,7 +296,6 @@ public final class PocketController {
     private final java.util.concurrent.atomic.AtomicLong draftEdits =
             new java.util.concurrent.atomic.AtomicLong();
     private boolean foreground, trying, opening, ambientWanted, ambientMuted;
-    private SendOperation sending;
     private boolean captureStopping;
     private int olderRequestEpoch = -1;
     private final java.util.concurrent.atomic.AtomicBoolean publishing =
@@ -319,9 +310,6 @@ public final class PocketController {
     private final dev.openduo.pocket.sight.SightSession sightSession;
     private boolean legacyMedia;
     private String lastHeard = "";
-    private volatile long readRequest;
-    private long nextReadRequest;
-    private boolean readInFlight;
     private boolean uploadForeground, serviceRunning, voiceUploadDeferred;
     private long pairingEpoch;
     private boolean pairingActive;
@@ -330,38 +318,6 @@ public final class PocketController {
     private final ImportCoordinator imports;
     private final dev.openduo.pocket.sight.DeviceHeat deviceHeat;
     private int heatLevel;
-
-    /** Mutable fields belong to the state executor; each HTTP attempt captures immutable inputs. */
-    private static final class SendOperation {
-        final Outbox.Item item;
-        final ChannelClient client;
-        final String identity;
-        final long ticket;
-        final dev.openduo.pocket.net.RequestScope requests;
-        final VoiceRetry retry = new VoiceRetry();
-        byte[] body;
-        long passportDeadline = Long.MAX_VALUE;
-        ChannelClient.Failure error;
-
-        long remainingMs() {
-            return Math.min(
-                    retry.remainingMs(),
-                    Math.max(0, passportDeadline - android.os.SystemClock.elapsedRealtime()));
-        }
-
-        SendOperation(
-                Outbox.Item item,
-                ChannelClient client,
-                String identity,
-                long ticket,
-                dev.openduo.pocket.net.RequestScope requests) {
-            this.item = item;
-            this.client = client;
-            this.identity = identity;
-            this.ticket = ticket;
-            this.requests = requests;
-        }
-    }
 
     private PocketController(Context context) {
         this.context = context;
@@ -895,10 +851,10 @@ public final class PocketController {
         if (!trying && tailnetNeedsLogin() && !settings.unauthorized()) {
             if (connection == Connection.ONLINE
                     || connection == Connection.CONNECTING
-                    || sending != null
+                    || outboxSender.active()
                     || ambientWanted
                     || voiceNotes.active()
-                    || !readingId.isEmpty()
+                    || !speechReader.id().isEmpty()
                     || roomAccess != null)
                 pauseRoomAccess(
                         settings.isComplete() ? Connection.OFFLINE : Connection.NEEDS_SETUP);
@@ -1270,7 +1226,7 @@ public final class PocketController {
         connection = Connection.OFFLINE;
         opening = false;
         ambientInput.socketOpened();
-        if (readingId.isEmpty()) stopPlayback();
+        if (speechReader.id().isEmpty()) stopPlayback();
         if (ambientWanted && (reason.contains("PolicyViolation") || reason.contains("1008")))
             ambientFailure = "频道拒绝了这个房间";
         long delay = redial.failedMs();
@@ -1317,7 +1273,8 @@ public final class PocketController {
         channel.closeLive();
         sightSession.connectionReset();
         viewer.dropPending();
-        Outbox.Item interrupted = sending == null ? null : repo.findPending(sending.item.id);
+        Outbox.Item active = outboxSender.item();
+        Outbox.Item interrupted = active == null ? null : repo.findPending(active.id);
         restoreOutboxBeforeConnect = true;
         finishSend();
         releaseOnState(true);
@@ -1732,7 +1689,7 @@ public final class PocketController {
     }
 
     private void pump() {
-        if (sending != null
+        if (outboxSender.active()
                 || pairingActive
                 || connection != Connection.ONLINE
                 || !trying && (settings.unauthorized() || tailnetNeedsLogin())
@@ -1773,10 +1730,18 @@ public final class PocketController {
             voiceUploadDeferred = false;
             if (lastError.equals(UPLOAD_BACKGROUND_PAUSED)) lastError = "";
         }
-        dev.openduo.pocket.net.RequestScope requests;
-        RoomAccess access = access();
+        String identity = repo.roomIdentity();
         try {
-            requests = new dev.openduo.pocket.net.RequestScope(access);
+            outboxSender.prepare(
+                    item,
+                    access(),
+                    roomState,
+                    PassportPolicy.ENABLED && item.source.equals("passport")
+                            ? passport.remainingMs(item.id)
+                            : Long.MAX_VALUE,
+                    (sent, failure) -> {
+                        if (repo.roomIdentity().equals(identity)) completeSend(sent, failure);
+                    });
         } catch (Exception failure) {
             log.event("send", "request_scope_failed");
             uploadForeground = false;
@@ -1784,21 +1749,10 @@ public final class PocketController {
             linkClosed("Unable to prepare send", connectionEpoch);
             return;
         }
-        SendOperation operation =
-                new SendOperation(
-                        item, access.client(requests), repo.roomIdentity(), ++sendEpoch, requests);
-        if (PassportPolicy.ENABLED && item.source.equals("passport")) {
-            long remaining = passport.remainingMs(item.id);
-            if (remaining != Long.MAX_VALUE)
-                operation.passportDeadline = android.os.SystemClock.elapsedRealtime() + remaining;
-        }
-        sending = operation;
         try {
             repo.transition(item.state(Message.SENDING, ""));
         } catch (RuntimeException storageFailure) {
-            retireSend();
-            uploadForeground = false;
-            refreshService();
+            finishSend();
             reload();
             notice("无法保存待发送消息");
             return;
@@ -1806,34 +1760,7 @@ public final class PocketController {
         if (lastError.equals("无法保存待发送消息")) lastError = "";
         reload();
         publish();
-        ChannelClient.State room = roomState;
-        sendWork(
-                operation,
-                () -> {
-                    byte[] body = null;
-                    ChannelClient.Failure error = null;
-                    try {
-                        if (item.voice)
-                            body = ChannelClient.voiceBody(new File(item.voiceFile), room);
-                    } catch (ChannelClient.Failure failure) {
-                        error = failure;
-                    }
-                    final byte[] prepared = body;
-                    final ChannelClient.Failure failure = error;
-                    state.execute(
-                            () -> {
-                                if (!currentSend(operation)) return;
-                                operation.body = prepared;
-                                if (failure == null) sendAttempt(operation);
-                                else completeSend(operation, failure);
-                            });
-                });
-    }
-
-    private boolean currentSend(SendOperation operation) {
-        return sending == operation
-                && operation.ticket == sendEpoch
-                && repo.roomIdentity().equals(operation.identity);
+        outboxSender.dispatch();
     }
 
     private void messageAccepted(Outbox.Item item) {
@@ -1844,8 +1771,9 @@ public final class PocketController {
 
     /** A live result, logged row or user discard ends the upload independently of HTTP. */
     private void settleSend() {
-        if (sending == null) return;
-        Outbox.Item item = repo.findPending(sending.item.id);
+        Outbox.Item active = outboxSender.item();
+        if (active == null) return;
+        Outbox.Item item = repo.findPending(active.id);
         if (item == null || item.state != Message.SENDING) {
             finishSend();
             pump();
@@ -1853,117 +1781,18 @@ public final class PocketController {
     }
 
     private void finishSend() {
-        retireSend();
+        outboxSender.cancel();
         uploadForeground = false;
         refreshService();
     }
 
-    private void retireSend() {
-        SendOperation retired = sending;
-        sending = null;
-        sendEpoch++;
-        sendNetwork.getQueue().clear();
-        if (retired != null) retired.requests.close();
-    }
-
-    private void sendWork(SendOperation operation, Runnable work) {
-        if (!currentSend(operation)) return;
-        try {
-            sendNetwork.execute(
-                    () -> {
-                        if (operation.ticket == sendEpoch) work.run();
-                    });
-        } catch (java.util.concurrent.RejectedExecutionException occupied) {
-            // A cancelled request is returning. Retain the current send while its one slot clears.
-            state.schedule(() -> sendWork(operation, work), 25, TimeUnit.MILLISECONDS);
-        }
-    }
-
-    private void sendAttempt(SendOperation operation) {
-        if (!currentSend(operation)) return;
-        Outbox.Item current = repo.findPending(operation.item.id);
-        if (current == null || current.state != Message.SENDING) {
-            settleSend();
-            return;
-        }
-        if (operation.item.voice && operation.remainingMs() == 0) {
-            completeSend(
-                    operation,
-                    operation.error == null
-                            ? new ChannelClient.Failure("暂时无法连接房间", 0, true)
-                            : operation.error);
-            return;
-        }
-        Outbox.Item item = operation.item;
-        byte[] body = operation.body;
-        ChannelClient.Failure previousError = operation.error;
-        sendWork(
-                operation,
-                () -> {
-                    if (operation.ticket != sendEpoch) return;
-                    ChannelClient.Failure problem = null;
-                    try {
-                        if (item.voice) {
-                            long remaining = operation.remainingMs();
-                            if (remaining == 0)
-                                throw previousError == null
-                                        ? new ChannelClient.Failure("暂时无法连接房间", 0, true)
-                                        : previousError;
-                            operation.client.sendVoice(
-                                    body,
-                                    item.source,
-                                    item.id,
-                                    item.display,
-                                    item.spoken,
-                                    item.place,
-                                    remaining);
-                        } else {
-                            operation.client.sendText(
-                                    item.text,
-                                    item.attachments,
-                                    item.id,
-                                    item.display,
-                                    item.spoken,
-                                    item.place);
-                        }
-                    } catch (ChannelClient.Failure failure) {
-                        problem = failure;
-                    }
-                    final ChannelClient.Failure error = problem;
-                    state.execute(
-                            () -> {
-                                if (!currentSend(operation)) return;
-                                Outbox.Item pending = repo.findPending(item.id);
-                                if (pending == null || pending.state != Message.SENDING) {
-                                    settleSend();
-                                    return;
-                                }
-                                operation.error = error;
-                                if (error != null
-                                        && item.voice
-                                        && (error.transport || error.status >= 500)) {
-                                    long delay = operation.retry.nextDelayMs();
-                                    if (delay > 0) {
-                                        state.schedule(
-                                                () -> sendAttempt(operation),
-                                                delay,
-                                                TimeUnit.MILLISECONDS);
-                                        return;
-                                    }
-                                }
-                                completeSend(operation, error);
-                            });
-                });
-    }
-
-    private void completeSend(SendOperation operation, ChannelClient.Failure error) {
-        if (!currentSend(operation)) return;
-        Outbox.Item current = repo.findPending(operation.item.id);
-        if (current == null || current.state != Message.SENDING) {
-            settleSend();
-            return;
-        }
+    private void completeSend(Outbox.Item sent, ChannelClient.Failure error) {
         finishSend();
+        Outbox.Item current = repo.findPending(sent.id);
+        if (current == null || current.state != Message.SENDING) {
+            pump();
+            return;
+        }
         if (error != null && !error.transport)
             upgrade = upgrade.afterResponse(error.status, error.reason);
         if (error == null) {
@@ -2592,7 +2421,7 @@ public final class PocketController {
 
     private void speech(String id) {
         if (id.isEmpty()) return;
-        if (!readingId.isEmpty()) stopPlayback();
+        if (!speechReader.id().isEmpty()) stopPlayback();
         if (decoder != null) decoder.close();
         decoder = null;
         if (ambientInput.pressMuted()) {
@@ -2617,7 +2446,7 @@ public final class PocketController {
         }
         if (decoder == null
                 || ambientInput.pressMuted()
-                || !readingId.isEmpty()
+                || !speechReader.id().isEmpty()
                 || !foreground && !ambientWanted) return;
         try {
             short[] pcm = decoder.packet(bytes);
@@ -2680,7 +2509,7 @@ public final class PocketController {
                                             if (!active
                                                     && capture == null
                                                     && !ambientWanted
-                                                    && !readInFlight
+                                                    && !speechReader.inFlight()
                                                     && !player.hasPending()) audioFocus.release();
                                             publish();
                                         });
@@ -2705,8 +2534,10 @@ public final class PocketController {
     }
 
     private void finishReadIfDrained() {
-        if (!readInFlight && ambientOutput.reading() && (player == null || !player.hasPending())) {
-            readingId = "";
+        if (!speechReader.inFlight()
+                && ambientOutput.reading()
+                && (player == null || !player.hasPending())) {
+            speechReader.cancel();
             if (capture == null && !ambientWanted) audioFocus.release();
         }
     }
@@ -2718,17 +2549,11 @@ public final class PocketController {
     }
 
     private void stopPlayback() {
-        if (readInFlight) {
-            if (readChannel != null) readChannel.cancelStream(readRequest);
-            readInFlight = false;
-        }
-        readRequest = 0;
-        readChannel = null;
+        speechReader.cancel();
         if (player != null) player.stop();
         if (decoder != null) decoder.close();
         decoder = null;
         ambientOutput.stop();
-        readingId = "";
         playerActive = false;
         if (ambientWanted
                 && !audioSuspended
@@ -2742,7 +2567,7 @@ public final class PocketController {
     }
 
     private void readAloudOnState(Message message) {
-        if (readingId.equals(message.id)) {
+        if (speechReader.id().equals(message.id)) {
             stopPlayback();
             publish();
             return;
@@ -2766,84 +2591,31 @@ public final class PocketController {
             notice("其他应用正在使用音频，请稍后再朗读");
             return;
         }
-        readingId = message.id;
         ambientOutput.read(message.id);
         final SpeechPlayer output = player;
         final String speech = ambientOutput.playbackKey();
-        final long request = ++nextReadRequest;
-        readRequest = request;
-        readInFlight = true;
-        ChannelConnection target = channel;
-        readChannel = target;
-        RoomAccess access = access();
-        String room = currentRoom();
-        publish();
-        network.execute(
-                () -> {
-                    dev.openduo.pocket.audio.PacketStream packets =
-                            new dev.openduo.pocket.audio.PacketStream();
-                    final boolean[] received = {false};
-                    final Exception[] parseError = {null};
-                    try (OpusDecoder read = new OpusDecoder()) {
-                        dev.openduo.pocket.net.ChannelTransport.Response response =
-                                access.stream(
-                                        request,
-                                        "/api/speech?room=" + Endpoint.query(room),
-                                        Json.object("text", message.text)
-                                                .toString()
-                                                .getBytes(StandardCharsets.UTF_8),
-                                        bytes -> {
-                                            if (!access.current()
-                                                    || readRequest != request
-                                                    || parseError[0] != null) return;
-                                            try {
-                                                for (byte[] packet : packets.push(bytes)) {
-                                                    received[0] = true;
-                                                    if (!output.enqueueWaiting(
-                                                            speech,
-                                                            read.packet(packet),
-                                                            () ->
-                                                                    access.current()
-                                                                            && readRequest
-                                                                                    == request))
-                                                        break;
-                                                }
-                                            } catch (Exception failure) {
-                                                parseError[0] = failure;
-                                                target.cancelStream(request);
-                                            }
-                                        },
-                                        () -> readRequest == request);
-                        if (parseError[0] != null) throw parseError[0];
-                        packets.finish();
-                        if (response.status != 200) throw ChannelClient.failure(response);
-                        state.execute(
-                                () -> {
-                                    if (currentAccess(access) && readRequest == request) {
-                                        readInFlight = false;
-                                        finishReadIfDrained();
-                                        publish();
-                                    }
-                                });
-                    } catch (Exception failure) {
-                        state.execute(
-                                () -> {
-                                    if (!currentAccess(access) || readRequest != request) return;
-                                    readInFlight = false;
-                                    String reason =
-                                            received[0]
-                                                    ? "朗读中断，已播放的不是完整回答"
-                                                    : failure instanceof ChannelClient.Failure
-                                                            ? speechError(
-                                                                    ((ChannelClient.Failure)
-                                                                            failure))
-                                                            : "连接不上，无法朗读";
-                                    if (!received[0]) stopPlayback();
-                                    else finishReadIfDrained();
-                                    notice(reason);
-                                });
+        speechReader.start(
+                message,
+                access(),
+                currentRoom(),
+                () -> new ReadAloudOutput(output, speech),
+                (received, failure) -> {
+                    if (failure == null) {
+                        finishReadIfDrained();
+                        publish();
+                    } else {
+                        String reason =
+                                received
+                                        ? "朗读中断，已播放的不是完整回答"
+                                        : failure instanceof ChannelClient.Failure
+                                                ? speechError((ChannelClient.Failure) failure)
+                                                : "连接不上，无法朗读";
+                        if (!received) stopPlayback();
+                        else finishReadIfDrained();
+                        notice(reason);
                     }
                 });
+        publish();
     }
 
     private static String speechError(ChannelClient.Failure failure) {
@@ -2883,7 +2655,7 @@ public final class PocketController {
                     }
                     connectionEpoch++;
                     retireRoomAccess();
-                    retireSend();
+                    outboxSender.cancel();
                     final long pairTicket = ++pairingEpoch;
                     pairingActive = true;
                     uploadForeground = false;
@@ -2928,7 +2700,7 @@ public final class PocketController {
                                                             value.optString("token"));
                                                     trying = false;
                                                     passport.suspended(false);
-                                                    retireSend();
+                                                    outboxSender.cancel();
                                                     viewer.reset();
                                                     turn.reset();
                                                     resetRoomTransient();
@@ -2986,7 +2758,7 @@ public final class PocketController {
                     connectionEpoch++;
                     retireRoomAccess();
                     opening = false;
-                    retireSend();
+                    outboxSender.cancel();
                     uploadForeground = false;
                     viewer.reset();
                     channel.closeLive();
@@ -3044,7 +2816,7 @@ public final class PocketController {
         releaseOnState(true);
         saveDraft();
         retireRoomAccess();
-        retireSend();
+        outboxSender.cancel();
         connectionEpoch++;
         opening = uploadForeground = false;
         channel.closeLive();
@@ -3084,7 +2856,7 @@ public final class PocketController {
         releaseOnState(true);
         connectionEpoch++;
         retireRoomAccess();
-        retireSend();
+        outboxSender.cancel();
         opening = uploadForeground = false;
         stopPlayback();
         stopCapture();
@@ -3566,6 +3338,7 @@ public final class PocketController {
     private void admitRows(List<Message> rows, long cursor) {
         repo.admit(rows, cursor);
         for (Message row : rows) turn.settled(row);
+        settleSend();
         reload();
     }
 

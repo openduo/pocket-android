@@ -153,6 +153,11 @@ public final class RoomAccess implements ChannelTransport, AutoCloseable {
         }
     }
 
+    /** Ends only a registered stream in this credential generation, including parser failures. */
+    public synchronized void cancelStream(long id) {
+        if (streams.remove(id)) connection.cancelStream(id);
+    }
+
     private Response admit(Response response, String path, long request) throws IOException {
         boolean notify;
         synchronized (this) {

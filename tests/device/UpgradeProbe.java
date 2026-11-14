@@ -39,6 +39,13 @@ final class UpgradeProbe {
         state = (Executor) field("state");
     }
 
+    private ThreadPoolExecutor senderWorker() throws Exception {
+        Object sender = field("outboxSender");
+        Field worker = sender.getClass().getDeclaredField("worker");
+        worker.setAccessible(true);
+        return (ThreadPoolExecutor) worker.get(sender);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -223,7 +230,7 @@ final class UpgradeProbe {
             onState(() -> null);
             source.hold.countDown();
             await(() -> source.returned.getCount() == 0, 3000);
-            ThreadPoolExecutor sender = (ThreadPoolExecutor) field("sendNetwork");
+            ThreadPoolExecutor sender = (ThreadPoolExecutor) senderWorker();
             await(() -> sender.getActiveCount() == 0, 3000);
             onState(() -> null);
             check(

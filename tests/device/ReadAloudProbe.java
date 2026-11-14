@@ -35,6 +35,10 @@ final class ReadAloudProbe {
         source = new Source(original);
     }
 
+    private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
+        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -118,7 +122,7 @@ final class ReadAloudProbe {
             check(
                     controller.snapshot().readingId.isEmpty()
                             && controller.snapshot().lastError.equals(entry[2])
-                            && onState(() -> !(Boolean) field("readInFlight"))
+                            && onState(() -> !reader().inFlight())
                             && !pending(),
                     "speech failure "
                             + entry[0]
@@ -148,7 +152,7 @@ final class ReadAloudProbe {
         check(
                 track != null
                         && controller.snapshot().readingId.equals(message.id)
-                        && onState(() -> (Boolean) field("readInFlight")),
+                        && onState(() -> reader().inFlight()),
                 "the real hardware block drains while its speech HTTP body stays open");
         // Release only DuoDuo Pocket's track to model a native output failure; no system route
         // changes.
@@ -159,7 +163,7 @@ final class ReadAloudProbe {
         check(
                 gate.cancelled.getCount() == 0
                         && controller.snapshot().readingId.isEmpty()
-                        && onState(() -> !(Boolean) field("readInFlight"))
+                        && onState(() -> !reader().inFlight())
                         && controller.snapshot().lastError.equals("播放中断，请检查音频设备"),
                 "native playback failure must cancel the open read and clear its spinner"
                         + " immediately");

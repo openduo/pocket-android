@@ -36,6 +36,10 @@ final class AudioOutputProbe {
         source = new Observed(original);
     }
 
+    private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
+        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -304,7 +308,7 @@ final class AudioOutputProbe {
             check(
                     controller.snapshot().readingId.isEmpty()
                             && controller.snapshot().lastError.equals("朗读中断，已播放的不是完整回答")
-                            && onState(() -> !(Boolean) field("readInFlight"))
+                            && onState(() -> !reader().inFlight())
                             && !pending(),
                     "an injected stream failure after hardware drain clears the spinner and"
                             + " explicitly reports partial playback");
@@ -354,7 +358,7 @@ final class AudioOutputProbe {
         Thread.sleep(100);
         check(
                 controller.snapshot().readingId.isEmpty()
-                        && onState(() -> !(Boolean) field("readInFlight"))
+                        && onState(() -> !reader().inFlight())
                         && source.played("c-qa-live-priority") == 200
                         && !pending()
                         && source.count("interrupted", "read:" + proof.id) == 0,

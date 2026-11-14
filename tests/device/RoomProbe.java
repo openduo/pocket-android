@@ -47,6 +47,10 @@ final class RoomProbe {
             Thread.sleep(20);
     }
 
+    private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
+        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+    }
+
     private Object field(String name) throws ReflectiveOperationException {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -356,7 +360,7 @@ final class RoomProbe {
                         + controller.snapshot().lastError);
         controller.readAloud(proof);
         check(
-                onState(() -> (Boolean) field("readInFlight"))
+                onState(() -> reader().inFlight())
                         && controller.snapshot().readingId.equals(proof.id),
                 "a repeated real read request enters its ordinary cancellable stream");
         controller.readAloud(proof);
@@ -366,8 +370,8 @@ final class RoomProbe {
                 controller.snapshot().readingId.isEmpty()
                         && onState(
                                 () ->
-                                        !(Boolean) field("readInFlight")
-                                                && (Long) field("readRequest") == 0L
+                                        !reader().inFlight()
+                                                && reader().id().isEmpty()
                                                 && !((SpeechPlayer) field("player")).hasPending())
                         && controller.snapshot().lastError.isEmpty(),
                 "stopping the real stream clears playback and ignores late response bytes/errors");

@@ -10,6 +10,12 @@ placeholder, compiled page or unit contract is not end-to-end verification.
 
 The later foreground-input refactor adds a pure `:input` action/gesture module, per-input-device bindings, shared touch/remote dispatch and native focus navigation. E2 REC/MARK provide the adapter example. Recording storage/admission/recovery moved into `:core/VoiceNotes` with explicit source ownership. Bounded E2 injection/capture acceptance is documented in [keys and remotes](input.md); actual physical key presses and target-speaker hardware remain separate gaps. These changes are not in Preview 2.
 
+The subsequent ownership refactor moves delivery scope/body/retry/worker ownership to
+`:core/OutboxSender` and read-aloud framing/cancellation/identity to `:core/SpeechReader`.
+Android decoding/playback stays behind `ReadAloudOutput`; database/service/audio-focus effects
+stay in the controller on the same state executor. This changes maintainability, not the iOS
+feature-gap list or actual-service acceptance. See the [ownership boundaries](architecture.md).
+
 Read the [current status](status.md) first. [Expanded acceptance](acceptance.md) retains historical evidence; it does not require another full run.
 The current UI layer has a complete 22-case API 35 window/font matrix (9,616 checks), actual display
 rotation (20), freeform (8) and system split (12), actual TalkBack 15.0 traversal/gestures (12 scenes,
