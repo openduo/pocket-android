@@ -13,8 +13,26 @@ replacement capture.
 
 `AmbientInput` handles connection metadata, hello-after-first-packet, capture-seat takeover and the
 room's microphone switch. A held note mutes the room but keeps live bytes flowing to preserve its
-seat lease. Recording cancellation never sends the note. A completed note enters the transactional
-outbox with a stable id, original surface and owned packet file.
+seat lease. Recording cancellation never sends the note. A completed note flushes and syncs its
+packet file before entering the transactional outbox with a stable id and original surface. System
+audio interruption retains a long-enough note as failed and retryable; cancelling or backgrounding
+an unfinished hold removes it. A note shorter than fifteen 20 ms packets is not sent.
+
+One state-owned upload operation retains the message, room, client and retry generation. It loads
+and validates the framed body once on the network executor, observes the server's upload limit,
+and reuses the exact bytes/key/display/spoken/place on every attempt. `VoiceRetry` uses monotonic
+elapsed time for the upstream 25-second budget and 0.5/1/2/4-second backoff. Body preparation,
+executor delays and the final clamped wait consume that same budget. Neither the timer nor a
+delayed network worker may start a new request after expiry. Transport exhaustion retains a queued
+note for reconnection; exhausted service errors stay failed with a specific retry action.
+
+Live results outrank HTTP completion. Only sending/accepted notes accept `cleaned`; a late cleaned
+event cannot revive a queued/failed item. A failure, authoritative row or user discard releases the
+current send slot and invalidates its timers/callbacks. Thus a lost HTTP response cannot downgrade
+recognized text, reopen an already delivered note, trigger a false reconnect, or read a side file
+removed by row settlement. A real transport failure replaces the old live socket before reconnecting,
+even if that socket still reports itself open. Empty recognition removes the pending note and its
+file; ASR/service failures preserve the recording and show the corresponding retry reason.
 
 `AmbientOutput` is an Android-independent output policy with one current declaration or local read.
 It implements these upstream behaviours:
@@ -71,7 +89,24 @@ the connection's audio switch. Silence is used for the output fault cases. No te
 the try room. A separate opt-in real-room probe verifies actual synthesis through decode and muted
 hardware completion, cancellation and late-callback rejection.
 
-Remaining acceptance includes real microphone-to-room recognition and its empty/failure outcomes,
+The separate voice probe delays HTTP at the ordinary client boundary and supplies prepared live
+outcomes in the disposable room. It checks live/HTTP ordering, exact retry bytes, deletion during
+backoff, empty/ASR/service outcomes and actual elapsed-time expiry. Its optional capture cases use
+the E2's real hold path: cancellation, foreground-callback cancellation, independent native focus
+loss, preserved Opus and retry under the same key. Those injected recognition outcomes are not
+actual ASR of the captured microphone audio.
+
+`POCKET_E2_TEST_VOICE_ROOM_ONLY=1` is a distinct explicit real-service test. It synthesizes one
+clearly marked known-speech fixture through the actual service and sends that synthetic body through
+the normal controller/outbox/client. A gate delays dispatch while the real Activity moves to the
+background; Android's foreground upload service remains active. Actual ASR recognizes the marked
+speech, the delivered log retains its voice duration, the brain replies with the requested
+`语音链路验证成功`, and the service/file/outbox settle. A server-log query checks exactly one copy.
+The private app-files journal retains this fixture's key across repeats/restarts, so verification
+reuses the message instead of creating another. Preserve that journal when repeating acceptance.
+No surrounding microphone recording is uploaded by this test, and no system volume changes occur.
+
+Remaining acceptance includes acoustic microphone-to-room recognition and actual empty/failure outcomes,
 ambient ASR/TTS and reconnect against the actual server, long streams, actual calls and external
-route changes, background/process death and energy trials. Native protocol fault tests and muted
-hardware watermarks do not prove audible acoustics or real speech recognition.
+route changes, prolonged background/process death and energy trials. Native protocol fault tests and
+muted hardware watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.

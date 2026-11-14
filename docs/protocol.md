@@ -12,8 +12,13 @@ applied.
 A SQLite transaction admits server rows, reconciles matching `utt_id` outbox entries, and advances
 the cursor. A 202 remains pending until the server row arrives. Text transport errors queue until
 reconnect; HTTP errors (including 5xx) need manual retry. Voice retries transport/5xx errors under
-one idempotency key and deadline. The initial display/spoken/place surface survives retries and
-process death. Cleaned/failed events may arrive before the 202 and must retain precedence.
+one idempotency key, frozen validated body and a monotonic 25-second budget. Backoff and executor
+delays consume the same budget; expired operations cannot start an extra request. The initial
+display/spoken/place surface survives retries and process death. Cleaned/failed events may arrive
+before the 202 and retain precedence. Only sending/accepted items accept cleaned text; a late HTTP
+failure cannot override a live result or logged row. Discard and live settlement invalidate scheduled
+retries and release the send slot. Exhausted transport errors keep voice queued and replace the old
+live socket for reconnect; a healthy socket stays open after an HTTP service failure.
 
 Voice bodies are `[u16 little-endian length][20 ms 16 kHz mono Opus packet]…`. `hello` follows actual
 input capture, `mute.on=true` means the room microphone is ON, and downlink speech declarations

@@ -131,7 +131,9 @@ public final class RoomRepository extends SQLiteOpenHelper {
         try {
             Outbox.Item item = findPending(id);
             Message row = row(id);
-            if (item != null && row != null) {
+            if (item != null
+                    && row != null
+                    && (item.state == Message.SENDING || item.state == Outbox.ACCEPTED)) {
                 pending(item.cleaned(text));
                 put(row.withText(text, true, false).withDelivery(Outbox.ACCEPTED, ""));
             }

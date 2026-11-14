@@ -17,13 +17,15 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **173 host contract assertions and 183 E2 device assertions**,
+The latest local checkpoint passed **186 host contract assertions and 223 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
-and streamed synthesis/completion/cancellation with muted hardware playback. Microphone-to-room ASR
-and ambient audio remain unverified. These checks are regression evidence, not a parity-completion
-claim.
+and streamed synthesis/completion/cancellation with muted hardware playback. A further **15 real-voice
+assertions** verified one marked synthetic note through actual ASR/delivery/reply and native background
+upload. **11 cold-restart assertions** reused its journal without sending again. Acoustic recognition
+from the E2 microphone and ambient server audio remain unverified. These checks are regression evidence,
+not a parity-completion claim.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
 language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
@@ -68,6 +70,10 @@ POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 scri
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
 # Explicit real-service acceptance on an already paired, idle device:
 POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
+# Isolated voice faults/elapsed-time retries, optionally with real hold capture:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
+# Explicitly send one marked synthetic voice fixture to the actual ASR/brain:
+POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
@@ -91,6 +97,18 @@ server's upload API has no client delete operation, so the small remote fixture 
 requests actual read-aloud synthesis and cancels a second request. Only its own AudioTrack is muted;
 system volume is untouched. It preserves the real room/draft/files and sends no room messages or
 session notifications. It refuses active work in either Pocket E2 or E2Studio.
+
+`POCKET_E2_TEST_VOICE_ONLY=1` uses a disposable room, delayed HTTP, prepared recognition outcomes
+and actual 25-second retry budgets. With capture enabled it also verifies the real E2 hold path's
+cancel/background/focus-loss handling and retry of retained Opus bytes. It sends no real messages.
+The separate `POCKET_E2_TEST_VOICE_ROOM_ONLY=1` test sends **one clearly marked synthetic voice
+message** to actual ASR and requests the `语音链路验证成功` reply. It exercises a native Activity
+background transition and the foreground upload service, then checks recognition, delivery,
+outbox/file/service cleanup and a single server-log row. A private journal in the app's files retains
+the original key across repeats/restarts; keep it to verify the same message without sending again.
+This proves the actual API path for known synthetic speech. Acoustic recognition from the E2's
+microphone, real ASR failure outcomes and prolonged background/process-death handling remain separate
+acceptance work. See [audio.md](docs/audio.md).
 
 The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
 or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the

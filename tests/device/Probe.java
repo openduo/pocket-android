@@ -39,6 +39,17 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("voiceRoomOnly"))) {
+                report.putString("result", new VoiceRoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("voiceOnly"))) {
+                voiceOnly(context);
+                report.putString("result", "PASS " + assertions + " voice upload assertions");
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("roomOnly"))) {
                 report.putString("result", new RoomProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);
@@ -83,6 +94,59 @@ public final class Probe extends Instrumentation {
             finish(Activity.RESULT_CANCELED, report);
         } finally {
             context.deleteDatabase("pocket-e2-qa.db");
+        }
+    }
+
+    private void voiceOnly(Context context) throws Exception {
+        Activity screen =
+                startActivitySync(
+                        new Intent(Intent.ACTION_MAIN)
+                                .setClassName(
+                                        context.getPackageName(),
+                                        "top.kuaner.pockete2.app.MainActivity")
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        runOnMainSync(
+                () ->
+                        screen.getWindow()
+                                .addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                                .FLAG_KEEP_SCREEN_ON));
+        PocketController controller = PocketController.get(context);
+        long until = android.os.SystemClock.elapsedRealtime() + 6000;
+        while (controller.snapshot() == null && android.os.SystemClock.elapsedRealtime() < until)
+            Thread.sleep(20);
+        check(
+                controller.snapshot() != null
+                        && !controller.snapshot().trying
+                        && !controller.snapshot().ambientActive
+                        && !controller.snapshot().holdRecording
+                        && !controller.snapshot().uploadingVoice
+                        && !controller.snapshot().cameraOn
+                        && controller.snapshot().outbox.isEmpty(),
+                "voice-only probe requires the actual room idle");
+        String target = controller.snapshot().importTarget, draft = controller.draft();
+        try {
+            controller.startTrying();
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while ((!controller.snapshot().trying
+                            || controller.snapshot().connection
+                                    != PocketController.Connection.ONLINE)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            assertions +=
+                    new VoiceUploadProbe(controller)
+                            .run(
+                                    context,
+                                    arguments != null
+                                            && "1".equals(arguments.getString("capture")));
+        } finally {
+            controller.stopTrying();
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while (controller.snapshot().trying && android.os.SystemClock.elapsedRealtime() < until)
+                Thread.sleep(20);
+            check(
+                    controller.snapshot().importTarget.equals(target)
+                            && controller.draft().equals(draft),
+                    "voice-only probe restores the actual room and composer");
         }
     }
 
@@ -883,6 +947,12 @@ public final class Probe extends Instrumentation {
                     controller.endAmbient();
                     assertions += new AudioOutputProbe(controller).run(context);
                 }
+                assertions +=
+                        new VoiceUploadProbe(controller)
+                                .run(
+                                        context,
+                                        arguments != null
+                                                && "1".equals(arguments.getString("capture")));
                 until = android.os.SystemClock.elapsedRealtime() + 8000;
                 while (controller.snapshot().working != null
                         && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);

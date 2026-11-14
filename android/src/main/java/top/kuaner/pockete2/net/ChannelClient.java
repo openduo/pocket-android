@@ -6,6 +6,7 @@ package top.kuaner.pockete2.net;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import top.kuaner.pockete2.audio.PacketStream;
 import top.kuaner.pockete2.core.Attachment;
 import top.kuaner.pockete2.core.Endpoint;
 import top.kuaner.pockete2.core.Json;
@@ -172,12 +173,44 @@ public final class ChannelClient {
             String place,
             long timeoutMs)
             throws Failure {
+        sendVoice(voiceBody(packets, null), source, key, display, spoken, place, timeoutMs);
+    }
+
+    /** Load once per upload, before any retries. A logged row may remove the owned side file. */
+    public static byte[] voiceBody(File packets, State state) throws Failure {
+        if (state != null && state.uploadsDisabled) throw new Failure("房间已关闭上传", 503, false);
+        long limit = state == null ? 0 : state.uploadMaxBytes;
+        if (limit > 0 && packets.length() > limit) throw new Failure("录音太长，超过上传上限", 413, false);
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(packets.toPath());
+            if (bytes.length == 0) throw new java.io.IOException("Empty voice note");
+            for (int offset = 0; offset < bytes.length; ) {
+                if (offset + 2 > bytes.length) throw new java.io.IOException("Truncated prefix");
+                int length = (bytes[offset] & 255) | (bytes[offset + 1] & 255) << 8;
+                offset += 2;
+                if (length < 1
+                        || length > PacketStream.MAX_PACKET_BYTES
+                        || length > bytes.length - offset)
+                    throw new java.io.IOException("Invalid voice packet");
+                offset += length;
+            }
         } catch (Exception failure) {
             throw new Failure("无法读取待发送语音", 0, false);
         }
+        if (limit > 0 && bytes.length > limit) throw new Failure("录音太长，超过上传上限", 413, false);
+        return bytes;
+    }
+
+    public void sendVoice(
+            byte[] bytes,
+            String source,
+            String key,
+            String display,
+            boolean spoken,
+            String place,
+            long timeoutMs)
+            throws Failure {
         JSONObject headers = messageHeaders(key, display, spoken, place);
         try {
             headers.put("Content-Type", "application/vnd.ambient.opus-packets");

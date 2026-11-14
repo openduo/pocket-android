@@ -262,6 +262,7 @@
   "无法打开麦克风": "Could not open the microphone",
   "无法订阅 Passport 音频": "Could not subscribe to Passport audio",
   "无法读取待发送语音": "Could not read the pending voice note",
+  "录音太长，超过上传上限": "Voice note exceeds the upload limit",
   "显示回答通知": "Show answer notifications",
   "暂时无法加载历史，可稍后重试": "Could not load history. Try again later.",
   "暂时无法回复": "Temporarily unable to reply",

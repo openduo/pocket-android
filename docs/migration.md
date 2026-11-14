@@ -9,8 +9,8 @@ The E2 is itself the handheld device. Conversation and settings omit Passport en
 the existing implementation is retained for later. External Passport hardware acceptance is outside
 the current standalone-device release scope; the rest of the 1:1 goal remains.
 
-Evidence at the 2026-11-14 local checkpoint: **173 host contract assertions, Go vet/test, Android APK
-build and 183 real E2 device assertions passed**. A separate **two-assertion real-node login run**
+Evidence at the 2026-11-14 local checkpoint: **186 host contract assertions, Go vet/test, Android APK
+build and 223 real E2 device assertions passed**. A separate **two-assertion real-node login run**
 decoded the rendered QR to the node's actual authorization URL. The device checks cover SQLite
 recovery/isolation,
 AndroidKeyStore binding, Opus JNI, real array capture/release, muted AudioTrack watermarks,
@@ -62,6 +62,16 @@ with an explicit partial-playback error when a delayed injected failure follows 
 They use prepared protocol stimuli and real audio hardware; they are not actual microphone recognition
 or ambient server acceptance. See `audio.md`.
 
+The same device run verifies voice lifecycle ordering at the ordinary controller/client/repository
+boundary: cleaned/failure/row before HTTP completion, frozen retry bytes after side-file changes,
+discard during backoff and queued-send ordering. Two fault cases each consume the actual 25-second
+budget: exhausted HTTP 503 stays failed without breaking the healthy socket; exhausted transport
+failure stays queued, replaces a still-open live socket and resumes under the same key/body/surface.
+Prepared empty/ASR/service outcomes check file/outbox cleanup or retained retryability. Actual E2
+held capture checks cancellation, foreground-callback cancellation and native focus interruption,
+then retries the retained real Opus into the disposable transport. Recognition outcomes in these
+fault cases are prepared; no captured surrounding speech leaves the try room.
+
 The real embedded node was authorized and paired on 2026-11-14. The actual Activity received the
 room link and completed pairing; **Online**, historical rows, **Delivered** and the requested exact
 `POCKET-E2-LIVE-OK` reply were observed for one marked text integration message. Pairing survived
@@ -73,8 +83,16 @@ through PacketStream, Opus and muted AudioTrack completion, followed by cancella
 in-flight request and rejection of its late callbacks. The current server omits the optional upload
 digest: production now derives it from the exact request bytes and verifies any supplied digest.
 The test no longer injects download metadata. No room messages or session notifications were sent
-by this run. Real microphone recognition and ambient audio remain unverified against the user's
-services. External Passport is deferred. Prepared mode exercises the real client boundary, reducers
+by this run. An additional explicit real-voice run passed **15 assertions**. It synthesized one clearly
+marked known-speech fixture through the actual service, sent it through the normal outbox/client
+after the real Activity moved to the background, and observed the native foreground upload service.
+Actual ASR recognized the marked speech, the voice row was delivered, and the brain supplied the
+requested `语音链路验证成功` reply. The note retained its duration; its file/outbox/service settled;
+a server-log query found exactly one copy. A separate **11-assertion cold restart** retained that
+delivered row/duration/reply, confirmed one server-log copy, and reused the private app-files journal
+without sending again. This is actual API recognition of synthetic known speech. Acoustic microphone-to-room
+recognition and ambient audio remain unverified against the user's services.
+External Passport is deferred. Prepared mode exercises the real client boundary, reducers
 and hardware; its content is still prepared. Test counts do not represent a completion percentage, and none
 of the rows below is a claim of complete parity.
 
@@ -85,7 +103,7 @@ of the rows below is a claim of complete parity.
 | Thread and tools | Keyed bubbles, day/time separators, heard fold and speaker labels, spoken/partly-spoken metadata, live room notes, Markdown, copy/share/reply/read, tool archive and jump-to-latest | Full accessibility and more pages/font sizes; real live/log interruptions and tool identity edge cases |
 | Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal; real file upload/download/local removal accepted | Real upload limit/error/progress and retry acceptance; full clipboard lifecycle; more dense composer/font/keyboard combinations |
 | File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release; launch-scoped `ImportRoute` and restored external-operation stages; additional native-decodable media→JPEG, file-picker byte preservation and full-resolution oriented camera JPEG; actual byte progress, send guard and durable cancellation with provider signals/polling; first-pair draft transfer and try isolation; real separate-UID picker and stock camera capture/confirmation; actual path-only server upload/download accepted with a production-derived digest | Process kill during an unfinished provider copy, unanswered permission dialog restoration, revoked/noncooperative providers, low storage and large batches; valid HEIC decoding on E2; modern Android and real-room limit/failure/retry acceptance. See `imports.md` |
-| Voice notes | Exclusive E2/native/headset input, real RMS, Opus framing, outbox admission and idempotent retries | Real recognition/empty/failed/delivery outcomes, held-note interruptions, external mic/SCO routing, background upload lifetime |
+| Voice notes | Exclusive E2/native/headset input, real RMS, Opus framing, synced packet-file admission, frozen body and original key/surface on retries, monotonic 25-second budget, live-result precedence and cancellation; actual E2 hold cancellation/background callback/focus interruption and retained-packet retry under prepared outcomes; one marked synthetic fixture through actual ASR/delivery/reply with the real Activity backgrounded and native upload-service cleanup | Acoustic microphone-to-room recognition; actual empty/ASR/service failure outcomes and offline paths; external mic/SCO routing, low storage, process death during recording/upload and prolonged background lifetime. Prepared failures/native focus requests and synthetic API recognition are distinct evidence; see `audio.md` |
 | Ambient | `AmbientInput` handles capture-before-hello, meta/seat/takeover, microphone-on semantics and overlapping presses; pure `AmbientOutput` owns immediate muted-block clocks, fillers/presses, read priority and stop/hush distinctions; generation-scoped hardware receipts, mute-session reset, native focus pause/gain and `audio=0/1` reconnect; foreground service, full read-only conversation, transcript/room notes | Real room ASR/TTS and reconnect; actual calls/route changes and external headsets, background/process death and energy trials. Native competing focus requests are accepted; other focus sources/platforms remain |
 | Read aloud | Shared incremental speech transport, PacketStream, cancellable Go/local streaming, bounded PCM and cut/error distinctions; prepared and real synthesis decoded/played to hardware watermarks with muted output; repeated real request/stop ignores late callbacks; native prepared local-read/live overlap accepted; 20 ms startup/idle restart and in-flight block accounting | Actual server live-output overlap, external routing, failed synthesis and prolonged-stream acceptance |
 | Passport (deferred by user) | Existing BLE central, press/reply protocol and persistent memory retained; normal conversation/settings entries removed to prioritize standalone E2 use | Outside current acceptance scope. Resume external pairing/reconnect, wake/result timing and firmware logs only if requested; preserve E2Studio's connection |

@@ -283,7 +283,7 @@ final class AudioOutputProbe {
                                     == 20
                             && focusHeld,
                     "a short read's hardware drain retains reading state and focus while the HTTP"
-                        + " stream is still open");
+                            + " stream is still open");
             source.shortRelease.countDown();
             await(
                     () ->
@@ -296,7 +296,7 @@ final class AudioOutputProbe {
                             && onState(() -> !(Boolean) field("readInFlight"))
                             && !pending(),
                     "an injected stream failure after hardware drain clears the spinner and"
-                        + " explicitly reports partial playback");
+                            + " explicitly reports partial playback");
         } finally {
             source.shortPacket = null;
             source.shortRelease.countDown();
