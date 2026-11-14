@@ -92,8 +92,17 @@ public final class TurnState {
         return traces.get(key);
     }
 
-    public Map<String, Trace> traces() {
-        return Collections.unmodifiableMap(new LinkedHashMap<>(traces));
+    public Map<String, Trace> traces(List<Message> rows) {
+        Map<String, Trace> result = new LinkedHashMap<>();
+        for (Message row : rows) {
+            if (row.kind != Message.DUODUO) continue;
+            Trace trace = traces.get(row.id);
+            if (trace == null && !row.messageIds.isEmpty())
+                trace = traces.get(Json.answerKey(row.messageIds));
+            if (trace == null) trace = traces.get("text:" + row.text.trim());
+            if (trace != null) result.put(row.id, trace);
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     public void reset() {
@@ -182,12 +191,14 @@ public final class TurnState {
                             ? "provisional:" + frame.optString("speech_id", String.valueOf(now))
                             : Json.answerKey(ids);
             if (working != null && names(ids)) {
-                if (!working.steps.isEmpty())
-                    traces.put(
-                            key,
+                if (!working.steps.isEmpty()) {
+                    Trace trace =
                             new Trace(
                                     completed(working.steps),
-                                    working.startedAt > 0 ? now - working.startedAt : 0));
+                                    working.startedAt > 0 ? now - working.startedAt : 0);
+                    traces.put(key, trace);
+                    if (!text.trim().isEmpty()) traces.put("text:" + text.trim(), trace);
+                }
                 working = null;
             } else if (working != null && working.speechId.equals(frame.optString("speech_id"))) {
                 working =
@@ -201,31 +212,26 @@ public final class TurnState {
             }
             if (!text.trim().isEmpty())
                 return new Message(
-                        key,
-                        Message.DUODUO,
-                        now,
-                        text,
-                        "",
-                        0,
-                        Message.DELIVERED,
-                        "",
-                        true,
-                        false,
-                        Collections.<Attachment>emptyList(),
-                        -1);
+                                key,
+                                Message.DUODUO,
+                                now,
+                                text,
+                                "",
+                                0,
+                                Message.DELIVERED,
+                                "",
+                                true,
+                                false,
+                                Collections.<Attachment>emptyList(),
+                                -1)
+                        .withMessageIds(ids);
         }
         return null;
     }
 
     public void settled(Message row) {
-        if (row.kind != Message.DUODUO || working == null) return;
-        if (working.messages.isEmpty()) {
-            working = null;
-            return;
-        }
-        if (!row.id.startsWith("ans:")) return;
-        List<String> covered = java.util.Arrays.asList(row.id.substring(4).split(",", -1));
-        if (names(covered)) working = null;
+        if (row.kind != Message.DUODUO || working == null || working.messages.isEmpty()) return;
+        if (names(row.messageIds)) working = null;
     }
 
     public void failed(String id) {

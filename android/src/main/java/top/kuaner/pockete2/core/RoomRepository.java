@@ -314,6 +314,41 @@ public final class RoomRepository extends SQLiteOpenHelper {
         }
     }
 
+    /** The two newest cached days cover turn settlement across midnight without a UI row limit. */
+    List<Message> recentAnswers() {
+        List<Message> answers = new ArrayList<>();
+        String previousDay = "";
+        int days = 0;
+        try (Cursor c =
+                getReadableDatabase()
+                        .rawQuery(
+                                "SELECT body,at FROM rows WHERE room=? AND seq>=0 ORDER BY at"
+                                        + " DESC,rowid DESC",
+                                new String[] {room})) {
+            while (c.moveToNext()) {
+                String day = Json.day(c.getLong(1));
+                if (!day.equals(previousDay)) {
+                    if (++days > 2) break;
+                    previousDay = day;
+                }
+                Message row = Message.from(new JSONObject(c.getString(0)));
+                if (row.kind == Message.DUODUO) answers.add(row);
+            }
+        } catch (org.json.JSONException failure) {
+            throw new IllegalStateException(failure);
+        }
+        return answers;
+    }
+
+    /** A late final must neither duplicate an admitted answer nor overwrite a different log row. */
+    public void provisional(Message answer) {
+        for (Message logged : recentAnswers()) if (logged.sameAnswer(answer)) return;
+        Message prior = row(answer.id);
+        if (prior != null && (prior.seq >= 0 || !prior.sameAnswer(answer)))
+            answer = answer.withIdentity("provisional:" + java.util.UUID.randomUUID());
+        put(answer);
+    }
+
     public void admit(List<Message> incoming, long seq) {
         SQLiteDatabase db = getWritableDatabase();
         List<Outbox.Item> removed = new ArrayList<>();
@@ -323,11 +358,12 @@ public final class RoomRepository extends SQLiteOpenHelper {
             if (!incoming.isEmpty()) {
                 try (Cursor c =
                         db.rawQuery(
-                                "SELECT body FROM rows WHERE room=? AND seq<0 AND id LIKE"
-                                        + " 'provisional:%'",
+                                "SELECT body FROM rows WHERE room=? AND seq<0",
                                 new String[] {room})) {
-                    while (c.moveToNext())
-                        provisionals.add(Message.from(new JSONObject(c.getString(0))));
+                    while (c.moveToNext()) {
+                        Message row = Message.from(new JSONObject(c.getString(0)));
+                        if (row.kind == Message.DUODUO) provisionals.add(row);
+                    }
                 } catch (org.json.JSONException failure) {
                     throw new IllegalStateException(failure);
                 }
@@ -355,10 +391,11 @@ public final class RoomRepository extends SQLiteOpenHelper {
                     message = message.withDelivery(existing.delivery, existing.error);
                 if (message.kind == Message.DUODUO && message.seq >= 0) {
                     for (Message candidate : provisionals)
-                        if (candidate.id.startsWith("provisional:")
-                                && candidate.seq < 0
-                                && candidate.text.trim().equals(message.text.trim()))
-                            db.delete("rows", "room=? AND id=?", new String[] {room, candidate.id});
+                        if (candidate.sameAnswer(message))
+                            db.delete(
+                                    "rows",
+                                    "room=? AND id=? AND seq<0",
+                                    new String[] {room, candidate.id});
                 }
                 put(message);
                 if (message.kind == Message.MINE) {

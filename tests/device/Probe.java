@@ -41,6 +41,11 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("historyOnly"))) {
+                report.putString("result", new HistoryProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && arguments.getString("outboxPhase") != null) {
                 report.putAll(
                         new OutboxDeathProbe(this)
@@ -907,7 +912,8 @@ public final class Probe extends Instrumentation {
                                                         && row.seq >= 0
                                                         && row.text.contains(
                                                                 english ? "try-it mode" : "体验模式")),
-                        "try final settles through the ordinary channel log");
+                        "try final settles through the ordinary channel log: "
+                                + tryRows(controller, english));
                 check(
                         controller.snapshot().outbox.isEmpty(),
                         "try log admission settles the ordinary outbox");
@@ -1698,6 +1704,23 @@ public final class Probe extends Instrumentation {
             }
         }
         return null;
+    }
+
+    private String tryRows(PocketController controller, boolean english) {
+        PocketController.Snapshot snapshot = controller.snapshot();
+        if (!snapshot.trying) return "outside disposable room";
+        StringBuilder detail = new StringBuilder("outbox=" + snapshot.outbox.size());
+        detail.append(", error=").append(snapshot.lastError);
+        for (Message row : snapshot.rows)
+            detail.append("; kind=")
+                    .append(row.kind)
+                    .append(", answerKey=")
+                    .append(row.id.startsWith("ans:"))
+                    .append(", seq=")
+                    .append(row.seq)
+                    .append(", expectedText=")
+                    .append(row.text.contains(english ? "try-it mode" : "体验模式"));
+        return detail.toString();
     }
 
     void screenshot(Context context, String name) throws Exception {

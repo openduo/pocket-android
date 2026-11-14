@@ -99,6 +99,19 @@ Ordinary startup retains one committed local row/cursor while cleaning owned byt
 termination keeps the original pending id/body/surface intact. See [storage.md](docs/storage.md)
 for the exact boundary and remaining real-server replay/low-memory acceptance.
 
+The next P0 history update passed **226 host assertions** and **54 targeted E2 assertions**. Answer
+correlation survives attachments, identity replacement and SQLite reopen; day/older/periodic history
+ends a matching wait, and ready checks cached answers across midnight beyond the UI window.
+Provisional/log reconciliation preserves distinct same-turn answers and completed traces; retired
+history requests cannot keep loading or replace a newer result. Native Activity/background notice
+checks confirm one notice across live/attachment catch-up and silent initial history. Earlier APKs
+reproduced the attachment wait and stuck loading indicator. These are prepared outcomes through
+the real controller/storage/UI/NotificationManager; actual-server interruption, legacy ids already
+lost and physical handover remain separate. A broader no-capture/no-camera paired-try run passed
+**163 device assertions** on this APK after one first-reply assertion failed without row diagnostics.
+Added diagnostics keep the original condition/deadline; that first failure remains unlocated, and
+the full capture/camera/import suite was not repeated. See [history.md](docs/history.md).
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
@@ -170,6 +183,8 @@ POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCK
 POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
 # Isolated voice faults/elapsed-time retries, optionally with real hold capture:
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
+# Isolated live/day/older/catch-up settlement and actual local background notification checks:
+POCKET_E2_TEST_HISTORY_ONLY=1 scripts/test-device.sh
 # Explicitly send one marked synthetic voice fixture to the actual ASR/brain:
 POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
 # Isolated live write/queue faults, optionally including native hold/ambient exit:

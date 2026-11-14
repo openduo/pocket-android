@@ -392,10 +392,10 @@ public final class ChannelClient {
             }
         boolean answer = kind.equals("answer") || row.optString("speaker").equals("多多");
         int type = kind.equals("typed") ? Message.MINE : answer ? Message.DUODUO : Message.HEARD;
+        List<String> ids = Json.strings(row.optJSONArray("message_ids"));
         String id = row.optString("utt_id");
         if (type == Message.MINE && id.isEmpty()) id = "typed:" + seq + ":" + row.optString("at");
         if (answer) {
-            List<String> ids = Json.strings(row.optJSONArray("message_ids"));
             id =
                     !ids.isEmpty() && attachments.isEmpty()
                             ? Json.answerKey(ids)
@@ -415,6 +415,7 @@ public final class ChannelClient {
                         row.optBoolean("truncated"),
                         attachments,
                         seq)
+                .withMessageIds(ids)
                 .withPresentation(
                         row.optString("speaker"),
                         answer

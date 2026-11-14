@@ -140,7 +140,7 @@ public final class PocketController {
             chips = Collections.unmodifiableList(new ArrayList<>(c.chips));
             imports = c.imports.progress();
             configIssues = c.roomState == null ? Collections.emptyList() : c.roomState.configIssues;
-            traces = c.turn.traces();
+            traces = c.turn.traces(rows);
             working = c.turn.working();
             status = c.presence();
             top.kuaner.pockete2.sight.SightSession.Snapshot camera = c.sightSession.snapshot();
@@ -175,7 +175,7 @@ public final class PocketController {
             holdRecording = c.holdRequested;
             holdLive = c.holdLive;
             trying = c.trying;
-            olderLoading = c.olderLoading;
+            olderLoading = c.olderRequestEpoch == c.connectionEpoch;
             uploadingVoice = c.uploadForeground;
             ambientActive = c.ambientWanted;
             accessoryActive =
@@ -287,7 +287,8 @@ public final class PocketController {
             new java.util.concurrent.atomic.AtomicLong();
     private boolean foreground, trying, opening, ambientWanted, ambientMuted;
     private SendOperation sending;
-    private boolean holdRequested, holdLive, olderLoading, captureStopping;
+    private boolean holdRequested, holdLive, captureStopping;
+    private int olderRequestEpoch = -1;
     private final java.util.concurrent.atomic.AtomicBoolean publishing =
             new java.util.concurrent.atomic.AtomicBoolean();
     private ChannelClient.State roomState;
@@ -1138,13 +1139,11 @@ public final class PocketController {
                         ChannelClient.mapEntry(frame.optJSONObject("row"), frame.optLong("seq"));
                 if (message != null && message.kind == Message.MINE)
                     messageAccepted(repo.findPending(message.id));
-                repo.admit(
+                admitRows(
                         message == null
                                 ? Collections.<Message>emptyList()
                                 : Collections.singletonList(message),
                         frame.optLong("seq"));
-                if (message != null) turn.settled(message);
-                reload();
             } else if (type.equals("ready")) {
                 connection = Connection.ONLINE;
                 if (PassportPolicy.ENABLED && !trying) passport.online(true);
@@ -1154,6 +1153,8 @@ public final class PocketController {
                         frame.optInt("api", 0) < 2 ? "家里的 ambient 需要升级（API v2）" : ambientFailure;
                 repo.admit(Collections.<Message>emptyList(), frame.optLong("seq"));
                 turn.restore(frame.optJSONObject("turn"));
+                if (turn.working() != null && !turn.working().messages.isEmpty())
+                    for (Message answer : repo.recentAnswers()) turn.settled(answer);
                 if (resumed) reconcileReady(frame);
                 viewer.dropPending();
                 if (foreground && viewer.snapshot().watching) send(viewer.watchFrame());
@@ -1223,26 +1224,7 @@ public final class PocketController {
             }
             Message provisional = turn.handle(frame, System.currentTimeMillis());
             if (provisional != null) {
-                Message prior = repo.row(provisional.id);
-                if (prior != null && !prior.text.equals(provisional.text))
-                    provisional =
-                            new Message(
-                                    "provisional:"
-                                            + frame.optString(
-                                                    "speech_id",
-                                                    String.valueOf(System.currentTimeMillis())),
-                                    provisional.kind,
-                                    provisional.at,
-                                    provisional.text,
-                                    "",
-                                    0,
-                                    Message.DELIVERED,
-                                    "",
-                                    true,
-                                    false,
-                                    provisional.attachments,
-                                    -1);
-                repo.put(provisional);
+                repo.provisional(provisional);
                 reload();
             }
             settleSend();
@@ -1322,13 +1304,12 @@ public final class PocketController {
                         state.execute(
                                 () -> {
                                     if (epoch != connectionEpoch) return;
-                                    repo.admit(rows.messages, repo.cursor());
+                                    admitRows(rows.messages, repo.cursor());
                                     repo.metadata("history_loaded", "1");
                                     oldestDate =
                                             cachedRows.isEmpty()
                                                     ? day
                                                     : Json.day(cachedRows.get(0).at);
-                                    reload();
                                     publish();
                                 });
                     } catch (ChannelClient.Failure failure) {
@@ -1343,7 +1324,7 @@ public final class PocketController {
     public void loadOlder() {
         state.execute(
                 () -> {
-                    if (olderLoading) return;
+                    if (olderRequestEpoch == connectionEpoch) return;
                     if (repo.countRows() > visibleLimit) {
                         visibleLimit += 200;
                         reload();
@@ -1354,7 +1335,7 @@ public final class PocketController {
                         notice("本机较早的记录已显示，联网后可继续加载");
                         return;
                     }
-                    olderLoading = true;
+                    olderRequestEpoch = connectionEpoch;
                     publish();
                     int epoch = connectionEpoch;
                     String before = oldestDate;
@@ -1371,6 +1352,7 @@ public final class PocketController {
                                 String scanned = start;
                                 try {
                                     for (int i = 0; i < 14 && found.isEmpty(); i++) {
+                                        if (epoch != connectionEpoch) return;
                                         scanned =
                                                 java.time.LocalDate.parse(scanned)
                                                         .minusDays(1)
@@ -1382,20 +1364,20 @@ public final class PocketController {
                                             () -> {
                                                 if (epoch != connectionEpoch) return;
                                                 oldestDate = oldest;
-                                                olderLoading = false;
+                                                olderRequestEpoch = -1;
                                                 visibleLimit += Math.max(100, found.size());
-                                                repo.admit(found, repo.cursor());
+                                                admitRows(found, repo.cursor());
                                                 olderLabel =
                                                         found.isEmpty()
                                                                 ? oldest + " 之前暂未找到 · 继续找"
                                                                 : "查看更早的记录";
-                                                reload();
                                                 publish();
                                             });
                                 } catch (Exception failure) {
                                     state.execute(
                                             () -> {
-                                                olderLoading = false;
+                                                if (epoch != connectionEpoch) return;
+                                                olderRequestEpoch = -1;
                                                 notice("更早记录加载失败，轻点重试");
                                             });
                                 }
@@ -2858,20 +2840,9 @@ public final class PocketController {
                                                     if (!trying
                                                             && identity.equals(
                                                                     repo.roomIdentity())) {
-                                                        repo.admit(rows.messages, rows.cursor);
+                                                        admitRows(rows.messages, rows.cursor);
                                                         for (Message row : rows.messages)
                                                             if (row.kind == Message.DUODUO) {
-                                                                List<String> ids =
-                                                                        row.id.startsWith("ans:")
-                                                                                ? Arrays.asList(
-                                                                                        row.id
-                                                                                                .substring(
-                                                                                                        4)
-                                                                                                .split(
-                                                                                                        ","))
-                                                                                : Collections
-                                                                                        .<String>
-                                                                                                emptyList();
                                                                 notifications.frame(
                                                                         Json.object(
                                                                                 "type",
@@ -2879,7 +2850,8 @@ public final class PocketController {
                                                                                 "text",
                                                                                 row.text,
                                                                                 "message_ids",
-                                                                                new JSONArray(ids)),
+                                                                                new JSONArray(
+                                                                                        row.messageIds)),
                                                                         PassportPolicy.ENABLED
                                                                                 && passport
                                                                                         .snapshot()
@@ -2887,7 +2859,6 @@ public final class PocketController {
                                                                                         .ready,
                                                                         bootstrapped);
                                                             }
-                                                        reload();
                                                         publish();
                                                     }
                                                 } finally {
@@ -3188,6 +3159,12 @@ public final class PocketController {
         publish();
     }
 
+    private void admitRows(List<Message> rows, long cursor) {
+        repo.admit(rows, cursor);
+        for (Message row : rows) turn.settled(row);
+        reload();
+    }
+
     private void reload() {
         cachedRows = repo.rows(visibleLimit);
         cachedRows.addAll(liveNotes);
@@ -3222,7 +3199,7 @@ public final class PocketController {
         setOutputMuted(false);
         liveNotes.clear();
         lastHeard = oldestDate = "";
-        olderLoading = false;
+        olderRequestEpoch = -1;
         olderLabel = "查看更早的记录";
         visibleLimit = 200;
         roomState = null;

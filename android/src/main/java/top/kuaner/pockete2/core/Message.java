@@ -31,6 +31,7 @@ public final class Message {
     public final long seq;
     public final String speaker;
     public final int spoken;
+    public final List<String> messageIds;
 
     public Message(
             String id,
@@ -59,7 +60,8 @@ public final class Message {
                 attachments,
                 seq,
                 "",
-                SPOKEN_UNKNOWN);
+                SPOKEN_UNKNOWN,
+                legacyMessageIds(id, kind));
     }
 
     private Message(
@@ -76,7 +78,8 @@ public final class Message {
             List<Attachment> attachments,
             long seq,
             String speaker,
-            int spoken) {
+            int spoken,
+            List<String> messageIds) {
         this.id = id == null ? "" : id;
         this.kind = kind;
         this.at = at <= 0 ? System.currentTimeMillis() : at;
@@ -96,6 +99,7 @@ public final class Message {
         this.seq = seq;
         this.speaker = speaker == null || speaker.equals("V?") ? "" : speaker;
         this.spoken = spoken;
+        this.messageIds = Collections.unmodifiableList(new ArrayList<>(messageIds));
     }
 
     public static Message mine(
@@ -157,7 +161,8 @@ public final class Message {
                 attachments,
                 seq,
                 speaker,
-                spoken);
+                spoken,
+                messageIds);
     }
 
     public Message withText(String value, boolean done, boolean cut) {
@@ -175,7 +180,8 @@ public final class Message {
                 attachments,
                 seq,
                 speaker,
-                spoken);
+                spoken,
+                messageIds);
     }
 
     public Message withAttachments(List<Attachment> values) {
@@ -193,7 +199,8 @@ public final class Message {
                 values,
                 seq,
                 speaker,
-                spoken);
+                spoken,
+                messageIds);
     }
 
     public Message withIdentity(String value) {
@@ -211,7 +218,8 @@ public final class Message {
                 attachments,
                 seq,
                 speaker,
-                spoken);
+                spoken,
+                messageIds);
     }
 
     public Message withDuration(long value) {
@@ -229,7 +237,8 @@ public final class Message {
                 attachments,
                 seq,
                 speaker,
-                spoken);
+                spoken,
+                messageIds);
     }
 
     public Message withPresentation(String label, int speech) {
@@ -247,7 +256,42 @@ public final class Message {
                 attachments,
                 seq,
                 label,
-                speech);
+                speech,
+                messageIds);
+    }
+
+    public Message withMessageIds(List<String> ids) {
+        return new Message(
+                id,
+                kind,
+                at,
+                text,
+                voiceSource,
+                durationMs,
+                delivery,
+                error,
+                complete,
+                truncated,
+                attachments,
+                seq,
+                speaker,
+                spoken,
+                ids);
+    }
+
+    /** Log admission can replace a provisional answer's identity, including attachment answers. */
+    public boolean sameAnswer(Message other) {
+        if (kind != DUODUO || other.kind != DUODUO || !text.trim().equals(other.text.trim()))
+            return false;
+        if (messageIds.isEmpty() || other.messageIds.isEmpty()) return true;
+        for (String id : messageIds) if (other.messageIds.contains(id)) return true;
+        return false;
+    }
+
+    private static List<String> legacyMessageIds(String id, int kind) {
+        return kind == DUODUO && id != null && id.startsWith("ans:") && id.length() > 4
+                ? java.util.Arrays.asList(id.substring(4).split(",", -1))
+                : Collections.emptyList();
     }
 
     public JSONObject json() throws JSONException {
@@ -265,6 +309,7 @@ public final class Message {
                         .put("truncated", truncated)
                         .put("seq", seq);
         o.put("speaker", speaker).put("spoken", spoken);
+        o.put("message_ids", new JSONArray(messageIds));
         JSONArray a = new JSONArray();
         for (Attachment attachment : attachments) a.put(attachment.json(true));
         o.put("attachments", a);
@@ -292,6 +337,9 @@ public final class Message {
                 attachments,
                 o.optLong("seq", -1),
                 o.optString("speaker"),
-                o.optInt("spoken", SPOKEN_UNKNOWN));
+                o.optInt("spoken", SPOKEN_UNKNOWN),
+                o.has("message_ids")
+                        ? Json.strings(o.optJSONArray("message_ids"))
+                        : legacyMessageIds(o.optString("id"), o.optInt("kind", MINE)));
     }
 }

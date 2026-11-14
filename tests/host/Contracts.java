@@ -152,6 +152,82 @@ public final class Contracts {
                         .speaker
                         .isEmpty(),
                 "unknown speaker label stays hidden");
+        Message correlatedAttachment =
+                ChannelClient.mapEntry(
+                        Json.object(
+                                "kind",
+                                "answer",
+                                "message_ids",
+                                new JSONArray(Arrays.asList("input,one", "input-two")),
+                                "text",
+                                "Prepared attachment answer",
+                                "attachments",
+                                new JSONArray().put(localAttachment.json(true))),
+                        44);
+        check(
+                correlatedAttachment.id.startsWith("answer:")
+                        && correlatedAttachment.messageIds.equals(
+                                Arrays.asList("input,one", "input-two")),
+                "wire answer correlation is explicit even when attachments require another row"
+                        + " identity");
+        Message roundtripCorrelation =
+                Message.from(
+                        correlatedAttachment
+                                .withIdentity("renamed-log-row")
+                                .withText("changed", true, true)
+                                .withDelivery(Message.DELIVERED, "")
+                                .withDuration(300)
+                                .withAttachments(Collections.singletonList(localAttachment))
+                                .withPresentation("多多", Message.UNSPOKEN)
+                                .json());
+        check(
+                roundtripCorrelation.messageIds.equals(correlatedAttachment.messageIds)
+                        && roundtripCorrelation.id.equals("renamed-log-row")
+                        && roundtripCorrelation.attachments.size() == 1,
+                "correlation survives every immutable message replacement and local JSON"
+                        + " persistence");
+        List<String> mutableIds = new ArrayList<>(Arrays.asList("original"));
+        Message copiedIds = correlatedAttachment.withMessageIds(mutableIds);
+        mutableIds.clear();
+        boolean immutableIds = false;
+        try {
+            copiedIds.messageIds.add("late");
+        } catch (UnsupportedOperationException expected) {
+            immutableIds = true;
+        }
+        check(
+                immutableIds && copiedIds.messageIds.equals(Collections.singletonList("original")),
+                "published message ids are copied and immutable");
+        JSONObject legacyAnswer =
+                Message.answer("ans:old-a,old-b", "old", true, false, 45, Collections.emptyList())
+                        .json();
+        legacyAnswer.remove("message_ids");
+        check(
+                Message.from(legacyAnswer)
+                        .withIdentity("answer:45")
+                        .messageIds
+                        .equals(Arrays.asList("old-a", "old-b")),
+                "old ans-key cache rows retain recoverable correlation after identity replacement");
+        check(
+                Message.from(
+                                Json.object(
+                                        "kind",
+                                        Message.DUODUO,
+                                        "id",
+                                        "ans:legacy",
+                                        "message_ids",
+                                        new JSONArray()))
+                        .messageIds
+                        .isEmpty(),
+                "explicit empty ids cannot be replaced with ambiguous identity-derived ids");
+        check(
+                !correlatedAttachment.sameAnswer(
+                                correlatedAttachment.withMessageIds(
+                                        Collections.singletonList("another-turn")))
+                        && correlatedAttachment.sameAnswer(
+                                correlatedAttachment.withIdentity("replacement")),
+                "identical text from explicitly unrelated turns cannot remove another provisional"
+                        + " answer");
         AmbientInput edge = new AmbientInput();
         check(
                 edge.releaseMicrophone() == null,
@@ -250,6 +326,28 @@ public final class Contracts {
         check(turn.working() != null, "ready restores working turn");
         turn.restore(null);
         check(turn.working() == null, "ready clears ended turn");
+        turn.restore(
+                Json.object("phase", "thinking", "message_ids", new JSONArray().put("input,one")));
+        turn.settled(correlatedAttachment.withIdentity("answer:44"));
+        check(
+                turn.working() == null,
+                "an explicit id containing a comma settles after attachment identity replacement");
+        turn.restore(
+                Json.object("phase", "thinking", "message_ids", new JSONArray().put("unrelated")));
+        turn.settled(correlatedAttachment);
+        check(
+                turn.working() != null,
+                "historical answers for other inputs leave the current wait active");
+        turn.restore(null);
+        turn.restore(Json.object("phase", "thinking", "message_ids", new JSONArray()));
+        turn.settled(correlatedAttachment);
+        check(turn.working() != null, "historical replies cannot settle uncorrelated room speech");
+        turn.handle(Json.object("type", "answer_final", "text", "room answer"), 300);
+        check(turn.working() == null, "an actual final frame still ends an uncorrelated room turn");
+        check(
+                turn.traces(Collections.singletonList(answer.withIdentity("answer:99")))
+                        .containsKey("answer:99"),
+                "completed tool traces follow explicit answer correlation onto the log identity");
         byte[] wire = {3, 0, 1, 2, 3, 2, 0, 4, 5};
         PacketStream packets = new PacketStream();
         List<byte[]> decoded = new ArrayList<>();
