@@ -17,7 +17,7 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **186 host contract assertions and 223 E2 device assertions**,
+The latest local checkpoint passed **189 host contract assertions and 227 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
@@ -26,6 +26,8 @@ assertions** verified one marked synthetic note through actual ASR/delivery/repl
 upload. **11 cold-restart assertions** reused its journal without sending again. Acoustic recognition
 from the E2 microphone and ambient server audio remain unverified. These checks are regression evidence,
 not a parity-completion claim.
+An independent process-death run passed **27 host-controlled and 12 native-phase assertions**, including
+two actual force-stop/cold-launch cycles around an unfinished system-picked document copy.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
 language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
@@ -37,6 +39,10 @@ recreation. Real system document-picker and camera returns exercise the same imp
 Picker/camera routes survive recreation; media conversion preserves dimensions, while document
 selection preserves bytes. The composer reports observed import bytes and can cancel stalled external
 reads/opens without losing its existing draft or admitting part of a batch.
+Permanent import requests are saved in SQLite before provider work enters the queue. A force-stop
+during a real system-picked file copy now resumes on cold launch using Android's retained document
+grant; a second restart keeps one complete chip without rereading its source. Receipts keep source
+cleanup separate from draft admission, and expired temporary grants remain an explicit limit.
 For older servers that acknowledge an upload path without a SHA-256, the client retains the digest
 of the exact uploaded bytes; supplied digests must match. Actual authenticated download then verifies
 the original content without test-only metadata.
@@ -74,6 +80,8 @@ POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
 # Explicitly send one marked synthetic voice fixture to the actual ASR/brain:
 POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
+# Explicitly force-stop/cold-start during a real system-picked provider copy:
+POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
@@ -109,6 +117,13 @@ the original key across repeats/restarts; keep it to verify the same message wit
 This proves the actual API path for known synthetic speech. Acoustic recognition from the E2's
 microphone, real ASR failure outcomes and prolonged background/process-death handling remain separate
 acceptance work. See [audio.md](docs/audio.md).
+
+`POCKET_E2_TEST_PROCESS_DEATH=1` selects one small synthetic document through the real file picker,
+force-stops Pocket E2 after a separate-UID provider emits partial bytes, then cold-starts it twice.
+It checks resumed complete bytes, one chip, retained draft/quote, released grants and no repeated
+provider read. Native setup/cleanup restore the original composer and input preference. The ordinary
+attachment path may upload this fixture; no chat or session message is sent. This is force-stop/cold
+launch evidence rather than low-memory task restoration. See [imports.md](docs/imports.md).
 
 The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
 or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the

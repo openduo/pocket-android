@@ -21,6 +21,7 @@ import java.util.List;
 public final class RoomRepository extends SQLiteOpenHelper {
     public static final String IMPORT_CANCELLED = "cancelled";
     private static final String IMPORT_RECEIPTS = "@import-receipts";
+    private static final String IMPORT_REQUESTS = "@import-requests";
     private String room = "unpaired";
 
     public RoomRepository(Context context) {
@@ -166,6 +167,43 @@ public final class RoomRepository extends SQLiteOpenHelper {
 
     public boolean imported(String delivery) {
         return !importDestination(delivery).isEmpty();
+    }
+
+    public ImportRequest importRequest(String id) {
+        ImportBatch.requireId(id);
+        String value = roomMetadata(IMPORT_REQUESTS, id);
+        try {
+            return value.isEmpty() ? null : ImportRequest.from(new JSONObject(value));
+        } catch (org.json.JSONException failure) {
+            throw new IllegalStateException("Invalid pending import request", failure);
+        }
+    }
+
+    /** The state owner persists every queued request before any provider operation begins. */
+    public void rememberImport(ImportRequest request) {
+        if (importRequest(request.route.id) == null)
+            metadata(IMPORT_REQUESTS, request.route.id, request.json().toString());
+    }
+
+    public List<ImportRequest> importRequests() {
+        List<ImportRequest> requests = new ArrayList<>();
+        try (Cursor c =
+                getReadableDatabase()
+                        .rawQuery(
+                                "SELECT value FROM metadata WHERE room=? ORDER BY rowid",
+                                new String[] {IMPORT_REQUESTS})) {
+            while (c.moveToNext()) requests.add(ImportRequest.from(new JSONObject(c.getString(0))));
+        } catch (org.json.JSONException failure) {
+            throw new IllegalStateException("Invalid pending import request", failure);
+        }
+        return requests;
+    }
+
+    /** Called only after releasing the source leases; receipts/manifests cover later recovery. */
+    public void forgetImport(String id) {
+        ImportBatch.requireId(id);
+        getWritableDatabase()
+                .delete("metadata", "room=? AND name=?", new String[] {IMPORT_REQUESTS, id});
     }
 
     public String importDestination(String delivery) {

@@ -51,6 +51,23 @@ delivery is reserved durably before copying, while its text/chips stay in the in
 and temporary inbox. Leaving/replacing try removes its owned files. A restored old try intent cannot
 replay into a real composer.
 
+Every permanent incoming delivery also records an `ImportRequest` in SQLite **before** its provider
+work is queued. This retains the original room, delivery id, ordered content URIs, text, media/file
+policy and owned-photo name even when the Activity has already consumed a picker result. It is a
+request to finish copying, not permission to admit partial bytes. A repeated delivery uses the
+original request. Startup prunes interrupted `.partial` directories and resumes recorded requests
+oldest first using only read grants Android still retains. Persistable document grants survive a
+force-stop; an expired temporary share grant can still fail with the existing explicit import error.
+Recovery never substitutes filesystem or web URLs, switches the destination room, or revives a
+cancelled/received delivery. Try sources never enter this permanent recovery queue.
+
+The request stays present until the source-release callbacks have run. Thus process death after
+draft admission but before callback cleanup can still release a retained document grant without
+rereading the source or appending again. Receipts remain independent of request cleanup. Completed
+manifests cover recovery after the request is removed, including deferred admission for another
+room and owned-photo cleanup. Queued requests are persisted on the state owner rather than behind a
+stalled provider on the copy executor.
+
 `core/ImportRoute` captures the delivery, destination and media/file policy before an external
 picker or camera is opened. `app/ExternalInputs` saves that route and the photo permission/camera/
 import stage through Activity recreation. A returned result belongs to its original room or try
@@ -113,13 +130,29 @@ The next normal import succeeds. Native image checks distinguish unchanged inlin
 from converted media/camera pixels and test the encoded upload limit. These are provider/UI and
 native-codec checks; their uploads are prepared. The separate real-room probe supplies the limited
 actual upload/download/removal acceptance described above.
+
+`POCKET_E2_TEST_PROCESS_DEATH=1` is a separate host-controlled acceptance run. It selects a real
+document through the shipping narrow composer and system picker from the test provider in another
+UID. The provider emits 8192 bytes and withholds EOF. Outside instrumentation, `am force-stop` ends
+the actual Pocket E2 process and closes that pipe while the provider process survives. A normal
+launcher start obtains a different PID, resumes the persisted request under its retained document
+grant and admits the complete 16384-byte fixture once. A second force-stop/relaunch retains the chip
+and existing draft/quote without another provider read. Native verification checks the exact file
+bytes, receipt, pruned partial directory, empty outbox and released persistable grant. Preparation
+and cleanup preserve the original room, text, quote, attachments and input preference. The one small
+fixture may upload through the normal real-room attachment path, but no chat/session message is
+sent. Its remote copy follows the upload API's existing no-delete limitation. The QA provider and
+test APK are removed afterward; raw trees and synthetic control logs stay in ignored `.build/`.
+This verifies actual force-stop and cold launch, not Android low-memory task recreation or device
+power loss. The E2 firmware protects recently backgrounded processes from the ordinary `am kill`
+path; the test checks termination and PID replacement instead of assuming that command succeeded.
 The optional UI probe currently runs on API 27: a narrowly scoped shell helper saves/restores the
 stock camera's location user-decision flags. The test declines optional location access and disables
 location tagging in its first-use screen. The helper and test source never ship in the application.
 
-Remaining acceptance work includes process kill during an unfinished external-provider copy,
-recreation during an unanswered first permission dialog, revoked/noncooperative providers,
+Remaining acceptance work includes low-memory task recreation, recreation during an unanswered
+first permission dialog, expired temporary grants and revoked/noncooperative providers,
 low-storage/large-batch cancellation, modern Android, valid HEIC conversion, and real-room
-upload limit/failure/retry. An incomplete copy has no durable content manifest: its recovery still depends
-on the OS restoring the source intent/permission. The inbox does not claim to preserve an expired
-temporary URI before copying completes.
+upload limit/failure/retry. An incomplete copy has no durable content manifest; its durable request
+can resume only while Android retains source access. The inbox does not claim to preserve expired
+temporary URI data before copying completes.

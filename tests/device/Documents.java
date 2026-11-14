@@ -49,6 +49,10 @@ public final class Documents extends DocumentsProvider {
             values.put(
                     DocumentsContract.Document.COLUMN_MIME_TYPE,
                     DocumentsContract.Document.MIME_TYPE_DIR);
+        } else if (id.equals("restart")) {
+            values.put(DocumentsContract.Document.COLUMN_DISPLAY_NAME, ProcessSource.NAME);
+            values.put(DocumentsContract.Document.COLUMN_MIME_TYPE, "text/plain");
+            values.put(DocumentsContract.Document.COLUMN_SIZE, ProcessSource.body().length);
         } else if (id.equals("document")) {
             values.put(DocumentsContract.Document.COLUMN_DISPLAY_NAME, NAME);
             values.put(DocumentsContract.Document.COLUMN_MIME_TYPE, "text/plain");
@@ -69,17 +73,25 @@ public final class Documents extends DocumentsProvider {
     public Cursor queryChildDocuments(String parent, String[] projection, String order)
             throws FileNotFoundException {
         if (!parent.equals("root")) throw new FileNotFoundException();
-        return queryDocument("document", projection);
+        return queryDocument(
+                ProcessSource.state(getContext()).getString("fixture", "").isEmpty()
+                        ? "document"
+                        : "restart",
+                projection);
     }
 
     @Override
     public boolean isChildDocument(String parent, String child) {
-        return parent.equals("root") && child.equals("document");
+        return parent.equals("root") && (child.equals("document") || child.equals("restart"));
     }
 
     @Override
     public ParcelFileDescriptor openDocument(String id, String mode, CancellationSignal cancel)
             throws FileNotFoundException {
+        if (id.equals("restart") && mode.equals("r")) {
+            if (cancel != null) cancel.throwIfCanceled();
+            return ProcessSource.open(getContext());
+        }
         if (id.equals("slow-open")) {
             java.util.concurrent.CountDownLatch released =
                     new java.util.concurrent.CountDownLatch(1);

@@ -9,8 +9,8 @@ The E2 is itself the handheld device. Conversation and settings omit Passport en
 the existing implementation is retained for later. External Passport hardware acceptance is outside
 the current standalone-device release scope; the rest of the 1:1 goal remains.
 
-Evidence at the 2026-11-14 local checkpoint: **186 host contract assertions, Go vet/test, Android APK
-build and 223 real E2 device assertions passed**. A separate **two-assertion real-node login run**
+Evidence at the 2026-11-14 local checkpoint: **189 host contract assertions, Go vet/test, Android APK
+build and 227 real E2 device assertions passed**. A separate **two-assertion real-node login run**
 decoded the rendered QR to the node's actual authorization URL. The device checks cover SQLite
 recovery/isolation,
 AndroidKeyStore binding, Opus JNI, real array capture/release, muted AudioTrack watermarks,
@@ -44,9 +44,19 @@ encoded-byte limits and an honestly undecodable HEIC fallback. A separate-UID pr
 real stalled pipe and a stalled second-file open: native cancel stays above the real keyboard,
 releases each source promptly, removes partial batches, preserves the draft, blocks replay and
 allows the next import. Progress remains attached to the current file's index/name/bytes. Tests
-remove their provider, APK and shell helper. Inbox crash contracts and reopened SQLite are distinct
-from an actual process kill during an unfinished
-external-provider read, which remains outstanding.
+remove their provider, APK and shell helper. Reopened SQLite now checks persisted original import
+requests, source ordering/policy and room identity, plus cancellation receipts surviving source cleanup.
+
+A separate run passed **27 host-controlled and 12 native-phase process-death assertions**. It selects
+an actual system document from another UID, observes its
+first 8192 bytes and withheld EOF, then force-stops Pocket E2 outside instrumentation. Termination
+closes the descriptor while the provider remains alive. Cold launch uses a new PID, resumes the
+persisted request and admits the complete 16384-byte file alongside the existing draft/quote. A
+second force-stop/cold launch keeps one chip without another provider open. Native checks verify exact
+bytes, receipt, removed partial directory, released document grant and empty outbox. Setup/cleanup
+restore the actual composer and preferences, and remove the QA provider/APK. This is actual force-stop
+and cold-launch evidence; low-memory task recreation and expired temporary grants remain unaccepted.
+See `imports.md`.
 
 The current native audio suite also ports the upstream output mute/interrupt/read policy into pure
 `AmbientOutput`. Native capture remains active in a disposable room while protocol stimuli verify
@@ -102,7 +112,7 @@ of the rows below is a claim of complete parity.
 | Live/cache/outbox | API v2 `/live`, SQLite cursor transaction, replay, stable ids, persisted retry surface/draft/chips, generation guards; after-row `brain_unreachable` resend preserves the failed logged row; real history, delivered text and exact live reply verified | Real offline/reconnect and failure lifecycle; process death during admission/replay; historical identity edge cases |
 | Thread and tools | Keyed bubbles, day/time separators, heard fold and speaker labels, spoken/partly-spoken metadata, live room notes, Markdown, copy/share/reply/read, tool archive and jump-to-latest | Full accessibility and more pages/font sizes; real live/log interruptions and tool identity edge cases |
 | Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal; real file upload/download/local removal accepted | Real upload limit/error/progress and retry acceptance; full clipboard lifecycle; more dense composer/font/keyboard combinations |
-| File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release; launch-scoped `ImportRoute` and restored external-operation stages; additional native-decodable media→JPEG, file-picker byte preservation and full-resolution oriented camera JPEG; actual byte progress, send guard and durable cancellation with provider signals/polling; first-pair draft transfer and try isolation; real separate-UID picker and stock camera capture/confirmation; actual path-only server upload/download accepted with a production-derived digest | Process kill during an unfinished provider copy, unanswered permission dialog restoration, revoked/noncooperative providers, low storage and large batches; valid HEIC decoding on E2; modern Android and real-room limit/failure/retry acceptance. See `imports.md` |
+| File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; durable original `ImportRequest` before provider queueing and source-release cleanup after admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release; launch-scoped `ImportRoute` and restored external-operation stages; additional native-decodable media→JPEG, file-picker byte preservation and full-resolution oriented camera JPEG; actual byte progress, send guard and durable cancellation with provider signals/polling; first-pair draft transfer and try isolation; real separate-UID picker, force-stop/cold-start recovery of an unfinished provider copy and second-restart dedup, stock camera capture/confirmation; actual path-only server upload/download accepted with a production-derived digest | Low-memory task recreation, expired temporary grants, unanswered permission dialog restoration, revoked/noncooperative providers, low storage and large batches; valid HEIC decoding on E2; modern Android and real-room limit/failure/retry acceptance. See `imports.md` |
 | Voice notes | Exclusive E2/native/headset input, real RMS, Opus framing, synced packet-file admission, frozen body and original key/surface on retries, monotonic 25-second budget, live-result precedence and cancellation; actual E2 hold cancellation/background callback/focus interruption and retained-packet retry under prepared outcomes; one marked synthetic fixture through actual ASR/delivery/reply with the real Activity backgrounded and native upload-service cleanup | Acoustic microphone-to-room recognition; actual empty/ASR/service failure outcomes and offline paths; external mic/SCO routing, low storage, process death during recording/upload and prolonged background lifetime. Prepared failures/native focus requests and synthetic API recognition are distinct evidence; see `audio.md` |
 | Ambient | `AmbientInput` handles capture-before-hello, meta/seat/takeover, microphone-on semantics and overlapping presses; pure `AmbientOutput` owns immediate muted-block clocks, fillers/presses, read priority and stop/hush distinctions; generation-scoped hardware receipts, mute-session reset, native focus pause/gain and `audio=0/1` reconnect; foreground service, full read-only conversation, transcript/room notes | Real room ASR/TTS and reconnect; actual calls/route changes and external headsets, background/process death and energy trials. Native competing focus requests are accepted; other focus sources/platforms remain |
 | Read aloud | Shared incremental speech transport, PacketStream, cancellable Go/local streaming, bounded PCM and cut/error distinctions; prepared and real synthesis decoded/played to hardware watermarks with muted output; repeated real request/stop ignores late callbacks; native prepared local-read/live overlap accepted; 20 ms startup/idle restart and in-flight block accounting | Actual server live-output overlap, external routing, failed synthesis and prolonged-stream acceptance |

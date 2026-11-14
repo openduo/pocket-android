@@ -16,7 +16,17 @@ fi
 rm -rf "$build/classes" "$build/dex"
 mkdir -p "$build/classes" "$build/dex"
 cat > "$build/AndroidManifest.xml" <<'MANIFEST'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.kuaner.pockete2.qa"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/><application android:label="Pocket E2 QA"><activity android:name=".ProviderWarmup" android:theme="@android:style/Theme.NoDisplay" android:exported="true" android:excludeFromRecents="true"/><provider android:name=".Documents" android:authorities="top.kuaner.pockete2.qa.documents" android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS"><intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER"/></intent-filter></provider></application><instrumentation android:name="top.kuaner.pockete2.qa.Probe" android:targetPackage="top.kuaner.pockete2" android:functionalTest="true"/></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.kuaner.pockete2.qa">
+  <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
+  <application android:label="Pocket E2 QA">
+    <activity android:name=".ProviderWarmup" android:theme="@android:style/Theme.NoDisplay" android:exported="true" android:excludeFromRecents="true"/>
+    <provider android:name=".ProcessControl" android:authorities="top.kuaner.pockete2.qa.restart-control" android:exported="true"/>
+    <provider android:name=".Documents" android:authorities="top.kuaner.pockete2.qa.documents" android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS">
+      <intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER"/></intent-filter>
+    </provider>
+  </application>
+  <instrumentation android:name="top.kuaner.pockete2.qa.Probe" android:targetPackage="top.kuaner.pockete2" android:functionalTest="true"/>
+</manifest>
 MANIFEST
 "$tools/aapt2" link -I "$android_jar" --manifest "$build/AndroidManifest.xml" -o "$build/base.apk"
 test_sources=()
@@ -55,6 +65,10 @@ if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.ver
 fi
 adb shell input keyevent 224
 adb shell wm dismiss-keyguard
+if [[ "${POCKET_E2_TEST_PROCESS_DEATH:-0}" == 1 ]]; then
+  python3 "$project_dir/scripts/test-process-death.py" "$build" | tee "$build/process-death-result.txt"
+  exit
+fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
 adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}" -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"

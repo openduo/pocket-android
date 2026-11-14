@@ -7,6 +7,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 
+import top.kuaner.pockete2.app.InboundContent;
 import top.kuaner.pockete2.app.PocketFiles;
 import top.kuaner.pockete2.diagnostics.AppLog;
 
@@ -168,18 +169,24 @@ final class ImportCoordinator {
     }
 
     private void start(
-            ImportRoute route,
-            String text,
-            List<Uri> sources,
-            String ownedPhoto,
+            ImportRoute incomingRoute,
+            String incomingText,
+            List<Uri> incomingSources,
+            String incomingPhoto,
             Runnable finished) {
-        String delivery = route.id;
+        String delivery = incomingRoute.id;
         Job running = jobs.get(delivery);
         if (running != null) {
             running.callbacks.add(finished);
             return;
         }
         try {
+            ImportRequest remembered = permanent.importRequest(delivery);
+            final ImportRoute route = remembered == null ? incomingRoute : remembered.route;
+            final String text = remembered == null ? incomingText : remembered.text;
+            final List<Uri> sources =
+                    remembered == null ? incomingSources : uris(remembered.sources);
+            final String ownedPhoto = remembered == null ? incomingPhoto : remembered.ownedPhoto;
             String identity = host.repository().roomIdentity();
             if (route.trying() && !route.visibleIn(identity, host.trying())) {
                 permanent.cancelImport(delivery);
@@ -194,7 +201,7 @@ final class ImportCoordinator {
                                     Collections.emptyList(),
                                     ownedPhoto),
                             true);
-                main.post(finished);
+                released(delivery, Collections.singletonList(finished));
                 return;
             }
             String destination = permanent.importDestination(delivery);
@@ -211,10 +218,15 @@ final class ImportCoordinator {
                                     Collections.emptyList(),
                                     ownedPhoto),
                             destination.equals(RoomRepository.IMPORT_CANCELLED));
-                main.post(finished);
+                released(delivery, Collections.singletonList(finished));
                 return;
             }
             if (route.trying()) permanent.reserveTransientImport(delivery, route.target);
+            else {
+                List<String> values = new ArrayList<>();
+                for (Uri source : sources) values.add(source.toString());
+                permanent.rememberImport(new ImportRequest(route, text, values, ownedPhoto));
+            }
             Job job = new Job(route, sources.size(), finished);
             jobs.put(delivery, job);
             host.changed();
@@ -286,9 +298,30 @@ final class ImportCoordinator {
     private void finish(String delivery) {
         Job job = jobs.remove(delivery);
         if (job != null) {
-            for (Runnable callback : job.callbacks) main.post(callback);
+            released(delivery, new ArrayList<>(job.callbacks));
             host.changed();
         }
+    }
+
+    private void released(String delivery, List<Runnable> callbacks) {
+        main.post(
+                () -> {
+                    try {
+                        for (Runnable callback : callbacks) callback.run();
+                    } finally {
+                        state.execute(
+                                () -> {
+                                    if (!jobs.containsKey(delivery))
+                                        permanent.forgetImport(delivery);
+                                });
+                    }
+                });
+    }
+
+    private static List<Uri> uris(List<String> sources) {
+        List<Uri> values = new ArrayList<>();
+        for (String source : sources) values.add(Uri.parse(source));
+        return values;
     }
 
     private void observed(Job job, String name, long bytes) {
@@ -363,6 +396,19 @@ final class ImportCoordinator {
                                     () -> {
                                         for (ImportBatch batch : scan.batches)
                                             ready(realInbox, batch, false);
+                                        if (startup) {
+                                            for (ImportRequest request :
+                                                    permanent.importRequests()) {
+                                                List<Uri> sources = uris(request.sources);
+                                                start(
+                                                        request.route,
+                                                        request.text,
+                                                        sources,
+                                                        request.ownedPhoto,
+                                                        InboundContent.retainReads(
+                                                                context, sources, 0));
+                                            }
+                                        }
                                     });
                         } catch (Exception failure) {
                             log.event("import", "recovery_failed");

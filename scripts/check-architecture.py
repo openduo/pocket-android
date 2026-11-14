@@ -16,7 +16,7 @@ pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.jav
 pure += [source / 'sight/PreviewFrame.java']
 pure += [source / 'sight/SightRecovery.java']
 pure += [source / 'text/TextCatalog.java']
-pure += [source / 'core/DraftText.java', source / 'core/ImportBatch.java', source / 'core/ImportInbox.java', source / 'core/ImportRoute.java', source / 'core/ImportProgress.java']
+pure += [source / 'core/DraftText.java', source / 'core/ImportBatch.java', source / 'core/ImportInbox.java', source / 'core/ImportRoute.java', source / 'core/ImportProgress.java', source / 'core/ImportRequest.java']
 for file in pure:
     if re.search(r'^import android\.', file.read_text(), re.M):
         errors.append(f'{file.relative_to(root)} imports Android in a pure protocol/model')

@@ -71,10 +71,15 @@ public final class InboundContent {
 
     /** Reference-count document grants so overlapping deliveries cannot revoke another's read. */
     public Runnable retainReads(Context context, int flags) {
+        return retainReads(context, files, flags);
+    }
+
+    /** Restart recovery reacquires only grants Android already retained for these exact URIs. */
+    public static Runnable retainReads(Context context, List<Uri> sources, int flags) {
         ContentResolver resolver = context.getApplicationContext().getContentResolver();
         List<Uri> retained = new ArrayList<>();
         synchronized (READERS) {
-            for (Uri uri : files) {
+            for (Uri uri : sources) {
                 Integer readers = READERS.get(uri);
                 if (readers == null) {
                     boolean persisted = false;

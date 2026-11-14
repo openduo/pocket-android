@@ -39,6 +39,13 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && arguments.getString("processPhase") != null) {
+                report.putAll(
+                        new ProcessDeathProbe(this)
+                                .run(context, arguments.getString("processPhase")));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("voiceRoomOnly"))) {
                 report.putString("result", new VoiceRoomProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);

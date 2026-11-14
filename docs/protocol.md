@@ -69,6 +69,12 @@ local file path or a local upload-state flag. App-owned local paths are restored
 draft/outbox persistence or the committed import inbox. The share handoff and its transactional
 delivery receipts are specified in `imports.md`.
 
+Before provider I/O, permanent imports persist their original room/source/text/policy in SQLite.
+Startup uses retained Android grants to resume incomplete copies. Only complete synced manifests
+can enter the draft transaction, while cancelled/received receipts prevent replay. Source-request
+records remain until lease-release callbacks finish, so restart can clean retained grants even if
+the draft was already admitted. Disposable try sources never enter this permanent recovery queue.
+
 Rear viewfinder pixels come from the currently owned Camera2 YUV image and never require a second
 camera. The UI receives one bounded RGB frame, not a recording. Encoding and viewfinder use the same
 buffer rotation. Serious heat lowers the declared rate and bitrate in place; critical heat and

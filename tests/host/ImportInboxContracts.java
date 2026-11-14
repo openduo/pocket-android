@@ -21,6 +21,7 @@ public final class ImportInboxContracts {
 
     public static int run() throws Exception {
         routes();
+        requests();
         Path temporary = Files.createTempDirectory("pocket-e2-import-");
         try {
             File root = temporary.resolve("inbox").toFile();
@@ -285,6 +286,51 @@ public final class ImportInboxContracts {
             }
         }
         return checked;
+    }
+
+    private static void requests() throws Exception {
+        String id = UUID.randomUUID().toString();
+        ImportRequest request =
+                new ImportRequest(
+                        new ImportRoute(id, "room-one", ImportRoute.Kind.FILES),
+                        "literal source text",
+                        Arrays.asList(
+                                "content://example.test/a?name=中文", "content://example.test/b"),
+                        "");
+        ImportRequest restored = ImportRequest.from(new JSONObject(request.json().toString()));
+        check(
+                restored.route.id.equals(id)
+                        && restored.route.target.equals("room-one")
+                        && restored.route.kind == ImportRoute.Kind.FILES
+                        && restored.sources.equals(request.sources)
+                        && restored.text.equals(request.text),
+                "durable provider requests preserve the delivery, destination, literal text and"
+                        + " source ordering");
+        boolean refused = true;
+        for (String invalid :
+                new String[] {
+                    "file:///private/app/data", "https://example.test/file", "content:/no-authority"
+                }) {
+            try {
+                new ImportRequest(request.route, "", Collections.singletonList(invalid), "");
+                refused = false;
+            } catch (IllegalArgumentException expected) {
+            }
+        }
+        check(
+                refused,
+                "request recovery cannot read filesystem or web URIs with application privileges");
+        refused = false;
+        try {
+            new ImportRequest(
+                    new ImportRoute(id, "try:" + UUID.randomUUID(), ImportRoute.Kind.FILES),
+                    "try must not replay",
+                    request.sources,
+                    "");
+        } catch (IllegalArgumentException expected) {
+            refused = true;
+        }
+        check(refused, "disposable try requests cannot enter the permanent recovery queue");
     }
 
     private static void write(File file, String text) throws IOException {

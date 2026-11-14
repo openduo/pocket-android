@@ -214,7 +214,7 @@ final class VoiceRoomProbe {
                             ? record.optString("target").equals(target)
                             : logged != null && logged.seq >= 0,
                     "the retained fixture belongs to the current room before any request can"
-                        + " resume");
+                            + " resume");
             if (logged == null) {
                 gate = new Gate(original, id);
                 Gate active = gate;

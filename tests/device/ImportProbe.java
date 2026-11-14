@@ -171,6 +171,22 @@ final class ImportProbe {
         try {
             repo.select("qa-import-room");
             repo.draft("before", "quote-before", "[]");
+            String queuedId = UUID.randomUUID().toString();
+            ImportRequest queued =
+                    new ImportRequest(
+                            new ImportRoute(queuedId, "qa-import-room", ImportRoute.Kind.FILES),
+                            "literal queued text",
+                            Arrays.asList(
+                                    "content://example.test/first",
+                                    "content://example.test/second"),
+                            "");
+            repo.rememberImport(queued);
+            repo.rememberImport(
+                    new ImportRequest(
+                            new ImportRoute(queuedId, "different-room", ImportRoute.Kind.MEDIA),
+                            "must not replace the original request",
+                            Collections.singletonList("content://example.test/wrong"),
+                            ""));
             String id = UUID.randomUUID().toString();
             check(
                     repo.importDraft(id, "after", "quote-after", "[]"),
@@ -178,6 +194,16 @@ final class ImportProbe {
             repo.close();
             repo = new RoomRepository(context, name);
             repo.select("qa-import-room");
+            ImportRequest restored = repo.importRequest(queuedId);
+            check(
+                    restored != null
+                            && restored.route.target.equals("qa-import-room")
+                            && restored.route.kind == ImportRoute.Kind.FILES
+                            && restored.text.equals(queued.text)
+                            && restored.sources.equals(queued.sources)
+                            && repo.importRequests().size() == 1,
+                    "reopened SQLite retains queued source order, room and file policy without a"
+                            + " duplicate replacing them");
             check(
                     repo.imported(id)
                             && !repo.importDraft(id, "duplicate", "", "[]")
@@ -186,6 +212,24 @@ final class ImportProbe {
                     "reopened SQLite retains the receipt and rejects a duplicate composer change");
             repo.select("qa-other-room");
             repo.draft("other", "", "[]");
+            check(
+                    repo.importRequest(queuedId).route.target.equals("qa-import-room"),
+                    "room replacement cannot redirect a pending provider copy");
+            repo.cancelImport(queuedId);
+            check(
+                    repo.importRequest(queuedId) != null
+                            && repo.importDestination(queuedId)
+                                    .equals(RoomRepository.IMPORT_CANCELLED),
+                    "a cancelled source keeps its cleanup record until the retained grant has been"
+                            + " released");
+            repo.forgetImport(queuedId);
+            check(
+                    repo.importRequest(queuedId) == null
+                            && repo.importRequests().isEmpty()
+                            && repo.importDestination(queuedId)
+                                    .equals(RoomRepository.IMPORT_CANCELLED),
+                    "source cleanup removes only its pending request and retains the terminal"
+                            + " receipt");
             check(
                     !repo.importDraft(id, "leaked", "", "[]")
                             && repo.metadata("draft").equals("other"),
