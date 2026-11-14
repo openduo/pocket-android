@@ -160,15 +160,6 @@ public final class Ui {
         wrap.setContentDescription(description);
         wrap.setMinimumWidth(dp(48));
         wrap.setMinimumHeight(dp(48));
-        wrap.setAccessibilityDelegate(
-                new View.AccessibilityDelegate() {
-                    @Override
-                    public void onInitializeAccessibilityNodeInfo(
-                            View host, android.view.accessibility.AccessibilityNodeInfo info) {
-                        super.onInitializeAccessibilityNodeInfo(host, info);
-                        info.setClassName(android.widget.Button.class.getName());
-                    }
-                });
         clickable(wrap, 0, 14, action);
         return wrap;
     }
@@ -176,6 +167,7 @@ public final class Ui {
     public TextView button(String text, int fg, int bg, Runnable action) {
         TextView view = label(text, 14, fg, true);
         view.setGravity(Gravity.CENTER);
+        view.setMinWidth(dp(48));
         view.setMinHeight(dp(48));
         view.setPadding(dp(12), dp(10), dp(12), dp(10));
         clickable(view, bg, 12, action);
@@ -190,6 +182,15 @@ public final class Ui {
                         surface(0xffffffff, radius)));
         view.setClickable(true);
         view.setFocusable(true);
+        view.setAccessibilityDelegate(
+                new View.AccessibilityDelegate() {
+                    @Override
+                    public void onInitializeAccessibilityNodeInfo(
+                            View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                        super.onInitializeAccessibilityNodeInfo(host, info);
+                        info.setClassName(android.widget.Button.class.getName());
+                    }
+                });
         if (action != null) view.setOnClickListener(v -> action.run());
     }
 

@@ -7,9 +7,11 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -17,13 +19,14 @@ import top.kuaner.pockete2.core.PocketController;
 import top.kuaner.pockete2.ui.PageHost;
 import top.kuaner.pockete2.ui.Ui;
 
-/** Touch-only presentation. The application controller owns capture across Activity lifecycles. */
+/** Touch, keyboard and accessibility controls share the controller's single capture owner. */
 public final class HoldToTalkView extends LinearLayout {
     private final PageHost host;
     private final PocketController controller;
     private final Ui ui;
     private final TextView label;
     private boolean held, cancel, live, accessible;
+    private long activationEpoch;
 
     public HoldToTalkView(PageHost host, PocketController controller) {
         super(host.activity());
@@ -35,6 +38,7 @@ public final class HoldToTalkView extends LinearLayout {
         setOrientation(VERTICAL);
         label = ui.label(ui.t("按住说话"), 14, ui.palette.text, true);
         label.setGravity(Gravity.CENTER);
+        label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         addView(label);
         setBackground(ui.surface(ui.palette.raised, 12));
         setClickable(true);
@@ -42,17 +46,19 @@ public final class HoldToTalkView extends LinearLayout {
         setContentDescription(ui.t("按住说话，手指移出按钮可取消"));
         setOnClickListener(
                 v -> {
-                    if (!((AccessibilityManager)
-                                    getContext()
-                                            .getSystemService(
-                                                    android.content.Context.ACCESSIBILITY_SERVICE))
-                            .isTouchExplorationEnabled()) return;
-                    accessible = !accessible;
-                    if (accessible)
+                    if (held || accessible) finish(false);
+                    else {
+                        accessible = true;
+                        long activation = ++activationEpoch;
+                        update(controller.snapshot());
                         host.permission(
                                 new String[] {android.Manifest.permission.RECORD_AUDIO},
-                                this::begin);
-                    else finish(false);
+                                () -> {
+                                    if (activation == activationEpoch
+                                            && accessible
+                                            && isAttachedToWindow()) begin();
+                                });
+                    }
                 });
     }
 
@@ -65,10 +71,11 @@ public final class HoldToTalkView extends LinearLayout {
     }
 
     private void finish(boolean canceled) {
-        if (!held) return;
+        activationEpoch++;
+        boolean releasing = held;
         held = false;
         accessible = false;
-        controller.releaseHold(canceled);
+        if (releasing) controller.releaseHold(canceled);
         cancel = false;
         live = false;
         setScaleX(1);
@@ -78,6 +85,38 @@ public final class HoldToTalkView extends LinearLayout {
 
     public void cancel() {
         finish(true);
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        info.setClassName(android.widget.Button.class.getName());
+        info.addAction(
+                new AccessibilityNodeInfo.AccessibilityAction(
+                        AccessibilityNodeInfo.ACTION_CLICK,
+                        held ? ui.t("发送录音") : accessible ? ui.t("取消录音") : ui.t("开始录音")));
+        if (held || accessible)
+            info.addAction(
+                    new AccessibilityNodeInfo.AccessibilityAction(
+                            AccessibilityNodeInfo.ACTION_DISMISS, ui.t("取消录音")));
+    }
+
+    @Override
+    public boolean performAccessibilityAction(int action, android.os.Bundle arguments) {
+        if (action == AccessibilityNodeInfo.ACTION_DISMISS && (held || accessible)) {
+            finish(true);
+            return true;
+        }
+        return super.performAccessibilityAction(action, arguments);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_ESCAPE && (held || accessible)) {
+            finish(true);
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     @Override
@@ -135,7 +174,10 @@ public final class HoldToTalkView extends LinearLayout {
                 held
                         ? cancel
                                 ? ui.t("松手取消")
-                                : live ? ui.t("松开发送 · ") + duration(s.holdDurationMs) : ui.t("准备中…")
+                                : live
+                                        ? (accessible ? ui.t("发送录音 · ") : ui.t("松开发送 · "))
+                                                + duration(s.holdDurationMs)
+                                        : ui.t("准备中…")
                         : ui.t("按住说话"));
         label.setTextColor(held && live && !cancel ? ui.palette.onAccent : ui.palette.text);
         setBackground(
@@ -148,7 +190,11 @@ public final class HoldToTalkView extends LinearLayout {
                         12));
         setContentDescription(
                 held
-                        ? cancel ? ui.t("松手取消，移回按钮继续录音") : live ? ui.t("正在录音，松开发送") : ui.t("准备麦克风")
+                        ? cancel
+                                ? ui.t("松手取消，移回按钮继续录音")
+                                : live
+                                        ? accessible ? ui.t("正在录音，再次激活发送") : ui.t("正在录音，松开发送")
+                                        : ui.t("准备麦克风")
                         : ui.t("按住说话"));
     }
 

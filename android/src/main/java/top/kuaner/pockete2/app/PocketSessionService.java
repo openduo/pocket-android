@@ -16,6 +16,8 @@ import top.kuaner.pockete2.core.PocketController;
 /** Explicit ambient capture and an in-flight voice upload have distinct service types. */
 public final class PocketSessionService extends Service implements PocketController.Listener {
     private PocketController controller;
+    private boolean promoted;
+    private int lastStartId;
 
     private top.kuaner.pockete2.text.TextCatalog words() {
         return top.kuaner.pockete2.text.AppText.get(this);
@@ -93,9 +95,12 @@ public final class PocketSessionService extends Service implements PocketControl
                 types = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
             startForeground(27, notification(), types);
         } else startForeground(27, notification());
+        lastStartId = id;
+        promoted = true;
         if (intent != null && "stop".equals(intent.getAction())) {
             controller.stopSessionCapture();
         }
+        changed();
         return intent != null && intent.getBooleanExtra("bluetooth", false)
                 ? START_REDELIVER_INTENT
                 : START_NOT_STICKY;
@@ -103,10 +108,12 @@ public final class PocketSessionService extends Service implements PocketControl
 
     @Override
     public void changed() {
+        if (!promoted) return;
         PocketController.Snapshot s = controller.snapshot();
         if (s != null
                 && (s.trying || !s.ambientActive && !s.uploadingVoice && !s.accessoryActive)) {
-            stopSelf();
+            // A newer foreground start may already be queued in Android but not delivered here.
+            stopSelfResult(lastStartId);
             return;
         }
         getSystemService(NotificationManager.class).notify(27, notification());

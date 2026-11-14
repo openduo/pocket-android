@@ -107,7 +107,7 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.t("环境模式"),
                         ui.palette.accent,
                         () -> host.navigate("ambient")),
-                new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
+                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         root.addView(header);
         if (readOnly) header.setVisibility(View.GONE);
         banner = ui.label("", 12, ui.palette.attention, false);
@@ -143,7 +143,7 @@ public final class ConversationPage implements PocketController.Listener {
                         });
         FrameLayout.LayoutParams jp =
                 new FrameLayout.LayoutParams(
-                        -2, ui.dp(44), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                        -2, ui.dp(48), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         jp.bottomMargin = ui.dp(8);
         thread.addView(jump, jp);
         jump.setVisibility(View.GONE);
@@ -208,7 +208,7 @@ public final class ConversationPage implements PocketController.Listener {
                         "minus", ui.t("取消引用"), ui.palette.secondary, () -> controller.quote("")));
         composer.addView(quoteRow);
         importRow = ui.row();
-        importRow.setMinimumHeight(ui.dp(44));
+        importRow.setMinimumHeight(ui.dp(48));
         importRow.setBackground(ui.surface(ui.palette.raised, 10));
         importLabel = ui.label("", 12, ui.palette.secondary, false);
         ui.inset(importLabel, 8, 2);
@@ -221,7 +221,7 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.t("取消导入"),
                         ui.palette.secondary,
                         () -> controller.cancelImport(importId));
-        importRow.addView(importCancel, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
+        importRow.addView(importCancel, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         composer.addView(importRow);
         chipScroll = new HorizontalScrollView(ui.context);
         chipScroll.setHorizontalScrollBarEnabled(true);
@@ -234,7 +234,7 @@ public final class ConversationPage implements PocketController.Listener {
         voiceToggle =
                 ui.iconButton(
                         "mic", ui.t("切换语音或文字"), ui.palette.secondary, controller::toggleVoiceInput);
-        textRow.addView(voiceToggle, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(48)));
+        textRow.addView(voiceToggle, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         input =
                 ui.configureInput(
                         new ComposerInput(ui.context, controller::importAttachment),
@@ -262,11 +262,11 @@ public final class ConversationPage implements PocketController.Listener {
                 });
         textRow.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
         hold = new HoldToTalkView(host, controller);
-        textRow.addView(hold, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+        textRow.addView(hold, new LinearLayout.LayoutParams(0, -2, 1));
         textRow.addView(
                 ui.iconButton(
                         "plus", ui.t("添加照片、拍照、文件或位置"), ui.palette.secondary, this::attachMenu),
-                new LinearLayout.LayoutParams(ui.dp(44), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         send =
                 ui.iconButton(
                         "chevron_right",
@@ -276,7 +276,7 @@ public final class ConversationPage implements PocketController.Listener {
                             controller.sendDraft();
                             anchor.toBottom();
                         });
-        textRow.addView(send, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(48)));
+        textRow.addView(send, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         composer.addView(textRow);
         root.addView(composer);
         controller.addListener(this);
@@ -673,7 +673,7 @@ public final class ConversationPage implements PocketController.Listener {
             TextView name = ui.label(a.name, 13, ui.palette.text, false);
             name.setPadding(ui.dp(8), ui.dp(10), 0, ui.dp(10));
             file.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-            file.setMinimumHeight(ui.dp(44));
+            file.setMinimumHeight(ui.dp(48));
             file.setOnClickListener(v -> host.openAttachment(a));
             file.setAlpha(a.sha256.isEmpty() ? .45f : 1);
             bubble.addView(file, new LinearLayout.LayoutParams(-1, -2));

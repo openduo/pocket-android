@@ -133,7 +133,7 @@ public final class Sheets {
         heading.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
         heading.addView(
                 ui.iconButton("chevron_down", ui.t("关闭面板"), ui.palette.secondary, dialog::dismiss),
-                new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
+                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         sheet.addView(heading);
         ScrollView scroll = new ScrollView(ui.context);
         scroll.addView(body);

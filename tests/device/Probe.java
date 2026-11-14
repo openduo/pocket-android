@@ -73,6 +73,11 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && "1".equals(arguments.getString("accessOnly"))) {
+                report.putString("result", new AccessRecoveryProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && arguments.getString("processPhase") != null) {
                 report.putAll(
                         new ProcessDeathProbe(this)
@@ -96,6 +101,7 @@ public final class Probe extends Instrumentation {
             if (arguments != null
                     && ("1".equals(arguments.getString("voiceOnly"))
                             || "1".equals(arguments.getString("audioBurstOnly"))
+                            || "1".equals(arguments.getString("accessibilityOnly"))
                             || "1".equals(arguments.getString("locationOnly"))
                             || "1".equals(arguments.getString("sightOnly"))
                             || "1".equals(arguments.getString("arrivalOnly")))) {
@@ -108,14 +114,24 @@ public final class Probe extends Instrumentation {
                                         ? " location UI assertions"
                                         : "1".equals(arguments.getString("audioBurstOnly"))
                                                 ? " native audio burst measurement"
-                                                : "1".equals(arguments.getString("sightOnly"))
-                                                        ? " Sight assertions"
+                                                : "1"
+                                                                .equals(
+                                                                        arguments.getString(
+                                                                                "accessibilityOnly"))
+                                                        ? " accessibility assertions"
                                                         : "1"
                                                                         .equals(
                                                                                 arguments.getString(
-                                                                                        "arrivalOnly"))
-                                                                ? " arrival assertions"
-                                                                : " voice upload assertions"));
+                                                                                        "sightOnly"))
+                                                                ? " Sight assertions"
+                                                                : "1"
+                                                                                .equals(
+                                                                                        arguments
+                                                                                                .getString(
+                                                                                                        "arrivalOnly"))
+                                                                        ? " arrival assertions"
+                                                                        : " voice upload"
+                                                                                + " assertions"));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -215,6 +231,14 @@ public final class Probe extends Instrumentation {
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if ("1".equals(arguments.getString("audioBurstOnly"))) {
                 assertions += new AudioBurstProbe(this, controller).run(context);
+            } else if ("1".equals(arguments.getString("accessibilityOnly"))) {
+                assertions +=
+                        new AccessibilityProbe(this)
+                                .run(
+                                        context,
+                                        screen,
+                                        controller,
+                                        "1".equals(arguments.getString("capture")));
             } else if ("1".equals(arguments.getString("locationOnly"))) {
                 assertions += new LocationUiProbe(this).run(context, screen, controller);
             } else if ("1".equals(arguments.getString("sightOnly"))) {
@@ -1110,6 +1134,14 @@ public final class Probe extends Instrumentation {
                                         arguments != null
                                                 && "1".equals(arguments.getString("capture")));
                 assertions += new LocationUiProbe(this).run(context, screen, controller);
+                assertions +=
+                        new AccessibilityProbe(this)
+                                .run(
+                                        context,
+                                        screen,
+                                        controller,
+                                        arguments != null
+                                                && "1".equals(arguments.getString("capture")));
                 assertions +=
                         new LiveRecoveryProbe(controller)
                                 .run(

@@ -103,3 +103,39 @@ The same APK then passed the complete **311-assertion** capture/camera/import/pa
 including the held-worker send case alongside native capture, camera, file-provider and compact
 UI paths. The earlier intermittent first-reply assertion passed in this run; its exact earlier
 trigger remains unlocated. This successful full run does not establish prolonged stability.
+
+Room credential rejection and Tailscale authorization loss now retire the active outbox request,
+clear queued socket work and release upload/capture/playback intent before waiting for HTTP to
+return. A sending item returns to queued with its original id, file and surface; already accepted
+items retain their distinct server-owned state. A room rejection persists Needs Pairing. A node
+requiring login or machine approval preserves the room token, pauses sends/dials and resumes the
+same queue after Running. Native status and room authorization remain separate. Try-mode failures
+cannot invalidate the real pairing or enter an immediate unauthorized resend loop.
+
+Explicit logout pauses the room immediately, even when ordinary workers delay the native command.
+A late Running callback cannot override that intent. Login/logout commands check a generation and
+serialize on the node adapter, so an obsolete queued logout cannot run after a replacement action.
+If SQLite rejects the paused-to-queued write, resources still retire. Before a later dial, normal
+repository selection must durably recover interrupted sends; a continued storage failure shows
+the pending-save error and starts no request.
+
+`POCKET_E2_TEST_ACCESS_ONLY=1 scripts/test-device.sh` passed **33 native assertions** through
+isolated Settings/preferences/SQLite, actual AndroidKeyStore and the foreground service. Prepared
+live 4401, HTTP unauthorized, node approval/login states, late ready/Running callbacks, replacement
+tokens and a temporary SQLite abort trigger exercise the shipping controller. The preceding APK
+reproduced a rejected credential leaving its request alive. The public logout action is exercised
+with all ordinary workers held; its queued native command is then superseded before any worker is
+released. The actual Tailscale node is never logged out. The real pairing, Online and composer are
+restored; no fixture has a real network delegate or microphone/synthesis path. This accepts the
+controller and command-queue boundaries, not actual credential revocation or a fresh authorization
+handoff. One earlier run stopped at the actual-room idle guard before entering the fixture without
+component diagnostics. The guard now reports only states/counts; that earlier trigger remains
+unlocated and is not retroactively diagnosed by the later pass.
+
+These changes do not centralize every authenticated HTTP caller. History, attachment, read-aloud
+and background-fetch authorization/error boundaries still need a separate parity audit, alongside
+actual logout/relogin, revocation and prolonged standby acceptance.
+The updated APK also passed **336 complete capture/camera/import/paired-try assertions**, **17
+native background-upload assertions** and another **eight actual-room read-only scoped HTTP
+assertions**. Observed health time in that last run was 113 ms. It preserved the actual room,
+Online state and composer without sending another message or changing node authorization.

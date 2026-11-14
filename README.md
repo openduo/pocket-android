@@ -126,6 +126,26 @@ The complete capture/camera/import/paired-try regression then passed **311 devic
 this APK. Actual keyboard and 1.35-font conversation screenshots were inspected. The previous
 first-reply assertion passed in this run; its earlier intermittent failure remains unlocated.
 
+The next P0/P1 update pauses outbox requests on room rejection, node authorization loss and
+explicit logout, preserving their original bytes/identity and separating room credentials from
+Tailscale authorization. Late Running/HTTP callbacks cannot override the pause. A rejected SQLite
+pause write still releases resources and must recover durably before another dial. A native
+pending-foreground-start crash was reproduced and corrected: the service now promotes before
+stopping, and an old idle callback cannot stop a newer undelivered start. **33 native access
+assertions** and **17 background-upload assertions** pass with prepared access/HTTP outcomes;
+the actual node is not logged out or its credentials revoked. See [connection.md](docs/connection.md).
+
+Primary compact controls now have actual 48 dp bounds, including layouts that previously forced
+44 dp despite the icon helper's minimum. Voice can be started/sent by keyboard or accessibility
+activation and cancelled through a named native action; obsolete permission callbacks cannot start
+capture. Shared actions expose button semantics and navigation exposes selection. The new probe
+passes **27 targeted assertions** through real keyboard/node APIs, native capture and the disposable
+transport. The complete capture/camera/import/paired-try regression passes **336 device assertions**,
+with keyboard/large-font screenshots inspected. Host/architecture/localisation checks pass, and
+**eight actual-room read-only HTTP assertions** retain pairing/Online/composer. Natural acoustics,
+full screen-reader use and remaining HTTP authorization boundaries stay open. See
+[accessibility.md](docs/accessibility.md) and the migration matrix.
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual

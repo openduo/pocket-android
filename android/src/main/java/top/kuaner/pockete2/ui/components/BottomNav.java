@@ -40,11 +40,13 @@ public final class BottomNav {
             control.addView(ui.icon(item[0], active ? ui.palette.accent : ui.palette.subtle, 21));
             TextView text =
                     ui.label(item[1], 11, active ? ui.palette.text : ui.palette.subtle, active);
+            text.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             text.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams label = new LinearLayout.LayoutParams(-1, -2);
             label.topMargin = ui.dp(4);
             control.addView(text, label);
             control.setContentDescription(item[1]);
+            control.setSelected(active);
             ui.clickable(
                     control, active ? ui.palette.selected : 0, 12, () -> listener.select(item[2]));
             root.addView(control, new LinearLayout.LayoutParams(0, -2, 1));

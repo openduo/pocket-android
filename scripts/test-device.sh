@@ -92,6 +92,8 @@ probe_args=(
   -e ambientBrain "${POCKET_E2_TEST_AMBIENT_BRAIN:-0}"
   -e networkRoomOnly "${POCKET_E2_TEST_NETWORK_ROOM_ONLY:-0}"
   -e requestRoomOnly "${POCKET_E2_TEST_REQUEST_ROOM_ONLY:-0}"
+  -e accessOnly "${POCKET_E2_TEST_ACCESS_ONLY:-0}"
+  -e accessibilityOnly "${POCKET_E2_TEST_ACCESSIBILITY_ONLY:-0}"
   -e notifyRoomOnly "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}"
   -e liveOnly "${POCKET_E2_TEST_LIVE_ONLY:-0}"
   -e outageOnly "${POCKET_E2_TEST_OUTAGE_ONLY:-0}"

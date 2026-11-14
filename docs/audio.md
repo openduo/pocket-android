@@ -192,6 +192,21 @@ PCM was pending before stop. This isolated measurement did not reproduce the ear
 first-reply timeout and does not diagnose it; no audio scheduling behaviour was changed on that
 basis.
 
+The next access-recovery probe also reproduced an Android foreground-service crash when an upload
+was cancelled before the main thread could create/promote its requested service. Android reported
+`Context.startForegroundService() did not then call Service.startForeground()`. A deterministic
+main-owner hold reproduced the same crash on the APK preceding this service correction.
+The controller now publishes idle intent instead of issuing an external stop against a pending
+foreground start. The service ignores listener updates until its first foreground promotion,
+immediately checks the latest intent after promotion, and uses `stopSelfResult(lastStartId)` so
+an older idle callback cannot cancel a newer undelivered start. The **33-assertion access probe**
+waits past the native startup deadline after that precise cancellation window and verifies cleanup.
+The earlier **17-assertion background-upload suite** also passed after this service correction;
+its existing delayed-start publication, denial and recovery checks remain distinct from this new
+pending-start cancellation case. Authorization outcomes and HTTP are prepared, with isolated
+preferences/SQLite and silent Opus. Modern Android restrictions and actual credential revocation
+remain separate. See `connection.md`.
+
 `POCKET_E2_TEST_VOICE_ROOM_ONLY=1` is a distinct explicit real-service test. It synthesizes one
 clearly marked known-speech fixture through the actual service and sends that synthetic body through
 the normal controller/outbox/client. A gate delays dispatch while the real Activity moves to the

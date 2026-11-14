@@ -289,6 +289,9 @@ public final class PocketController {
     private int roomStateRequestEpoch = -1;
     private volatile int closingEpoch = -1, closingSourceEpoch = -1;
     private volatile long sendEpoch;
+    private volatile long tailnetActionEpoch;
+    private boolean tailnetLogoutRequested;
+    private boolean restoreOutboxBeforeConnect;
     private long revision, holdPackets, lastHoldPublish;
     private long draftGeneration, draftEditAck;
     private final java.util.concurrent.atomic.AtomicLong draftEdits =
@@ -793,22 +796,30 @@ public final class PocketController {
         state.execute(
                 () -> {
                     if (trying) stopTryingOnState(false);
+                    tailnetLogoutRequested = false;
+                    tailnetActionEpoch++;
+                    resetRedial("tailnet_login");
                     startNetwork(true);
                 });
     }
 
     private void startNetwork(boolean interactive) {
         if (trying) return;
+        long action = tailnetActionEpoch;
         network.execute(
                 () -> {
                     try {
                         transport.start(
                                 settings.networkLog(),
                                 status -> state.execute(() -> networkStatus(status)));
-                        if (interactive) transport.login();
+                        if (interactive)
+                            synchronized (transport) {
+                                if (action == tailnetActionEpoch) transport.login();
+                            }
                     } catch (Exception failure) {
                         state.execute(
                                 () -> {
+                                    if (interactive && action != tailnetActionEpoch) return;
                                     tailnetState = "Failed";
                                     lastError = "无法启动 Tailscale 网络节点";
                                     publish();
@@ -820,9 +831,22 @@ public final class PocketController {
     private void networkStatus(JSONObject status) {
         String previousState = tailnetState;
         tailnetState = status.optString("backend_state", "NotStarted");
+        if (tailnetLogoutRequested && tailnetState.equals("Running")) tailnetState = "NeedsLogin";
         if (!previousState.equals(tailnetState)) log.event("network", tailnetState);
-        authUrl = status.optString("auth_url");
+        authUrl = tailnetLogoutRequested ? "" : status.optString("auth_url");
+        if (!trying && tailnetNeedsLogin() && !settings.unauthorized()) {
+            if (connection == Connection.ONLINE
+                    || connection == Connection.CONNECTING
+                    || sending != null
+                    || ambientWanted
+                    || holdRequested
+                    || !readingId.isEmpty())
+                pauseRoomAccess(
+                        settings.isComplete() ? Connection.OFFLINE : Connection.NEEDS_SETUP);
+            lastError = "请完成 Tailscale 授权";
+        }
         if (!trying
+                && !tailnetLogoutRequested
                 && tailnetState.equals("Running")
                 && settings.isComplete()
                 && !settings.unauthorized()
@@ -837,16 +861,30 @@ public final class PocketController {
     public void logoutTailnet() {
         state.execute(
                 () -> {
-                    ambientOff();
-                    connectionEpoch++;
-                    channel.closeLive();
-                    opening = false;
+                    if (trying) stopTryingOnState(false);
+                    tailnetLogoutRequested = true;
+                    long action = ++tailnetActionEpoch;
+                    tailnetState = "NeedsLogin";
+                    authUrl = "";
+                    pauseRoomAccess(
+                            settings.unauthorized()
+                                    ? Connection.NEEDS_PAIRING
+                                    : settings.isComplete()
+                                            ? Connection.OFFLINE
+                                            : Connection.NEEDS_SETUP);
+                    lastError = settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权";
+                    publish();
                     network.execute(
                             () -> {
                                 try {
-                                    transport.logout();
+                                    synchronized (transport) {
+                                        if (action == tailnetActionEpoch) transport.logout();
+                                    }
                                 } catch (Exception failure) {
-                                    state.execute(() -> notice("退出网络失败"));
+                                    state.execute(
+                                            () -> {
+                                                if (action == tailnetActionEpoch) notice("退出网络失败");
+                                            });
                                 }
                             });
                 });
@@ -867,14 +905,31 @@ public final class PocketController {
                 : new ChannelClient(settings, via);
     }
 
+    private boolean tailnetNeedsLogin() {
+        return tailnetLogoutRequested || tailnetState.startsWith("Needs");
+    }
+
     private void connect() {
         if (opening
                 || android.os.SystemClock.elapsedRealtime() < retryNotBefore
                 || channel.isOpen()
                 || pairingActive
-                || !trying && (!settings.isComplete() || settings.unauthorized())
+                || !trying
+                        && (!settings.isComplete()
+                                || settings.unauthorized()
+                                || tailnetNeedsLogin())
                 || (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()))
             return;
+        if (restoreOutboxBeforeConnect) {
+            try {
+                repo.select(repo.roomIdentity());
+                reload();
+                restoreOutboxBeforeConnect = false;
+            } catch (RuntimeException storageFailure) {
+                notice("无法保存待发送消息");
+                return;
+            }
+        }
         opening = true;
         ambientInput.socketOpened();
         sightSession.connectionReset();
@@ -953,11 +1008,13 @@ public final class PocketController {
                                 () -> {
                                     if (epoch != connectionEpoch) return;
                                     opening = false;
-                                    if (failure instanceof ChannelClient.Failure
-                                                    && ((ChannelClient.Failure) failure)
-                                                            .unauthorized()
-                                            || String.valueOf(failure.getMessage())
-                                                    .startsWith("tsbridge: live unauthorized"))
+                                    if (!demo
+                                            && (failure instanceof ChannelClient.Failure
+                                                            && ((ChannelClient.Failure) failure)
+                                                                    .unauthorized()
+                                                    || String.valueOf(failure.getMessage())
+                                                            .startsWith(
+                                                                    "tsbridge: live unauthorized")))
                                         unauthorized();
                                     else linkClosed("暂时无法连接房间", epoch);
                                 });
@@ -993,7 +1050,7 @@ public final class PocketController {
                                 () -> {
                                     if (epoch != connectionEpoch || target != channel) return;
                                     roomStateRequestEpoch = -1;
-                                    if (failure.unauthorized()) {
+                                    if (failure.unauthorized() && !trying) {
                                         unauthorized();
                                         return;
                                     }
@@ -1083,7 +1140,7 @@ public final class PocketController {
 
     private void linkClosed(String reason, int epoch) {
         if (epoch != connectionEpoch) return;
-        if (reason.contains("4401")) {
+        if (!trying && reason.contains("4401")) {
             unauthorized();
             return;
         }
@@ -1127,14 +1184,35 @@ public final class PocketController {
     }
 
     private void unauthorized() {
+        if (trying) return;
         settings.unauthorized(true);
-        connection = Connection.NEEDS_PAIRING;
-        opening = false;
-        connectionEpoch++;
-        channel.closeLive();
-        ambientOff();
+        pauseRoomAccess(Connection.NEEDS_PAIRING);
         lastError = "设备凭据已失效，请重新配对";
         publish();
+    }
+
+    private void pauseRoomAccess(Connection next) {
+        connection = next;
+        opening = false;
+        connectionEpoch++;
+        closingEpoch = closingSourceEpoch = -1;
+        socketWriter.getQueue().clear();
+        channel.closeLive();
+        sightSession.connectionReset();
+        viewer.dropPending();
+        Outbox.Item interrupted = sending == null ? null : repo.findPending(sending.item.id);
+        restoreOutboxBeforeConnect = true;
+        finishSend();
+        releaseOnState(true);
+        ambientOff();
+        stopPlayback();
+        if (interrupted != null && interrupted.state == Message.SENDING)
+            try {
+                repo.transition(interrupted.state(Message.QUEUED, ""));
+            } catch (RuntimeException storageFailure) {
+                log.event("send", "pause_state_save_deferred");
+            }
+        reload();
     }
 
     private void frame(String text, boolean resumed) {
@@ -1514,6 +1592,7 @@ public final class PocketController {
         if (sending != null
                 || pairingActive
                 || connection != Connection.ONLINE
+                || !trying && (settings.unauthorized() || tailnetNeedsLogin())
                 || !lastError.isEmpty() && lastError.contains("API")) return;
         Outbox.Item next = null;
         for (Outbox.Item item : repo.pending())
@@ -1734,7 +1813,7 @@ public final class PocketController {
             messageAccepted(current);
             log.event("send", "accepted " + (current.voice ? "voice" : "text"));
             repo.transition(current.state(Outbox.ACCEPTED, ""));
-        } else if (error.unauthorized()) {
+        } else if (error.unauthorized() && !trying) {
             repo.transition(current.state(Message.QUEUED, ""));
             unauthorized();
         } else {
@@ -2272,8 +2351,10 @@ public final class PocketController {
                 log.event("service", "foreground_start_denied");
             }
         } else if (serviceRunning) {
-            context.stopService(new Intent(context, PocketSessionService.class));
             serviceRunning = false;
+            // A requested foreground service must acknowledge its start before stopping itself.
+            // The service observes this snapshot after promotion, even if its creation is pending.
+            publish();
         }
     }
 
@@ -3288,6 +3369,7 @@ public final class PocketController {
         }
         if (connection == Connection.NEEDS_PAIRING) return "需要重新配对";
         if (!settings.isComplete()) return "尚未连接房间";
+        if (tailnetNeedsLogin()) return "需要登录 Tailscale";
         if (connection == Connection.OFFLINE) return "连不上 · 正在重试";
         if (connection == Connection.CONNECTING) return "连接中…";
         if (turn.working() != null) return turn.working().label();
