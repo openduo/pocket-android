@@ -167,7 +167,8 @@ TalkBack 另有两次 instrumentation 后 ADB 短暂断开：一次采集报告�
 `talkback-picker-recreation-collection-failure/`。runner 仅对明确设备暂不可用的 ADB 命令做有限重试并记录，
 不重试 instrumentation；失败或清理不全仍判失败。
 
-E2 未安装这次修复，已终止的后台任务使用旧 APK
+该权限专项时 E2 未安装这次修复；后续网络恢复修复的合并构建已更新 E2，只验证连接恢复，没有重复权限矩阵。
+已终止的后台任务使用旧 APK
 `4c5adef70e036b9ec7b768809532564a5bab69dd190c35d341f36e5074652e72`。
 后台观察约 98 分钟时因 App 回到前台提前结束，不重启；不计 8 小时通过。旧包和身份说明在 ignored
 `.build/acceptance/pre-permission-recreation/`。以前的完整页面遍历、E2 回归和

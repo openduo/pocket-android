@@ -3,7 +3,8 @@
 更新日期：2026-11-14。当前目标是收尾约定的 P0/P1 实现、提高可维护性和支持一般 Android 窗口。
 用户已明确不把完整 1:1 作为本阶段的交付门槛；Push 和 Passport 继续暂缓。
 
-**本阶段的实现与 UI 适配已经落地；扩展的真实场景验收仍有开放项。** 下表分别说明实现和验证状态，
+**实现与 UI 适配已经落地，但不能据此宣称核心流程稳定性已完成验收。** 用户发现的后台断网恢复故障已修复并
+更新真机；长期后台恢复仍未完整验收。下表分别说明实现和验证状态，
 不能把准备的协议响应、合成语音或 Try 模式当成自然使用的端到端验收。本文是当前入口，逐项上游差异在
 [`migration.md`](migration.md)，测试条件和证据在 [`acceptance.md`](acceptance.md)。
 
@@ -17,7 +18,7 @@
 | P1 Sight、会话与位置 | Camera2/H.264、协商状态和拒绝恢复、会话列表/详情/通知状态、地图/坐标插入、有限时 geocoder、arrival ledger | 原生相机加准备的控制帧、真实会话读取、坐标插入、API 35 真实正反地理编码已通过；真实 Sight 协商、session notify 投递、physical visit 未通过完整验收 |
 | UI 适配与状态 | 解除强制竖屏、Compact/Medium/Expanded 窗口策略、列宽上限、Insets/IME、短窗口容器、可滚动表单/编辑器、原生每页状态保存 | 22 组窗口/字体/语言/主题矩阵、实际显示旋转、自由窗口和系统分屏通过；E2 小屏回归通过 |
 | 无障碍 | 至少 48dp 公共操作目标、按钮/选择/开关语义、具名消息操作、录音的键盘/无障碍开始/发送/取消、地图/图片的非手势操作 | 实际 TalkBack、旧版 Google 源码 Switch Access、四类系统权限和文件选择器取消返回通过；当前 Play 版服务及其他动态内容/系统对话框仍需扩大覆盖 |
-| 工程维护 | 纯协议与业务 owner、窗口策略/容器/页面状态/控件分层、架构边界检查、本地化检查、可重复模拟器验收脚本、文档入口 | Host 325 项通过，架构/617 条本地化 catalog、Android 构建通过；Go vet/test 沿用未改动的 transport 检查点，远端 CI 和发布分发未执行 |
+| 工程维护 | 纯协议与业务 owner、窗口策略/容器/页面状态/控件分层、架构边界检查、本地化检查、可重复模拟器验收脚本、文档入口 | Host 325 项检查点、架构/617 条本地化 catalog 通过；本次网络修复的 Go vet/test 和 Android 构建通过，远端 CI 和发布分发未执行 |
 
 UI 方案沿用项目的原生 View 技术栈，使用 Android 的窗口尺寸类别、WindowInsets、原生 View 状态保存和
 滚动布局。尺寸、字体、键盘与系统栏适配集中在 `ui/`；`PocketController` 继续拥有房间、草稿、消息、
@@ -36,10 +37,11 @@ outbox 和设备资源，不读取屏幕尺寸。新增适配规则时首先修�
 | 实际系统权限 | 两种服务下相机、麦克风、定位、通知均通过；覆盖拒绝/重试、粗略位置升级、授权后的待执行操作和返回焦点。逐类检查数见无障碍文档 | `.build/acceptance/accessibility/*-permissions*/` |
 | 实际外部文件选择器 | 两种服务各 25 项通过；服务打开 DocumentsUI，连续两次系统返回取消，保留草稿/选区，清理待导入状态，服务可再次打开附件菜单 | `.build/acceptance/accessibility/{talkback-picker,switch-picker}/` |
 | 权限/外部窗口打开时旋转 | 修复重建后实际授权被误报拒绝；相机、麦克风、通知各通过两种实际服务，TalkBack 文件取消/重建通过。定位旋转未通过，未宣称完整组合验收 | `.build/acceptance/accessibility/*-recreation/` |
-| 真 E2 采集/相机/paired-Try | 较早 APK 完整回归 342 项通过；feed 修复检查点无障碍专项 27 项通过。最新权限重建修复尚未安装到 E2 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility-expanded.txt` |
+| 真 E2 采集/相机/paired-Try | 较早 APK 完整回归 342 项通过；feed 修复检查点无障碍专项 27 项通过。最新包含网络/权限修复的构建已安装，未重复完整回归 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility-expanded.txt` |
 | 实际系统 Geocoder | API 35 公共地标搜索/反查均返回结果，5,664ms；没有替换后端或注入位置 | `.build/acceptance/ui/location-service/` |
 | E2 地点能力查询 | API 27 `Geocoder.isPresent=false`，仅 passive/gps 且无 enabled provider；真实查询为 NOT_RUN，不计通过 | `.build/acceptance/e2-location-service/`、`e2-geocoder-run.txt` |
 | 真 E2 后台寿命 | 900 秒 idle 后台，60 次采样进程均存在，RUNNING_CRITICAL 请求后回前台恢复 Online | `.build/acceptance/lifetime/` |
+| 用户报告的实际连不上房间 | 捕获 Wi-Fi 已恢复而 tsnet 仍报 network down；修复恢复时遗漏的 netmon 重采样，更新真机后同进程后台断网/恢复约 2.7 秒回到在线，本机 Tailscale 同时确认节点在线 | `.build/connection-incident/` |
 
 完整矩阵和后续补验记录各自的 APK SHA；重新构建的 ZIP 时间戳会改变 APK 摘要。不要把不同报告的摘要
 合并成“同一字节 APK 全部通过”。截图、日志、录音和实际房间信息只保存在 ignored 目录。
@@ -59,7 +61,7 @@ Sight 或通知收件验收。该批正常流程检查未修改生产 APK；失�
 
 随后实际旋转暴露了权限回调问题：旧 Activity 的操作回调已销毁，新页面却把系统完整授权误报为拒绝。
 现改为刷新权限状态并提示“权限已允许，请再次操作”，避免恢复引用旧 View 的扫码/录音操作。构建和
-Host 检查通过；新 APK 仅安装到隔离模拟器。E2 的 8 小时任务使用修复前 APK，期间未安装更新。
+Host 检查通过；该专项时仅安装到隔离模拟器，后续网络修复的合并构建已更新 E2。E2 的 8 小时任务使用修复前 APK，期间未安装更新。
 两种服务的相机/麦克风/通知旋转及 TalkBack 文件取消重建通过；Switch 定位旋转在粗略授权后的提示断言
 失败，保留未通过状态，其他未跑组合继续开放。
 
@@ -68,6 +70,13 @@ Host 检查通过；新 APK 仅安装到隔离模拟器。E2 的 8 小时任务�
 后台任务现已终止，不重启：387 次采样进程均存在，最后一次在 5,887.24 秒检测到前台 Activity，
 尚未执行计划中的 4 小时 trim 请求和末尾 Online 恢复检查。记录无法判断回前台的原因，不据此认定产品缺陷。
 原始记录与独立终止说明保存在 `.build/acceptance/lifetime-8h/`。
+
+用户随后报告 App 连不上房间，本机 Tailscale 确认 E2 离线，房间主机在线且健康接口返回 200。实际日志显示
+Wi-Fi 断开后已恢复，但 tsnet 一直报 `magicsock: network down`；原恢复动作只做 socket rebind/restun，
+没有刷新网络监视器。现在先触发真实接口重采样，再恢复通道。修复已覆盖安装到 E2，一次同进程后台
+Wi-Fi 断开/恢复和回前台验证通过，房间约 2.7 秒在线，本机确认节点在线；没有发送消息或更改配对。
+这次故障说明此前短断网与准备的失败测试不足以宣称连接稳定；不重复其他矩阵，也不重启长期任务。
+诊断、修复和验证条件见 [`connection.md`](connection.md)。
 
 ## 尚未完成的验收与建议顺序
 

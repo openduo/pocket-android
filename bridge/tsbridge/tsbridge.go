@@ -349,15 +349,16 @@ func CloseIdle() {
 	}
 }
 
-// Rebind tells the node the network may have changed: it rebinds its sockets
-// and probes paths again. The app calls it on a network path change, because
-// a node outside a Network Extension cannot watch the route socket itself
-// (Bridge/tailscale-patches). Returns at once; the work runs in the node.
+// Rebind resamples network availability, rebinds sockets and probes paths again.
+// Android may restore Wi-Fi without a usable route-monitor event for the node.
+// Rebinding alone leaves magicsock paused if netmon still considers every link down.
+// Returns at once; the work runs in the node.
 func Rebind() {
 	s, err := server()
 	if err != nil {
 		return
 	}
+	s.Sys().NetMon.Get().InjectEvent()
 	lc, err := s.LocalClient()
 	if err != nil {
 		return

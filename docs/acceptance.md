@@ -107,7 +107,8 @@ Switch Access 扩展运行 **113 项全部通过**：A/B 为 next/select，C/D �
 DocumentsUI 两次取消及返回重建。Switch 定位旋转在粗略授权后的通用提示断言失败，未完成精度升级；
 TalkBack 定位旋转、新 APK 的 Switch 文件重建未运行。没有为补齐组合继续复跑。
 
-新 APK 只安装到模拟器；已终止的 E2 8 小时后台任务使用旧 APK，不能把旧 E2/UI 完整回归归到最新产物。
+该权限专项时只安装到模拟器，后续网络修复的合并构建已更新 E2；已终止的 8 小时任务使用旧 APK，
+不能把旧 E2/UI 完整回归归到最新产物。
 具体摘要、失败记录、ADB 中断后的清理恢复和复现方式见 [`accessibility.md`](accessibility.md)。
 
 ## 真 E2 与真实 Geocoder
@@ -143,6 +144,19 @@ ANDROID_SERIAL=YOUR_DEVICE POCKET_E2_TEST_LOCATION_SERVICE_ONLY=1 scripts/test-d
 ```sh
 python3 scripts/test-background-lifetime.py --serial YOUR_IDLE_E2 --seconds 900
 ```
+
+## 用户报告的实际后台断网恢复故障
+
+真实故障时，App 的本地 Tailscale 为 Running，但房间一直重试；本机 Tailscale 看到 E2 离线、房间主机在线，
+房间健康接口为 HTTP 200。App 已记录网络恢复，tsnet 却持续报 `magicsock: network down`。原重连只做
+socket rebind/restun，没有要求网络监视器重新采样。修复为先调用 `NetMon.InjectEvent()`，按真实接口
+状态恢复引擎。诊断时仅重启 Pocket E2 即恢复原连接，未注销或重新配对。
+
+修复构建 `ac0c339043ef93776a5f219ecc6068b173d46167c7b6b5503bb8752880fab001` 已覆盖安装到 E2。
+仅执行一次相关实际路径：后台断开 Wi-Fi、后台恢复 Wi-Fi、回前台；原进程未重启，约 2,698ms 后房间在线，
+本机 Tailscale 确认 E2 在线。Wi-Fi 原设置已恢复；未发送消息/通知或开始采集。Go vet/test 和构建通过，
+没有重复 UI/无障碍或完整功能回归。证据为 ignored `.build/connection-incident/fixed-recovery.json`、
+前后 UI XML 及本地诊断。短时恢复通过不能外推长时间待机；8 小时未完成记录保持不变。
 
 ## 仍需真实条件的验收
 

@@ -45,6 +45,30 @@ URLs, pairing links, room identities and conversation captures remain local igno
 live client now monitors Android's default path and probes stale sockets; physical path switching
 and Passport BLE-wake ping acceptance remain separate hardware/network checks.
 
+## Background Wi-Fi recovery incident, 2026-11-14
+
+The user reported an actual room connection failure after a background network outage. The app
+kept displaying local Tailscale `Running` and retrying, while the computer's Tailscale status showed
+the E2 offline. The room host remained online and its `/healthz` returned HTTP 200. Local app logs
+recorded a default-network loss followed by restoration; tsnet still logged
+`Failed to send handshake initiation: magicsock: network down`. Restarting Pocket E2 alone restored
+the node and room without replacing login, pairing, history or drafts.
+
+The bridge's recovery path called the socket `rebind` and `restun` debug actions but did not resample
+Tailscale's network monitor. Those actions do not clear a cached all-links-down state. `Rebind` now
+calls the node's `NetMon.InjectEvent()` before those actions. This rereads actual interfaces and
+notifies the engine; it does not force an unavailable network to be marked up. Existing foreground,
+explicit reconnect and default-network-change actions all use this path.
+
+The updated APK was installed in place on the real E2. One actual background Wi-Fi disable/restore
+then foreground return passed: the room was Online in approximately 2.7 seconds, the app kept the
+same process, and the computer saw the E2 online. No message or notification was sent. Go vet/test
+and the Android build passed. This targeted recovery check does not establish prolonged standby
+reliability; the preceding eight-hour attempt remains incomplete and is not being restarted.
+Private diagnostics, before/after UI, APK identity and the single recovery result are retained only
+in ignored `.build/connection-incident/`. Earlier short outage or prepared-failure checks did not
+cover this incident and cannot support a broader stability claim.
+
 The resumed P0 work on 2026-11-14 reproduced two independent sources of connection delay: the
 controller waited for `/healthz` and `/api/state` before dialing `/live`, and a retired Go handshake
 kept its dialing worker until the full timeout. `/live` now dials first on a dedicated, bounded

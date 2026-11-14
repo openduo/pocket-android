@@ -39,13 +39,14 @@ scenarios also remain open. Prepared Try replies never count as real server resp
 
 | Verification | Accepted scope |
 | --- | --- |
-| Host / source checks | 325 contracts, architecture boundaries, 617-entry localization catalog and Android build; Go vet/test retained from the unchanged transport checkpoint |
+| Host / source checks | 325-contract checkpoint, architecture boundaries and 617-entry localization catalog; Go vet/test and Android build pass for the network recovery fix |
 | Emulator UI | 22 API 35 window/font/language/theme cases, 9,616 checks; actual display rotation 20, freeform 8 and system split 12 checks |
 | Actual accessibility services | TalkBack 15.0 expanded runner: 12 scenes, 404 checks; legacy Google source Switch Access 6.1.1 scan/order/scroll/activation 113 checks |
 | Actual system permissions | Both services pass camera, microphone, location and notification dialogs, denial/retry, precision upgrade and return/cancellation; exact counts and limits in accessibility evidence |
 | Actual external document picker | Both services: 25 checks each; real DocumentsUI opening, two platform Back cancellations, retained draft/selection and no residual import/send |
 | Permission/activity recreation fix | Both services pass camera, microphone and notification rotation; TalkBack passes document-picker cancellation/recreation; location rotation remains unaccepted |
-| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest permission fix is emulator-only; the terminated eight-hour run used the prior APK |
+| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest combined network/permission build installed with connection recovery acceptance only |
+| Actual recovery incident | Fixed stale tsnet network-down state by resampling netmon on recovery; one real background Wi-Fi outage/restore returns Online in about 2.7 seconds without an app-process restart; host Tailscale also sees the E2 online |
 | Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
 | Physical E2 lifetime | 900-second idle/trim/Online checkpoint passed; separate eight-hour attempt terminated after about 98 minutes on foreground return, without reaching trim/final recovery, and will not be restarted |
 
