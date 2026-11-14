@@ -3,6 +3,7 @@
 
 package top.kuaner.pockete2.ui.pages;
 
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -22,7 +23,7 @@ public final class AmbientPage implements PocketController.Listener {
     private LinearLayout root;
     private TextView status, caption, action, mute, detail, hush, camera, flip;
     private LinearLayout cameras;
-    private View room, transcript;
+    private View room, transcript, off;
     private ConversationPage thread;
     private TextView transcriptToggle;
     private top.kuaner.pockete2.ui.components.SightViewfinder viewfinder;
@@ -52,6 +53,18 @@ public final class AmbientPage implements PocketController.Listener {
                         ui.t("设置"),
                         ui.palette.secondary,
                         () -> host.navigate("settings")));
+        off =
+                ui.iconButton(
+                        "power",
+                        ui.t("关闭环境模式"),
+                        ui.palette.danger,
+                        () -> {
+                            controller.endAmbient();
+                            host.navigate("conversation");
+                        });
+        off.setMinimumWidth(ui.dp(48));
+        off.setMinimumHeight(ui.dp(48));
+        bar.addView(off);
         root.addView(bar);
         LinearLayout center = ui.column();
         ui.inset(center, 18, 12);
@@ -85,6 +98,8 @@ public final class AmbientPage implements PocketController.Listener {
         ui.inset(controls, 12, 6);
         mute = ui.button(ui.t("静音"), ui.palette.text, ui.palette.raised, controller::ambientMute);
         hush = ui.button(ui.t("别说了"), ui.palette.text, ui.palette.raised, controller::ambientHush);
+        compactControl(mute);
+        compactControl(hush);
         controls.addView(mute, new LinearLayout.LayoutParams(0, ui.dp(52), 1));
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ui.dp(52), 1);
         hp.leftMargin = ui.dp(8);
@@ -99,6 +114,7 @@ public final class AmbientPage implements PocketController.Listener {
                                     !controller.settings.ambientTranscript());
                             changed();
                         });
+        compactControl(transcriptToggle);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ui.dp(52), 1);
         tp.leftMargin = ui.dp(8);
         controls.addView(transcriptToggle, tp);
@@ -131,10 +147,16 @@ public final class AmbientPage implements PocketController.Listener {
                         () -> {
                             PocketController.Snapshot s = controller.snapshot();
                             if (s != null
-                                    && (s.ambient == PocketController.Ambient.SEAT_TAKEN
-                                            || s.ambient == PocketController.Ambient.DEAF
-                                            || s.ambient == PocketController.Ambient.PAUSED))
+                                    && s.ambientActive
+                                    && s.ambient == PocketController.Ambient.SEAT_TAKEN)
                                 controller.takeover();
+                            else if (s != null
+                                    && s.ambientActive
+                                    && (s.ambient == PocketController.Ambient.DEAF
+                                            || s.ambient == PocketController.Ambient.PAUSED
+                                            || s.ambient == PocketController.Ambient.OFFLINE
+                                            || s.ambient == PocketController.Ambient.FAILED))
+                                controller.reopenAmbient();
                             else
                                 host.permission(
                                         new String[] {android.Manifest.permission.RECORD_AUDIO},
@@ -148,12 +170,19 @@ public final class AmbientPage implements PocketController.Listener {
         return root;
     }
 
+    private void compactControl(TextView view) {
+        view.setMaxLines(1);
+        view.setPadding(ui.dp(6), ui.dp(10), ui.dp(6), ui.dp(10));
+        view.setAutoSizeTextTypeUniformWithConfiguration(11, 14, 1, TypedValue.COMPLEX_UNIT_SP);
+    }
+
     @Override
     public void changed() {
         if (root == null) return;
         PocketController.Snapshot s = controller.snapshot();
         if (s == null) return;
         boolean on = s.ambientActive;
+        off.setVisibility(on ? View.VISIBLE : View.GONE);
         boolean expanded = controller.settings.ambientTranscript();
         transcript.setVisibility(expanded ? View.VISIBLE : View.GONE);
         room.setVisibility(expanded ? View.GONE : View.VISIBLE);
@@ -175,12 +204,15 @@ public final class AmbientPage implements PocketController.Listener {
                                                         : s.ambient
                                                                         == PocketController.Ambient
                                                                                 .OFFLINE
-                                                                ? ui.t("连不上，正在重试")
+                                                                ? ui.t("房间离线，收音已暂停")
                                                                 : s.ambient
                                                                                 == PocketController
                                                                                         .Ambient
                                                                                         .FAILED
-                                                                        ? ui.t("收音失败")
+                                                                        ? s.ambientError.isEmpty()
+                                                                                ? ui.t("收音失败")
+                                                                                : ui.explain(
+                                                                                        s.ambientError)
                                                                         : s.ambient
                                                                                         == PocketController
                                                                                                 .Ambient
@@ -211,15 +243,27 @@ public final class AmbientPage implements PocketController.Listener {
                         ? ui.t("在这台 E2 上听")
                         : s.ambient == PocketController.Ambient.DEAF
                                         || s.ambient == PocketController.Ambient.PAUSED
+                                        || s.ambient == PocketController.Ambient.OFFLINE
+                                        || s.ambient == PocketController.Ambient.FAILED
                                 ? ui.t("重新打开")
                                 : on ? ui.t("关闭环境模式") : ui.t("打开环境模式"));
+        boolean blocked =
+                s.ambient == PocketController.Ambient.FAILED
+                        || s.ambient == PocketController.Ambient.OFFLINE
+                        || s.ambient == PocketController.Ambient.PAUSED;
         Ui.updateText(
                 detail,
-                !s.lastError.isEmpty()
-                        ? ui.explain(s.lastError)
-                        : s.ambientMuted
-                                ? ui.t("还在听，回复只显示在屏幕上")
-                                : on ? ui.t("说话就能打断它 · 返回对话仍会继续听") : ui.t("打开后会持续收音，回答会在 E2 上播放"));
+                !s.ambientError.isEmpty()
+                        ? ui.explain(s.ambientError)
+                        : s.ambientLinkPaused && s.connection == PocketController.Connection.ONLINE
+                                ? ui.t("连接已恢复，回到前台继续收音")
+                                : !s.lastError.isEmpty()
+                                        ? ui.explain(s.lastError)
+                                        : s.ambientMuted
+                                                ? ui.t("还在听，回复只显示在屏幕上")
+                                                : on
+                                                        ? ui.t("说话就能打断它 · 返回对话仍会继续听")
+                                                        : ui.t("打开后会持续收音，回答会在 E2 上播放"));
         String latest = s.working == null ? "" : s.working.text;
         if (latest.isEmpty())
             for (int i = s.rows.size() - 1; i >= 0; i--)
@@ -227,11 +271,12 @@ public final class AmbientPage implements PocketController.Listener {
                     latest = s.rows.get(i).text;
                     break;
                 }
-        if (s.cameraOffered) Ui.updateText(detail, ui.explain(s.sight));
-        else if (!s.lastHeard.isEmpty() && s.working == null)
+        if (s.cameraOffered && !blocked) Ui.updateText(detail, ui.explain(s.sight));
+        else if (!blocked && !s.lastHeard.isEmpty() && s.working == null)
             Ui.updateText(detail, ui.t("听到 · ") + s.lastHeard);
-        if (s.pressMuted) Ui.updateText(detail, ui.t("按键语音进行中，房间收音暂时静音"));
-        else if (s.heatLevel > 0) Ui.updateText(detail, ui.t("设备温度较高，视频已降低功耗；过热时相机会暂停"));
+        if (s.pressMuted && !blocked) Ui.updateText(detail, ui.t("按键语音进行中，房间收音暂时静音"));
+        else if (s.heatLevel > 0 && !blocked)
+            Ui.updateText(detail, ui.t("设备温度较高，视频已降低功耗；过热时相机会暂停"));
         Ui.updateText(caption, latest);
         caption.setVisibility(latest.isEmpty() ? View.GONE : View.VISIBLE);
         mute.setEnabled(on);

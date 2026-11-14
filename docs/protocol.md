@@ -30,6 +30,14 @@ transport still reports open. Old queued frames and delayed close callbacks stay
 teardown retains a best-effort room microphone restoration through one asynchronous bounded writer
 turn before closing; local capture stops immediately. The retiring transport remains current for
 that write while its old listener is excluded by the connection generation.
+Live retry pauses are 1/2/4/8/16/30 seconds. Short outages keep capture; sustained failures reaching
+the cap release ambient capture while keeping any independent held note. Recovery in the background
+waits for foreground before starting a fresh native mic/hello. Ready, foreground, explicit reopen and
+a local press reset backoff; press/reopen attempt connection immediately. A 1008/PolicyViolation
+remains a visible ambient refusal until explicit reopen/session end, independently of later ready or
+seat metadata. Automatic connection retry continues, matching the pinned upstream; credentials are
+invalidated only by the separate unauthorized path (for example 4401). Prepared outage acceptance
+uses actual retry deadlines and native capture, with lifecycle stimuli distinguished in `audio.md`.
 `AmbientOutput` keeps the current speech's hardware and immediately skipped muted samples separate
 until forming one monotonic watermark. Hardware receipts retain their playback generation through
 the state-executor hop. Local presses/read can report an interruption; remote `stop_audio` and local

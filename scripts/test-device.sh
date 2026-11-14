@@ -70,7 +70,7 @@ if [[ "${POCKET_E2_TEST_PROCESS_DEATH:-0}" == 1 ]]; then
   exit
 fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
-adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}" -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}" -e ambientRoomOnly "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" -e liveOnly "${POCKET_E2_TEST_LIVE_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
+adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}" -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}" -e ambientRoomOnly "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" -e liveOnly "${POCKET_E2_TEST_LIVE_ONLY:-0}" -e outageOnly "${POCKET_E2_TEST_OUTAGE_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"
 adb pull /sdcard/Android/data/top.kuaner.pockete2/cache/qa "$build/screenshots" >/dev/null

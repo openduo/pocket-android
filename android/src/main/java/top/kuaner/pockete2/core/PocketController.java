@@ -93,6 +93,7 @@ public final class PocketController {
                 olderLabel,
                 readingId,
                 sight;
+        public final String ambientError;
         public final String importTarget;
         public final String lastHeard;
         public final String audioRoute;
@@ -113,6 +114,7 @@ public final class PocketController {
                 olderLoading,
                 uploadingVoice,
                 ambientActive,
+                ambientLinkPaused,
                 accessoryActive,
                 pressMuted,
                 echoCancellation;
@@ -122,6 +124,8 @@ public final class PocketController {
         Snapshot(PocketController c) {
             connection = c.connection;
             ambient = c.ambient;
+            ambientError = c.ambientFailure;
+            ambientLinkPaused = c.ambientLinkPaused;
             sessions = c.viewer.snapshot();
             passport = c.passport.snapshot();
             rows = Collections.unmodifiableList(new ArrayList<>(c.cachedRows));
@@ -248,7 +252,10 @@ public final class PocketController {
     private String oldestDate = "";
     private final AmbientInput ambientInput = new AmbientInput();
     private final AmbientOutput ambientOutput = new AmbientOutput();
-    private int latencyMs, visibleLimit = 200, reconnectAttempt;
+    private final RedialBackoff redial = new RedialBackoff();
+    private int latencyMs, visibleLimit = 200;
+    private boolean ambientLinkPaused;
+    private String ambientFailure = "";
     private volatile int connectionEpoch;
     private volatile int closingEpoch = -1, closingSourceEpoch = -1;
     private volatile long sendEpoch;
@@ -522,6 +529,7 @@ public final class PocketController {
     public void start() {
         state.execute(
                 () -> {
+                    redial.reset();
                     if (!trying) {
                         transport.rebind();
                         startNetwork();
@@ -571,8 +579,10 @@ public final class PocketController {
                             opening = false;
                         }
                     } else if (trying || settings.isComplete()) {
+                        redial.reset();
                         if (trying) connect();
                         else startNetwork();
+                        resumeAmbientLink();
                         if (ambientWanted && capture == null) startCapture();
                         updateSight();
                     }
@@ -932,14 +942,17 @@ public final class PocketController {
         opening = false;
         ambientInput.socketOpened();
         if (readingId.isEmpty()) stopPlayback();
-        if (ambientWanted) {
-            ambient = Ambient.OFFLINE;
-            stopCapture();
+        if (ambientWanted && (reason.contains("PolicyViolation") || reason.contains("1008")))
+            ambientFailure = "频道拒绝了这个房间";
+        long delay = redial.failedMs();
+        if (ambientWanted && redial.sustained() && ambientFailure.isEmpty() && !audioSuspended) {
+            ambientLinkPaused = true;
+            ambientInput.captureStopped();
+            // A local held note has its own lifetime and may still be cancelled or sent offline.
+            if (!holdRequested) stopCapture();
         }
-        lastError = "连不上房间，正在重试";
+        lastError = ambientFailure.isEmpty() ? "连不上房间，正在重试" : ambientFailure;
         publish();
-        int[] delays = {500, 1000, 2000, 5000, 10000};
-        int delay = delays[Math.min(reconnectAttempt++, delays.length - 1)];
         state.schedule(
                 () -> {
                     if (retryEpoch == connectionEpoch) connect();
@@ -988,14 +1001,16 @@ public final class PocketController {
                 connection = Connection.ONLINE;
                 if (!trying) passport.online(true);
                 opening = false;
-                reconnectAttempt = 0;
-                lastError = frame.optInt("api", 0) < 2 ? "家里的 ambient 需要升级（API v2）" : "";
+                redial.reset();
+                lastError =
+                        frame.optInt("api", 0) < 2 ? "家里的 ambient 需要升级（API v2）" : ambientFailure;
                 repo.admit(Collections.<Message>emptyList(), frame.optLong("seq"));
                 turn.restore(frame.optJSONObject("turn"));
                 if (resumed) reconcileReady(frame);
                 if (!resumed || !repo.metadata("history_loaded").equals("1")) historyToday();
                 viewer.dropPending();
                 if (foreground && viewer.snapshot().watching) send(viewer.watchFrame());
+                resumeAmbientLink();
                 if (ambientWanted && !audioSuspended && capture == null) startCapture();
                 pump();
             } else if (type.equals("message")) {
@@ -1698,6 +1713,8 @@ public final class PocketController {
                         holdPackets = 0;
                         lastHoldPublish = 0;
                         audioSuspended = false;
+                        redial.reset();
+                        if (!channel.isOpen()) connect();
                         for (JSONObject outgoing : ambientInput.press("phone", true))
                             send(outgoing);
                         interruptPlayback();
@@ -1740,7 +1757,7 @@ public final class PocketController {
         }
         heldOutput = null;
         heldFileOutput = null;
-        if (!ambientWanted) stopCapture();
+        if (!ambientWanted || ambientLinkPaused) stopCapture();
         for (JSONObject outgoing : ambientInput.press("phone", false)) send(outgoing);
         if (cancel || holdPackets < 15) {
             if (heldFile != null) heldFile.delete();
@@ -1782,6 +1799,7 @@ public final class PocketController {
         if (capture != null
                 || captureStopping
                 || audioSuspended
+                || ambientLinkPaused && !holdRequested
                 || ambientWanted && !holdRequested && connection != Connection.ONLINE
                 || (!holdRequested && !ambientWanted)) return;
         if (!audioFocus.acquire(ambientWanted)) {
@@ -1870,7 +1888,7 @@ public final class PocketController {
                 notice("语音保存失败，请检查存储空间");
             }
         }
-        if (!ambientWanted || !channel.isOpen()) return;
+        if (!ambientWanted || ambientLinkPaused || !channel.isOpen()) return;
         boolean before = ambientInput.helloSent();
         for (JSONObject outgoing :
                 ambientInput.packet(currentRoom(), capture != null && capture.echoCancellation()))
@@ -1904,6 +1922,9 @@ public final class PocketController {
                             return;
                         }
                         ambientWanted = true;
+                        ambientLinkPaused = false;
+                        ambientFailure = "";
+                        redial.reset();
                         ambient = Ambient.STARTING;
                         audioSuspended = false;
                         setOutputMuted(false);
@@ -1923,6 +1944,9 @@ public final class PocketController {
         if (!ambientWanted) return;
         JSONObject restoreMic = ambientInput.releaseMicrophone();
         ambientWanted = false;
+        ambientLinkPaused = false;
+        if (lastError.equals(ambientFailure)) lastError = "";
+        ambientFailure = "";
         setOutputMuted(false);
         ambient = Ambient.OFF;
         ambientInput.captureStopped();
@@ -1969,12 +1993,47 @@ public final class PocketController {
     public void takeover() {
         state.execute(
                 () -> {
+                    if (audioSuspended || ambientLinkPaused || !ambientFailure.isEmpty()) {
+                        reopenAmbientOnState();
+                        return;
+                    }
                     audioSuspended = false;
                     for (JSONObject outgoing : ambientInput.takeover(currentRoom())) send(outgoing);
                     if (capture == null) startCapture();
                     ambient = Ambient.STARTING;
                     publish();
                 });
+    }
+
+    public void reopenAmbient() {
+        state.execute(this::reopenAmbientOnState);
+    }
+
+    private void reopenAmbientOnState() {
+        if (!ambientWanted) return;
+        if (!audioFocus.acquire(true)) {
+            audioSuspended = true;
+            notice("其他应用正在使用音频，请稍后重试");
+            return;
+        }
+        JSONObject restoreMic = ambientInput.releaseMicrophone();
+        if (lastError.equals(ambientFailure)) lastError = "";
+        ambientFailure = "";
+        ambientLinkPaused = audioSuspended = false;
+        redial.reset();
+        stopCapture();
+        reconnect(restoreMic);
+        publish();
+    }
+
+    private void resumeAmbientLink() {
+        if (ambientWanted
+                && ambientLinkPaused
+                && foreground
+                && channel.isOpen()
+                && connection == Connection.ONLINE
+                && !audioSuspended
+                && ambientFailure.isEmpty()) ambientLinkPaused = false;
     }
 
     private void startService() {
@@ -2712,7 +2771,10 @@ public final class PocketController {
     private void updateSight() {
         sightSession.update(
                 ambientWanted,
-                ambientInput.role().equals("master"),
+                ambientInput.role().equals("master")
+                        && !ambientLinkPaused
+                        && !audioSuspended
+                        && ambientFailure.isEmpty(),
                 ambientInput.media(),
                 foreground,
                 heatLevel);
@@ -2984,6 +3046,9 @@ public final class PocketController {
     }
 
     private void resetRoomTransient() {
+        redial.reset();
+        ambientLinkPaused = false;
+        ambientFailure = "";
         setOutputMuted(false);
         liveNotes.clear();
         lastHeard = oldestDate = "";
@@ -3026,6 +3091,15 @@ public final class PocketController {
     }
 
     private void publish() {
+        if (ambientWanted) {
+            if (!ambientFailure.isEmpty()) ambient = Ambient.FAILED;
+            else if (audioSuspended) ambient = Ambient.PAUSED;
+            else if (ambientLinkPaused) ambient = Ambient.OFFLINE;
+            else if (!ambientInput.helloSent()) ambient = Ambient.STARTING;
+            else if (ambientInput.role().equals("peer")) ambient = Ambient.SEAT_TAKEN;
+            else if (ambientInput.roomState().equals("unowned")) ambient = Ambient.DEAF;
+            else ambient = playerActive ? Ambient.SPEAKING : Ambient.LISTENING;
+        }
         snapshot = new Snapshot(this);
         if (!publishing.compareAndSet(false, true)) return;
         main.postDelayed(

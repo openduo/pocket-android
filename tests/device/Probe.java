@@ -68,6 +68,12 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && "1".equals(arguments.getString("outageOnly"))) {
+                liveOnly(context);
+                report.putString("result", "PASS " + assertions + " sustained outage assertions");
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("roomOnly"))) {
                 report.putString("result", new RoomProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);
@@ -203,9 +209,18 @@ public final class Probe extends Instrumentation {
                             || controller.snapshot().connection
                                     != PocketController.Connection.ONLINE)
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            assertions +=
-                    new LiveRecoveryProbe(controller)
-                            .run(arguments != null && "1".equals(arguments.getString("capture")));
+            if (arguments != null && "1".equals(arguments.getString("outageOnly"))) {
+                check(
+                        "1".equals(arguments.getString("capture")),
+                        "outage-only acceptance requires actual native capture");
+                assertions += new OutageProbe(this, controller).run(context, screen);
+            } else {
+                assertions +=
+                        new LiveRecoveryProbe(controller)
+                                .run(
+                                        arguments != null
+                                                && "1".equals(arguments.getString("capture")));
+            }
         } finally {
             controller.stopTrying();
             until = android.os.SystemClock.elapsedRealtime() + 5000;
@@ -1027,6 +1042,8 @@ public final class Probe extends Instrumentation {
                                 .run(
                                         arguments != null
                                                 && "1".equals(arguments.getString("capture")));
+                if (arguments != null && "1".equals(arguments.getString("capture")))
+                    assertions += new OutageProbe(this, controller).run(context, screen);
                 until = android.os.SystemClock.elapsedRealtime() + 8000;
                 while (controller.snapshot().working != null
                         && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);

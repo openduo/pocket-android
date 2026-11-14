@@ -51,6 +51,30 @@ reproduced the former stuck-open failure on the shipping controller before the f
 transport cases stay inside try mode; its native capture cases verify mute restoration on held-note
 exit and a background callback, including a stalled final write while local capture releases promptly.
 
+`RedialBackoff` ports PocketCore's 1/2/4/8/16/30-second pauses, resetting on ready, foreground,
+explicit reopen or a local press. Short outages retain the same native capture lease without sending
+to a closed transport. Continued failures reach the 30-second retry cap after about 31 elapsed
+seconds; ambient capture then stops while retry and user intent continue. A local held note retains
+its own recording lifetime and is released when cancelled/sent. Recovery clears this link pause only
+in the foreground; a ready connection in the background waits for a later foreground callback before
+starting a fresh microphone/hello. Reopen reacquires focus, releases the old seat and resets the edge.
+Room refusal (1008/PolicyViolation) remains the highest-priority ambient failure until explicit reopen
+or session end, even if automatic reconnect succeeds. It does not mark credentials unauthorized.
+An independent power control ends ambient capture from retry/takeover states and the expanded
+transcript; a reopen action cannot replace the only way to stop the microphone.
+
+The separate 39-assertion `OutageProbe` run exercises real monotonic deadlines at approximately
+1/3/7/15/31 seconds, observes the native capture object/epoch across short outages and its release at
+the cap, then verifies recovery and a fresh hello. Its transport failures and background/focus events
+are prepared inside try mode, not actual Wi-Fi changes or a real Activity background transition.
+A separate budget-primed hold overlap avoids repeating the long wait; actual native packets continue
+until cancellation, and another local press recovers before the pending 30-second timer. Refusal
+survives ready/seat metadata, prepared audio interruption/gain and foreground; the actual narrow-screen
+reopen control clears it. A separate power click from refusal releases the real capture lease.
+Old transcript/heat text cannot hide the refusal. Native focus competition
+is separately covered by the existing audio probe. Physical network-path monitoring and live ping
+remain unported.
+
 `AmbientOutput` is an Android-independent output policy with one current declaration or local read.
 It implements these upstream behaviours:
 
@@ -151,10 +175,7 @@ can settle acceptance after a test interruption without synthesizing another res
 journal and the earlier failed fixture journal. The earlier unnormalized attempt is not ASR evidence.
 
 Remaining acceptance includes acoustic microphone-to-room recognition and actual empty/failure outcomes,
-ambient brain/tool turns, physical network outages, long streams, actual calls and external route
-changes, prolonged background/process death and energy trials. The upstream 1/2/4/8/16/30-second redial
-and sustained-outage microphone policy still need porting: Android currently stops capture on the
-first failure and resumes on ready, including in the background. Upstream preserves short outages,
-then pauses at its 30-second cap and waits for foreground before restarting. Policy-refusal (1008)
-presentation also remains. Native protocol faults, synthetic API speech and zero-volume hardware
+ambient brain/tool turns, physical network outages/path changes and live ping, long streams, actual
+calls and external route changes, prolonged background/process death and energy trials. Native
+protocol faults, synthetic API speech and zero-volume hardware
 watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.

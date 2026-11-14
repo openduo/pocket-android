@@ -583,5 +583,8 @@
   "在浏览器中登录与房间相同的 Tailscale 网络，也可以用手机扫描下方二维码。": "Sign in to the same Tailscale network as your room in a browser, or scan this QR code with your phone.",
   "请保持 Wi-Fi 连接。取得登录链接后会显示二维码。": "Stay connected to Wi-Fi. A QR code will appear when the login link is ready.",
   "无法打开浏览器，请用手机扫描二维码或复制登录链接。": "Could not open a browser. Scan the QR code with your phone or copy the login link.",
-  "设备没有浏览器，请用手机扫码登录房间所在的 Tailscale 网络。": "This device has no browser. Scan this QR code with your phone and sign in to the same Tailscale network as your room."
+  "设备没有浏览器，请用手机扫码登录房间所在的 Tailscale 网络。": "This device has no browser. Scan this QR code with your phone and sign in to the same Tailscale network as your room.",
+  "房间离线，收音已暂停": "Room offline. Listening paused.",
+  "连接已恢复，回到前台继续收音": "Connected. Return to the app to resume listening.",
+  "频道拒绝了这个房间": "The channel refused this room"
 }

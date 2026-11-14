@@ -731,6 +731,7 @@ public final class Contracts {
         checked += UploadContracts.run();
         checked += VoiceUploadContracts.run();
         checked += AmbientOutputContracts.run();
+        checked += RedialContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

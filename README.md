@@ -17,7 +17,7 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **193 host contract assertions and 243 E2 device assertions**,
+The latest local checkpoint passed **212 host contract assertions and 279 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
@@ -63,6 +63,15 @@ Text/audio writer failures now retire even a still-open socket before redialling
 and delayed close callbacks cannot cross into the replacement connection. Ambient exit and focus
 loss give a pending room-microphone restoration one bounded writer turn before closing, without
 blocking the state executor or delaying local capture release.
+Live retry now uses the upstream 1/2/4/8/16/30-second backoff. Short outages retain the native
+microphone; continued failures reaching the cap release it. A recovered connection restarts capture
+only in the foreground, while a new press or explicit reopen retries immediately. Room refusal
+(1008) stays visible until explicit reopen without invalidating device credentials. A separate
+**39-assertion sustained-outage run** uses actual deadlines and native capture with prepared transport
+and background/focus stimuli; physical network changes remain separate acceptance. Ambient's three
+bottom controls retain their touch areas while fitting short labels on one line in the compact view.
+A separate 48 dp power control remains available when the primary action offers reopen/takeover,
+including in the expanded transcript, so retry never removes the way to end capture.
 
 For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
 The native login sheet displays an authorization QR, copyable link and live backend state. Its QR
@@ -90,6 +99,8 @@ POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
 POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
 # Isolated live write/queue faults, optionally including native hold/ambient exit:
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_LIVE_ONLY=1 scripts/test-device.sh
+# Actual retry deadlines/native mic with disposable outage/refusal/lifecycle stimuli:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_OUTAGE_ONLY=1 scripts/test-device.sh
 # Explicit actual ambient recognition/speech/redial with known synthetic audio only:
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 scripts/test-device.sh
 # Explicitly force-stop/cold-start during a real system-picked provider copy:
@@ -134,6 +145,14 @@ acceptance work. See [audio.md](docs/audio.md).
 the transport still reports open, delays a superseded close and fills the bounded writer behind a
 stalled write. With capture enabled it checks an actual held note/ambient exit and a background
 callback, including a delayed final unmute while the state owner and capture teardown remain free.
+`POCKET_E2_TEST_OUTAGE_ONLY=1` requires capture and stays in that same disposable boundary. It observes
+failed health attempts at approximately 1/3/7/15/31 elapsed seconds, the same native capture lease
+through short failures, release at the sustained boundary, no dead-socket uplink, and foreground-only
+resume after a prepared background recovery. A separate budget-primed overlap checks that a local
+held note keeps recording, cancellation releases it, and a new press reconnects immediately. Prepared
+1008 and focus stimuli verify persistent refusal through ready/meta/gain/foreground and an actual
+small-screen reopen click. It also exits a refused room through the independent power control and
+observes native microphone release. These stimuli do not establish a physical network outage or call.
 The separate `POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1` run requires an unoccupied real room and ready
 services. Every outgoing microphone packet is replaced by silence or a single marked known fixture;
 no surrounding audio is uploaded. Actual synthesis is decoded and re-encoded to native 20 ms packets
