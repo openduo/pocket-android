@@ -41,6 +41,14 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("interruptionOnly"))) {
+                check(
+                        "1".equals(arguments.getString("capture")),
+                        "interruption acceptance requires actual native capture");
+                report.putString("result", new AmbientInterruptionProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("historyOnly"))) {
                 report.putString("result", new HistoryProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);
@@ -108,6 +116,7 @@ public final class Probe extends Instrumentation {
             if (arguments != null
                     && ("1".equals(arguments.getString("voiceOnly"))
                             || "1".equals(arguments.getString("audioBurstOnly"))
+                            || "1".equals(arguments.getString("readFailureOnly"))
                             || "1".equals(arguments.getString("accessibilityOnly"))
                             || "1".equals(arguments.getString("voiceStorageOnly"))
                             || "1".equals(arguments.getString("upgradeOnly"))
@@ -184,6 +193,7 @@ public final class Probe extends Instrumentation {
                     {"upgradeOnly", "upgrade compatibility assertions"},
                     {"locationOnly", "location UI assertions"},
                     {"audioBurstOnly", "native audio burst measurement"},
+                    {"readFailureOnly", "read aloud failure assertions"},
                     {"voiceStorageOnly", "voice storage assertions"},
                     {"accessibilityOnly", "accessibility assertions"},
                     {"sightOnly", "Sight assertions"},
@@ -229,6 +239,8 @@ public final class Probe extends Instrumentation {
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if ("1".equals(arguments.getString("audioBurstOnly"))) {
                 assertions += new AudioBurstProbe(this, controller).run(context);
+            } else if ("1".equals(arguments.getString("readFailureOnly"))) {
+                assertions += new ReadAloudProbe(controller).run(context);
             } else if ("1".equals(arguments.getString("upgradeOnly"))) {
                 assertions += new UpgradeProbe(this, controller).run(context, screen);
             } else if ("1".equals(arguments.getString("voiceStorageOnly"))) {
@@ -1133,6 +1145,7 @@ public final class Probe extends Instrumentation {
                     controller.settings.ambientTranscript(originalTranscript);
                     controller.endAmbient();
                     assertions += new AudioOutputProbe(controller).run(context);
+                    assertions += new ReadAloudProbe(controller).run(context);
                 }
                 assertions +=
                         new VoiceUploadProbe(controller)

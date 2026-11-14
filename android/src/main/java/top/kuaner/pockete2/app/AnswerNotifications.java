@@ -17,11 +17,14 @@ import java.util.*;
 
 /** Local background notices deduplicate live/log answers for the standalone E2. */
 public final class AnswerNotifications {
+    private static final String INTERRUPTION_TAG = "interrupted";
+    private static final int INTERRUPTION_ID = 29;
     private final Context context;
     private final NotificationManager manager;
     private final SharedPreferences prefs;
     private final Settings settings;
     private boolean foreground;
+    private boolean interruptionRequested;
 
     private top.kuaner.pockete2.text.TextCatalog words() {
         return top.kuaner.pockete2.text.AppText.get(context);
@@ -47,6 +50,8 @@ public final class AnswerNotifications {
                         "interruptions", words().t("音频中断"), NotificationManager.IMPORTANCE_DEFAULT);
         interruptions.setSound(null, null);
         manager.createNotificationChannel(interruptions);
+        // Ambient intent is not restored after process death.
+        manager.cancel(INTERRUPTION_TAG, INTERRUPTION_ID);
     }
 
     public void foreground(boolean value) {
@@ -54,6 +59,7 @@ public final class AnswerNotifications {
         if (value) {
             for (StatusBarNotificationCompat notice : active())
                 manager.cancel(notice.tag, notice.id);
+            interrupted(false);
         }
     }
 
@@ -97,21 +103,29 @@ public final class AnswerNotifications {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    public void interrupted() {
-        if (!foreground)
-            try {
-                manager.notify(
-                        "interrupted",
-                        29,
-                        new Notification.Builder(context, "interruptions")
-                                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                                .setContentTitle(words().t("环境模式被打断了"))
-                                .setContentText(words().t("点这里返回 Pocket E2，继续听房间里的声音"))
-                                .setContentIntent(open())
-                                .setAutoCancel(true)
-                                .build());
-            } catch (SecurityException ignored) {
-            }
+    /** Current ambient intent, rather than a focus event, owns this local notice. */
+    public void interrupted(boolean paused) {
+        boolean requested = paused && !foreground;
+        if (requested == interruptionRequested) return;
+        interruptionRequested = requested;
+        if (!requested) {
+            manager.cancel(INTERRUPTION_TAG, INTERRUPTION_ID);
+            return;
+        }
+        try {
+            manager.notify(
+                    INTERRUPTION_TAG,
+                    INTERRUPTION_ID,
+                    new Notification.Builder(context, "interruptions")
+                            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                            .setContentTitle(words().t("环境模式被打断了"))
+                            .setContentText(words().t("点这里返回 Pocket E2，继续听房间里的声音"))
+                            .setContentIntent(open())
+                            .setAutoCancel(true)
+                            .setOnlyAlertOnce(true)
+                            .build());
+        } catch (SecurityException ignored) {
+        }
     }
 
     public void frame(JSONObject frame, boolean passportAlert) {

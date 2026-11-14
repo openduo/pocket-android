@@ -88,6 +88,8 @@ probe_args=(
   -e voiceStorageOnly "${POCKET_E2_TEST_VOICE_STORAGE_ONLY:-0}"
   -e upgradeOnly "${POCKET_E2_TEST_UPGRADE_ONLY:-0}"
   -e backgroundVoiceOnly "${POCKET_E2_TEST_BACKGROUND_VOICE_ONLY:-0}"
+  -e interruptionOnly "${POCKET_E2_TEST_INTERRUPTION_ONLY:-0}"
+  -e readFailureOnly "${POCKET_E2_TEST_READ_FAILURE_ONLY:-0}"
   -e historyOnly "${POCKET_E2_TEST_HISTORY_ONLY:-0}"
   -e audioBurstOnly "${POCKET_E2_TEST_AUDIO_BURST_ONLY:-0}"
   -e locationOnly "${POCKET_E2_TEST_LOCATION_ONLY:-0}"

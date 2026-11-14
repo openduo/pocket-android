@@ -179,6 +179,20 @@ needed to receive gain. The current E2 firmware returns gain after both tested c
 and ordinary gain requests; this does not prove phone-call or external-headset behaviour on other
 Android versions. AudioTrack volume changes are local to this application; system volume stays intact.
 
+The local interruption notice is now owned by the ambient state, not by each raw focus callback.
+It is posted only while ambient intent remains on, the app is backgrounded and capture is paused;
+focus gain, foreground return, explicit ambient stop, room rejection and process recreation withdraw
+the same fixed notification. This prevents a recovered session from leaving a stale “环境模式被打断了”
+notice, while an ordinary read-aloud focus loss cannot claim that ambient mode was interrupted.
+
+Read-aloud HTTP errors follow the upstream `(status, error)` pair: only `422/nothing_to_speak`
+uses the empty-content explanation, while other 422 responses retain their status. If the native
+AudioTrack fails after a block has started, the controller cancels the open stream, clears the
+reading spinner and playback focus, reports the device error, and rejects late packets. A fresh
+read creates a new hardware generation. The focused interruption run passes **39 native assertions**;
+the focused read-failure run passes **27 native assertions**. Both use actual E2 capture/focus or
+AudioTrack ownership with prepared transport outcomes and send no room message.
+
 Verification combines upstream-derived pure output contracts with a separate native audio probe in
 the disposable try room. Its prepared stimuli exercise actual E2 capture, JNI Opus and AudioTrack,
 observe outgoing frames, and deliberately delay hardware receipts behind the state executor before

@@ -204,6 +204,13 @@ without sending a message. Its first restoration check ran after automatic scree
 and an explicit user-return flow now keep that case distinct from a connection failure. The
 original combined failure lacked component diagnostics; see [connection.md](docs/connection.md).
 
+The latest audio correction passes **39 native ambient-interruption assertions** and **27 read-aloud
+failure assertions** on the real E2. Ambient interruption notices now follow capture state and are
+withdrawn after focus recovery, foreground return, session stop, room rejection or process
+recreation. Read-aloud errors preserve the upstream 422 reason, and a real AudioTrack failure
+cancels its stream and clears the spinner before late packets arrive. These probes use prepared
+room outcomes and send no new real-room message. See [audio.md](docs/audio.md).
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
@@ -291,6 +298,10 @@ POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_STORAGE_ONLY=1 scripts/test-device.sh
 # Isolated client/channel upgrade classification, retained outbox and compact explanation sheet:
 POCKET_E2_TEST_UPGRADE_ONLY=1 scripts/test-device.sh
+# Ambient focus interruption, local-notice withdrawal and native capture recovery:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_INTERRUPTION_ONLY=1 scripts/test-device.sh
+# Read-aloud HTTP reason mapping, AudioTrack failure cancellation and late-packet fencing:
+POCKET_E2_TEST_READ_FAILURE_ONLY=1 scripts/test-device.sh
 # Explicitly force-stop during real held capture and voice commit/acknowledgment:
 ANDROID_SERIAL=YOUR_E2_SERIAL POCKET_E2_TEST_VOICE_DEATH=1 scripts/test-device.sh
 ```

@@ -458,7 +458,6 @@ public final class PocketController {
                                     ambient = Ambient.PAUSED;
                                 }
                                 reconnect(restoreMic);
-                                notifications.interrupted();
                                 notice("音频被系统打断，收音已暂停");
                             } else {
                                 audioSuspended = false;
@@ -2694,8 +2693,10 @@ public final class PocketController {
                             public void failed(int generation, String reason) {
                                 state.execute(
                                         () -> {
-                                            if (player != null && generation == player.generation())
-                                                notice(reason);
+                                            if (player == null || generation != player.generation())
+                                                return;
+                                            stopPlayback();
+                                            notice(reason);
                                         });
                             }
                         });
@@ -2843,9 +2844,8 @@ public final class PocketController {
                                                                                         .Failure
                                                                         ? speechError(
                                                                                 ((ChannelClient
-                                                                                                        .Failure)
-                                                                                                failure)
-                                                                                        .status)
+                                                                                                .Failure)
+                                                                                        failure))
                                                                         : "连接不上，无法朗读";
                                                 if (!received[0]) stopPlayback();
                                                 else finishReadIfDrained();
@@ -2856,10 +2856,11 @@ public final class PocketController {
                 });
     }
 
-    private static String speechError(int status) {
-        switch (status) {
+    private static String speechError(ChannelClient.Failure failure) {
+        switch (failure.status) {
             case 422:
-                return "这条消息没有可朗读的内容";
+                if (failure.reason.equals("nothing_to_speak")) return "这条消息没有可朗读的内容";
+                break;
             case 413:
                 return "这条消息太长，无法朗读";
             case 502:
@@ -2868,9 +2869,8 @@ public final class PocketController {
                 return "语音服务暂不可用";
             case 401:
                 return "请重新配对房间";
-            default:
-                return "朗读失败（" + status + "）";
         }
+        return "朗读失败（" + failure.status + "）";
     }
 
     public void pair(
@@ -3613,6 +3613,7 @@ public final class PocketController {
     }
 
     private void publish() {
+        notifications.interrupted(ambientWanted && audioSuspended);
         if (ambientWanted) {
             if (!ambientFailure.isEmpty()) ambient = Ambient.FAILED;
             else if (audioSuspended) ambient = Ambient.PAUSED;
