@@ -18,7 +18,7 @@ type requestGroup struct {
 var requestMu sync.Mutex
 var requestGroups = map[int64]requestGroup{}
 
-// RequestBegin registers an outbox send before native work is queued. Its retries share the id.
+// RequestBegin registers a cancellable HTTP or stream lifetime. An outbox's retries share the id.
 func RequestBegin(id int64) error {
 	requestMu.Lock()
 	defer requestMu.Unlock()
@@ -49,7 +49,7 @@ func RequestEnd(id int64) {
 }
 
 // DoAtRequest uses one deadline for node readiness and the entire HTTP request/response body.
-// The immutable origin/token and registered lifetime belong to one outbox operation.
+// The immutable origin/token and registered lifetime belong to the caller's access generation.
 func DoAtRequest(id int64, host string, port int, tls bool, token, method, path, headersJSON string, body []byte, timeoutMs int64) (*Response, error) {
 	return doRequest(id, chanTarget{host, port, tls, token}, method, path, headersJSON, body, timeoutMs,
 		func(ctx context.Context) error {

@@ -843,6 +843,7 @@ public final class Contracts {
         checked += AmbientOutputContracts.run();
         checked += RedialContracts.run();
         checked += RequestScopeContracts.run();
+        checked += RoomAccessContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

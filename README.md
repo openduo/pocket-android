@@ -143,8 +143,26 @@ passes **27 targeted assertions** through real keyboard/node APIs, native captur
 transport. The complete capture/camera/import/paired-try regression passes **336 device assertions**,
 with keyboard/large-font screenshots inspected. Host/architecture/localisation checks pass, and
 **eight actual-room read-only HTTP assertions** retain pairing/Online/composer. Natural acoustics,
-full screen-reader use and remaining HTTP authorization boundaries stay open. See
+full screen-reader use and actual credential-revocation acceptance stay open. See
 [accessibility.md](docs/accessibility.md) and the migration matrix.
+
+Authenticated history, attachment, catch-up and speech now share one pure-Java credential generation.
+Exact authenticated unauthorized responses stop access; anonymous/other errors and stale-token
+responses cannot invalidate a new pairing. Node authorization loss cancels active ordinary requests
+and prevents queued ones from starting, with one job completion and retained retryable attachment
+files. Local originals and validated cache remain available offline. Android streaming uses the same
+registered native cancellation as HTTP, without cancellation tombstones. The expanded isolated
+access probe passes **77 native assertions** and **260 host assertions** pass alongside Go vet/race
+checks. The real node is not logged out or revoked; actual revocation/re-pairing and prolonged standby
+remain unaccepted. See [connection.md](docs/connection.md).
+
+The same final APK passes the complete **336-assertion** capture/camera/import/paired-try suite,
+**17 background-upload assertions**, **eight actual-room HTTP assertions** and **17 real-room
+session/file/speech assertions**. Real synthesis reaches muted AudioTrack completion and cancels
+cleanly; no new chat message or session notification is sent. The keyboard and 1.35-font compact
+screens were inspected. One earlier outage-release assertion failed without component diagnostics;
+the original-deadline wait now observes both native lease release and the controller callback.
+Subsequent targeted and complete runs pass; the earlier trigger remains unlocated.
 
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room

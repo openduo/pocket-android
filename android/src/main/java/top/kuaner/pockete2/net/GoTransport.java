@@ -24,6 +24,7 @@ public final class GoTransport implements ChannelConnection {
     private final Context context;
     private volatile boolean started;
     private volatile StatusListener statusListener;
+    private final java.util.Map<Long, RequestScope> streams = new java.util.HashMap<>();
 
     public GoTransport(Context context) {
         this.context = context.getApplicationContext();
@@ -103,23 +104,36 @@ public final class GoTransport implements ChannelConnection {
             StreamListener handler,
             java.util.function.BooleanSupplier current)
             throws Exception {
-        if (!current.getAsBoolean()) return new Response(499, new byte[0]);
-        if (!started) throw new java.io.IOException("网络节点尚未启动");
-        tsbridge.Response result =
-                Tsbridge.streamAt(
-                        endpoint.host,
-                        endpoint.port,
-                        endpoint.tls,
-                        token,
-                        id,
-                        "POST",
-                        path,
-                        "{\"Content-Type\":\"application/json\"}",
-                        body,
-                        bytes -> {
-                            if (current.getAsBoolean()) handler.data(bytes);
-                        });
-        return new Response((int) result.getStatus(), result.getBody());
+        RequestScope scope;
+        synchronized (streams) {
+            if (!current.getAsBoolean()) return new Response(499, new byte[0]);
+            if (!started) throw new java.io.IOException("网络节点尚未启动");
+            scope = new RequestScope(this);
+            streams.put(id, scope);
+        }
+        try {
+            tsbridge.Response result =
+                    Tsbridge.streamAtRequest(
+                            scope.id(),
+                            endpoint.host,
+                            endpoint.port,
+                            endpoint.tls,
+                            token,
+                            "POST",
+                            path,
+                            "{\"Content-Type\":\"application/json\"}",
+                            body,
+                            bytes -> {
+                                if (current.getAsBoolean()) handler.data(bytes);
+                            });
+            if (result == null) throw new java.io.IOException("通道没有返回响应");
+            return new Response((int) result.getStatus(), result.getBody());
+        } finally {
+            synchronized (streams) {
+                if (streams.get(id) == scope) streams.remove(id);
+                scope.close();
+            }
+        }
     }
 
     @Override
@@ -161,7 +175,10 @@ public final class GoTransport implements ChannelConnection {
     }
 
     public void cancelStream(long id) {
-        Tsbridge.streamCancel(id);
+        synchronized (streams) {
+            RequestScope scope = streams.remove(id);
+            if (scope != null) scope.close();
+        }
     }
 
     public void live(

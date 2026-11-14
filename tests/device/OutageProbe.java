@@ -163,10 +163,32 @@ final class OutageProbe {
                                     + attempt);
                 }
             }
-            await(() -> controller.snapshot().ambientLinkPaused && !capturing(), 3500);
+            // The input lease is released before CaptureSession posts stopped to the state owner.
+            // Observe both halves within the original deadline before checking the final state.
+            long releaseUntil = SystemClock.elapsedRealtime() + 3500;
+            boolean released = false;
+            boolean callbackPending = false;
+            while (SystemClock.elapsedRealtime() < releaseUntil) {
+                boolean[] observed =
+                        onState(
+                                () ->
+                                        new boolean[] {
+                                            controller.snapshot().ambientLinkPaused,
+                                            capturing(),
+                                            field("capture") == null,
+                                            (Boolean) field("captureStopping")
+                                        });
+                if (observed[0] && !observed[1] && !observed[2]) callbackPending = true;
+                if (observed[0] && !observed[1] && observed[2] && !observed[3]) {
+                    released = true;
+                    break;
+                }
+                Thread.sleep(20);
+            }
             long outage = previous - closedAt;
             check(
-                    outage >= 30_850
+                    released
+                            && outage >= 30_850
                             && outage <= 41_000
                             && controller.snapshot().ambientActive
                             && controller.snapshot().ambientLinkPaused
@@ -175,7 +197,23 @@ final class OutageProbe {
                             && onState(() -> field("capture") == null),
                     "after about 31 real seconds the sustained outage releases the native mic: "
                             + outage
-                            + " ms");
+                            + " ms; nativeActive="
+                            + capturing()
+                            + ", callbackPendingObserved="
+                            + callbackPending
+                            + ", captureNull="
+                            + onState(() -> field("capture") == null)
+                            + ", captureStopping="
+                            + onState(() -> field("captureStopping"))
+                            + ", ambient="
+                            + controller.snapshot().ambient
+                            + ", paused="
+                            + controller.snapshot().ambientLinkPaused);
+            android.os.Bundle releaseReport = new android.os.Bundle();
+            releaseReport.putString(
+                    "checkpoint",
+                    "outage-native-release; callbackPendingObserved=" + callbackPending);
+            probe.sendStatus(0, releaseReport);
             check(
                     source.binary.get() == uplink,
                     "no captured packets enter the dead transport during retry backoff");

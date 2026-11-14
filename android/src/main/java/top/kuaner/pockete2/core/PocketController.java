@@ -21,6 +21,7 @@ import top.kuaner.pockete2.audio.SpeechPlayer;
 import top.kuaner.pockete2.net.ChannelClient;
 import top.kuaner.pockete2.net.ChannelConnection;
 import top.kuaner.pockete2.net.GoTransport;
+import top.kuaner.pockete2.net.RoomAccess;
 import top.kuaner.pockete2.passport.PassportPolicy;
 import top.kuaner.pockete2.trymode.TryChannel;
 
@@ -223,6 +224,7 @@ public final class PocketController {
     private final GoTransport transport;
     private final top.kuaner.pockete2.net.NetworkPath networkPath;
     private ChannelConnection channel;
+    private RoomAccess roomAccess;
     private TryChannel tryChannel;
     private ChannelConnection readChannel;
     private final top.kuaner.pockete2.audio.AudioFocus audioFocus;
@@ -840,7 +842,8 @@ public final class PocketController {
                     || sending != null
                     || ambientWanted
                     || holdRequested
-                    || !readingId.isEmpty())
+                    || !readingId.isEmpty()
+                    || roomAccess != null)
                 pauseRoomAccess(
                         settings.isComplete() ? Connection.OFFLINE : Connection.NEEDS_SETUP);
             lastError = "请完成 Tailscale 授权";
@@ -896,13 +899,66 @@ public final class PocketController {
     }
 
     private ChannelClient client() {
-        return client(channel);
+        return access().client();
     }
 
-    private ChannelClient client(top.kuaner.pockete2.net.ChannelTransport via) {
+    /** The live socket may redial many times under one unchanged credential generation. */
+    private RoomAccess access() {
+        Endpoint endpoint = trying ? TryChannel.ENDPOINT : settings.endpoint();
+        String token = trying ? TryChannel.TOKEN : settings.token();
+        String room = currentRoom(), identity = repo.roomIdentity();
+        if (roomAccess != null && roomAccess.matches(channel, endpoint, token, room, identity))
+            return roomAccess;
+        retireRoomAccess();
+        RoomAccess next =
+                new RoomAccess(
+                        channel,
+                        endpoint,
+                        token,
+                        room,
+                        identity,
+                        trying
+                                ? null
+                                : rejected ->
+                                        state.execute(
+                                                () -> {
+                                                    if (roomAccess == rejected
+                                                            && rejected.rejected()) unauthorized();
+                                                }));
+        if (accessAllowed()) roomAccess = next;
+        else next.close();
+        return next;
+    }
+
+    private boolean accessAllowed() {
         return trying
-                ? new ChannelClient(TryChannel.ENDPOINT, TryChannel.TOKEN, TryChannel.ROOM, via)
-                : new ChannelClient(settings, via);
+                || settings.isComplete()
+                        && !settings.unauthorized()
+                        && !tailnetNeedsLogin()
+                        && !pairingActive;
+    }
+
+    private boolean currentAccess(RoomAccess access) {
+        return roomAccess == access && access.current();
+    }
+
+    private void retireRoomAccess() {
+        RoomAccess retired = roomAccess;
+        roomAccess = null;
+        if (retired == null) return;
+        retired.close();
+        boolean changed = false;
+        for (int i = 0; i < chips.size(); i++)
+            if (chips.get(i).state == Attachment.UPLOADING) {
+                chips.set(i, chips.get(i).failed());
+                changed = true;
+            }
+        if (changed)
+            try {
+                saveDraft();
+            } catch (RuntimeException storageFailure) {
+                log.event("attachment", "pause_state_save_deferred");
+            }
     }
 
     private boolean tailnetNeedsLogin() {
@@ -1192,6 +1248,7 @@ public final class PocketController {
     }
 
     private void pauseRoomAccess(Connection next) {
+        retireRoomAccess();
         connection = next;
         opening = false;
         connectionEpoch++;
@@ -1393,14 +1450,15 @@ public final class PocketController {
         if (roomState == null || roomState.date.isEmpty()) return;
         String day = roomState.date;
         int epoch = connectionEpoch;
-        ChannelClient client = client();
+        RoomAccess access = access();
+        ChannelClient client = access.client();
         network.execute(
                 () -> {
                     try {
                         ChannelClient.Rows rows = client.history(day);
                         state.execute(
                                 () -> {
-                                    if (epoch != connectionEpoch) return;
+                                    if (epoch != connectionEpoch || !currentAccess(access)) return;
                                     admitRows(rows.messages, repo.cursor());
                                     repo.metadata("history_loaded", "1");
                                     oldestDate =
@@ -1412,7 +1470,8 @@ public final class PocketController {
                     } catch (ChannelClient.Failure failure) {
                         state.execute(
                                 () -> {
-                                    if (epoch == connectionEpoch) notice("暂时无法加载历史，可稍后重试");
+                                    if (epoch == connectionEpoch && currentAccess(access))
+                                        notice("暂时无法加载历史，可稍后重试");
                                 });
                     }
                 });
@@ -1442,7 +1501,8 @@ public final class PocketController {
                                         ? Json.day(System.currentTimeMillis())
                                         : roomState.date;
                     final String start = before;
-                    ChannelClient client = client();
+                    RoomAccess access = access();
+                    ChannelClient client = access.client();
                     network.execute(
                             () -> {
                                 List<Message> found = new ArrayList<>();
@@ -1459,7 +1519,8 @@ public final class PocketController {
                                     final String oldest = scanned;
                                     state.execute(
                                             () -> {
-                                                if (epoch != connectionEpoch) return;
+                                                if (epoch != connectionEpoch
+                                                        || !currentAccess(access)) return;
                                                 oldestDate = oldest;
                                                 olderRequestEpoch = -1;
                                                 visibleLimit += Math.max(100, found.size());
@@ -1473,7 +1534,8 @@ public final class PocketController {
                                 } catch (Exception failure) {
                                     state.execute(
                                             () -> {
-                                                if (epoch != connectionEpoch) return;
+                                                if (epoch != connectionEpoch
+                                                        || !currentAccess(access)) return;
                                                 olderRequestEpoch = -1;
                                                 notice("更早记录加载失败，轻点重试");
                                             });
@@ -1625,8 +1687,9 @@ public final class PocketController {
             if (lastError.equals(UPLOAD_BACKGROUND_PAUSED)) lastError = "";
         }
         top.kuaner.pockete2.net.RequestScope requests;
+        RoomAccess access = access();
         try {
-            requests = new top.kuaner.pockete2.net.RequestScope(channel);
+            requests = new top.kuaner.pockete2.net.RequestScope(access);
         } catch (Exception failure) {
             log.event("send", "request_scope_failed");
             uploadForeground = false;
@@ -1636,7 +1699,7 @@ public final class PocketController {
         }
         SendOperation operation =
                 new SendOperation(
-                        item, client(requests), repo.roomIdentity(), ++sendEpoch, requests);
+                        item, access.client(requests), repo.roomIdentity(), ++sendEpoch, requests);
         sending = operation;
         try {
             repo.transition(item.state(Message.SENDING, ""));
@@ -1920,10 +1983,14 @@ public final class PocketController {
             notice("请先连接房间");
             return;
         }
-        boolean demo = trying;
-        ChannelClient client = client();
+        if (!accessAllowed()) {
+            replaceChip(attachment.failed());
+            notice(settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权");
+            return;
+        }
+        RoomAccess access = access();
+        ChannelClient client = access.client();
         ChannelClient.State room = roomState;
-        String identity = repo.roomIdentity();
         replaceChip(
                 new Attachment(
                         attachment.name,
@@ -1939,14 +2006,12 @@ public final class PocketController {
                         Attachment result = client.upload(attachment, room);
                         state.execute(
                                 () -> {
-                                    if (identity.equals(repo.roomIdentity()) && demo == trying)
-                                        replaceChip(result);
+                                    if (currentAccess(access)) replaceChip(result);
                                 });
                     } catch (ChannelClient.Failure failure) {
                         state.execute(
                                 () -> {
-                                    if (!identity.equals(repo.roomIdentity()) || demo != trying)
-                                        return;
+                                    if (!currentAccess(access)) return;
                                     if (replaceChip(attachment.failed()))
                                         notice(
                                                 failure.status == 413
@@ -2565,6 +2630,10 @@ public final class PocketController {
                         notice("请先连接房间");
                         return;
                     }
+                    if (!accessAllowed()) {
+                        notice(settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权");
+                        return;
+                    }
                     interruptPlayback();
                     try {
                         ensurePlayer();
@@ -2581,8 +2650,7 @@ public final class PocketController {
                     readInFlight = true;
                     ChannelConnection target = channel;
                     readChannel = target;
-                    Endpoint endpoint = trying ? TryChannel.ENDPOINT : settings.endpoint();
-                    String token = trying ? TryChannel.TOKEN : settings.token();
+                    RoomAccess access = access();
                     String room = currentRoom();
                     publish();
                     network.execute(
@@ -2593,16 +2661,15 @@ public final class PocketController {
                                 final Exception[] parseError = {null};
                                 try (OpusDecoder read = new OpusDecoder()) {
                                     top.kuaner.pockete2.net.ChannelTransport.Response response =
-                                            target.stream(
-                                                    endpoint,
-                                                    token,
+                                            access.stream(
                                                     request,
                                                     "/api/speech?room=" + Endpoint.query(room),
                                                     Json.object("text", message.text)
                                                             .toString()
                                                             .getBytes(StandardCharsets.UTF_8),
                                                     bytes -> {
-                                                        if (readRequest != request
+                                                        if (!access.current()
+                                                                || readRequest != request
                                                                 || parseError[0] != null) return;
                                                         try {
                                                             for (byte[] packet :
@@ -2612,8 +2679,9 @@ public final class PocketController {
                                                                         speech,
                                                                         read.packet(packet),
                                                                         () ->
-                                                                                readRequest
-                                                                                        == request))
+                                                                                access.current()
+                                                                                        && readRequest
+                                                                                                == request))
                                                                     break;
                                                             }
                                                         } catch (Exception failure) {
@@ -2625,11 +2693,11 @@ public final class PocketController {
                                     if (parseError[0] != null) throw parseError[0];
                                     packets.finish();
                                     if (response.status != 200)
-                                        throw new ChannelClient.Failure(
-                                                "speech", response.status, false);
+                                        throw ChannelClient.failure(response);
                                     state.execute(
                                             () -> {
-                                                if (readRequest == request) {
+                                                if (currentAccess(access)
+                                                        && readRequest == request) {
                                                     readInFlight = false;
                                                     finishReadIfDrained();
                                                     publish();
@@ -2638,7 +2706,8 @@ public final class PocketController {
                                 } catch (Exception failure) {
                                     state.execute(
                                             () -> {
-                                                if (readRequest != request) return;
+                                                if (!currentAccess(access)
+                                                        || readRequest != request) return;
                                                 readInFlight = false;
                                                 String reason =
                                                         received[0]
@@ -2698,6 +2767,7 @@ public final class PocketController {
                         return;
                     }
                     connectionEpoch++;
+                    retireRoomAccess();
                     retireSend();
                     final long pairTicket = ++pairingEpoch;
                     pairingActive = true;
@@ -2797,6 +2867,7 @@ public final class PocketController {
                     pairingEpoch++;
                     pairingActive = false;
                     connectionEpoch++;
+                    retireRoomAccess();
                     opening = false;
                     retireSend();
                     uploadForeground = false;
@@ -2850,6 +2921,7 @@ public final class PocketController {
         pairingActive = false;
         releaseOnState(true);
         saveDraft();
+        retireRoomAccess();
         retireSend();
         connectionEpoch++;
         opening = uploadForeground = false;
@@ -2888,6 +2960,7 @@ public final class PocketController {
         if (!trying) return;
         releaseOnState(true);
         connectionEpoch++;
+        retireRoomAccess();
         retireSend();
         opening = uploadForeground = false;
         stopPlayback();
@@ -2957,56 +3030,57 @@ public final class PocketController {
     public void backgroundFetch(Runnable completed) {
         state.execute(
                 () -> {
-                    if (trying || !settings.isComplete() || settings.unauthorized()) {
+                    if (trying || !accessAllowed()) {
                         main.post(completed);
                         return;
                     }
-                    ChannelClient client = client();
-                    String identity = repo.roomIdentity();
+                    RoomAccess access = access();
+                    ChannelClient client = access.client();
                     long cursor = repo.cursor();
                     boolean bootstrapped = repo.hasCursor();
                     network.execute(
                             () -> {
+                                ChannelClient.Rows rows = null;
                                 try {
-                                    transport.start(
-                                            settings.networkLog(),
-                                            status -> state.execute(() -> networkStatus(status)));
-                                    ChannelClient.Rows rows = client.rows(cursor);
-                                    state.execute(
-                                            () -> {
-                                                try {
-                                                    if (!trying
-                                                            && identity.equals(
-                                                                    repo.roomIdentity())) {
-                                                        admitRows(rows.messages, rows.cursor);
-                                                        for (Message row : rows.messages)
-                                                            if (row.kind == Message.DUODUO) {
-                                                                notifications.frame(
-                                                                        Json.object(
-                                                                                "type",
-                                                                                "answer_final",
-                                                                                "text",
-                                                                                row.text,
-                                                                                "message_ids",
-                                                                                new JSONArray(
-                                                                                        row.messageIds)),
-                                                                        PassportPolicy.ENABLED
-                                                                                && passport
-                                                                                        .snapshot()
-                                                                                        .link
-                                                                                        .ready,
-                                                                        bootstrapped);
-                                                            }
-                                                        publish();
-                                                    }
-                                                } finally {
-                                                    main.post(completed);
-                                                }
-                                            });
+                                    if (access.current()) {
+                                        transport.start(
+                                                settings.networkLog(),
+                                                status ->
+                                                        state.execute(() -> networkStatus(status)));
+                                        rows = client.rows(cursor);
+                                    }
                                 } catch (Exception failure) {
                                     log.event("background", "catchup_failed");
-                                    main.post(completed);
                                 }
+                                ChannelClient.Rows fetched = rows;
+                                state.execute(
+                                        () -> {
+                                            try {
+                                                if (fetched != null && currentAccess(access)) {
+                                                    admitRows(fetched.messages, fetched.cursor);
+                                                    for (Message row : fetched.messages)
+                                                        if (row.kind == Message.DUODUO) {
+                                                            notifications.frame(
+                                                                    Json.object(
+                                                                            "type",
+                                                                            "answer_final",
+                                                                            "text",
+                                                                            row.text,
+                                                                            "message_ids",
+                                                                            new JSONArray(
+                                                                                    row.messageIds)),
+                                                                    PassportPolicy.ENABLED
+                                                                            && passport.snapshot()
+                                                                                    .link
+                                                                                    .ready,
+                                                                    bootstrapped);
+                                                        }
+                                                    publish();
+                                                }
+                                            } finally {
+                                                main.post(completed);
+                                            }
+                                        });
                             });
                 });
     }
@@ -3190,19 +3264,15 @@ public final class PocketController {
         state.execute(
                 () -> {
                     boolean local = !attachment.localPath.isEmpty();
-                    if (!local && !trying && !settings.isComplete()) {
-                        if (!preview) notice("请先配对房间");
-                        main.post(result::failed);
-                        return;
-                    }
                     boolean demo = trying;
                     String identity = repo.roomIdentity();
                     String cacheScope = demo ? identity.substring(4) : "";
-                    ChannelClient client = client();
+                    RoomAccess access = demo || settings.isComplete() ? access() : null;
                     network.execute(
                             () -> {
                                 try {
                                     File file;
+                                    boolean downloaded = false;
                                     if (local && new File(attachment.localPath).isFile())
                                         file =
                                                 preview
@@ -3213,22 +3283,28 @@ public final class PocketController {
                                                                 demo);
                                     else {
                                         file = attachmentStore.cached(attachment, cacheScope);
-                                        if (file == null)
+                                        if (file == null) {
+                                            if (access == null)
+                                                throw new java.io.IOException("Room is not paired");
                                             file =
                                                     attachmentStore.cache(
                                                             attachment,
-                                                            client.attachment(attachment),
+                                                            access.client().attachment(attachment),
                                                             cacheScope);
+                                            downloaded = true;
+                                        }
                                         if (demo && !preview)
                                             file =
                                                     attachmentStore.shareable(
                                                             file, attachment, true);
                                     }
                                     File ready = file;
+                                    boolean remote = downloaded;
                                     state.execute(
                                             () -> {
                                                 if (demo != trying
-                                                        || !identity.equals(repo.roomIdentity())) {
+                                                        || !identity.equals(repo.roomIdentity())
+                                                        || remote && !currentAccess(access)) {
                                                     if (demo) {
                                                         ready.delete();
                                                         if (ready.getParentFile() != null)
@@ -3237,17 +3313,38 @@ public final class PocketController {
                                                     main.post(result::failed);
                                                 } else
                                                     main.post(
-                                                            () ->
+                                                            () -> {
+                                                                Snapshot current = snapshot;
+                                                                String target =
+                                                                        identity.equals("unpaired")
+                                                                                ? ""
+                                                                                : identity;
+                                                                if (current != null
+                                                                        && current.trying == demo
+                                                                        && current.importTarget
+                                                                                .equals(target)
+                                                                        && (!remote
+                                                                                || access
+                                                                                        .current()))
                                                                     result.ready(
-                                                                            ready,
-                                                                            attachment.mime));
+                                                                            ready, attachment.mime);
+                                                                else result.failed();
+                                                            });
                                             });
                                 } catch (Exception failure) {
                                     state.execute(
                                             () -> {
-                                                if (!preview) notice("附件读取失败，请稍后重试");
+                                                if (!preview
+                                                        && demo == trying
+                                                        && identity.equals(repo.roomIdentity())
+                                                        && (access == null
+                                                                || currentAccess(access)))
+                                                    notice(
+                                                            access == null
+                                                                    ? "请先配对房间"
+                                                                    : "附件读取失败，请稍后重试");
+                                                main.post(result::failed);
                                             });
-                                    main.post(result::failed);
                                 }
                             });
                 });

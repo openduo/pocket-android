@@ -43,16 +43,20 @@ func StreamAt(host string, port int, tls bool, token string, id int64, method, p
 	return streamTarget(chanTarget{host, port, tls, token}, id, method, path, headersJSON, body, h)
 }
 
+// StreamAtRequest shares RequestBegin/RequestEnd with cancellable HTTP work. A
+// retired registration cannot start, and cancellation after completion needs no
+// stream tombstone. The caller owns and ends the registration.
+func StreamAtRequest(id int64, host string, port int, tls bool, token, method, path, headersJSON string, body []byte, h StreamHandler) (*Response, error) {
+	requestMu.Lock()
+	group, exists := requestGroups[id]
+	requestMu.Unlock()
+	if !exists {
+		return nil, context.Canceled
+	}
+	return streamTargetContext(group.ctx, chanTarget{host, port, tls, token}, method, path, headersJSON, body, h)
+}
+
 func streamTarget(t chanTarget, id int64, method, path, headersJSON string, body []byte, h StreamHandler) (*Response, error) {
-	mu.Lock()
-	c := client
-	mu.Unlock()
-	if c == nil {
-		return nil, errors.New("tsbridge: not started")
-	}
-	if t.Host == "" {
-		return nil, errors.New("tsbridge: no target host")
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	streamMu.Lock()
 	early := streamCancelled[id]
@@ -68,6 +72,22 @@ func streamTarget(t chanTarget, id int64, method, path, headersJSON string, body
 		streamMu.Unlock()
 		cancel()
 	}()
+	return streamTargetContext(ctx, t, method, path, headersJSON, body, h)
+}
+
+func streamTargetContext(ctx context.Context, t chanTarget, method, path, headersJSON string, body []byte, h StreamHandler) (*Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	mu.Lock()
+	c := client
+	mu.Unlock()
+	if c == nil {
+		return nil, errors.New("tsbridge: not started")
+	}
+	if t.Host == "" {
+		return nil, errors.New("tsbridge: no target host")
+	}
 	req, err := http.NewRequestWithContext(ctx, method, t.origin()+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

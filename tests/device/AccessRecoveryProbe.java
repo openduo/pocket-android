@@ -266,11 +266,16 @@ final class AccessRecoveryProbe {
             checkpoint("superseded-logout");
             tryRejection(settings);
             httpRejection(settings);
+            ordinaryAccess(settings);
+            discardedRejection(settings);
+            checkpoint("ordinary-request-access");
         } finally {
             for (Exchange exchange : source.exchanges.values()) exchange.release.countDown();
+            for (Exchange exchange : source.routes.values()) exchange.release.countDown();
             onState(
                     () -> {
                         invoke("finishSend");
+                        invoke("retireRoomAccess");
                         field("tailnetActionEpoch", (Long) field("tailnetActionEpoch") + 1);
                         field("tailnetLogoutRequested", false);
                         field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
@@ -286,12 +291,14 @@ final class AccessRecoveryProbe {
                         field("connection", PocketController.Connection.OFFLINE);
                         field("retryNotBefore", 0L);
                         field("lastError", initial.lastError);
+                        invoke("restoreDraft");
                         invoke("reload");
                         invoke("connect");
                         return null;
                     });
             repository.close();
             context.deleteDatabase(DATABASE);
+            new File(context.getCacheDir(), "access-qa/ordinary.txt").delete();
             settings.clearConnection();
             isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
             isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
@@ -639,6 +646,7 @@ final class AccessRecoveryProbe {
         refused.release.countDown();
         String id = queue(refused, false);
         await(settings::unauthorized, 2500);
+        onState(() -> null);
         check(
                 settings.unauthorized()
                         && pending(id).state == Message.QUEUED
@@ -668,6 +676,380 @@ final class AccessRecoveryProbe {
         clear();
     }
 
+    private void recover(Settings settings) throws Exception {
+        source.routes.clear();
+        onState(
+                () -> {
+                    settings.saveConnection(
+                            "example.test",
+                            443,
+                            true,
+                            "qa",
+                            "Access QA",
+                            "qa",
+                            "room",
+                            "qa-renewed-" + UUID.randomUUID());
+                    field("tailnetState", "Running");
+                    field("retryNotBefore", 0L);
+                    invoke("connect");
+                    return null;
+                });
+        await(this::online, 3000);
+        check(
+                online() && !settings.unauthorized(),
+                "replacement credentials restore ordinary access");
+    }
+
+    private void history() throws Exception {
+        onState(
+                () -> {
+                    invoke("historyToday");
+                    return null;
+                });
+    }
+
+    private Attachment chip() throws Exception {
+        File file = new File(context.getCacheDir(), "access-qa/ordinary.txt");
+        file.getParentFile().mkdirs();
+        Files.write(file.toPath(), "Prepared local attachment".getBytes(StandardCharsets.UTF_8));
+        Attachment attachment =
+                new Attachment(
+                        "access-qa-ordinary.txt",
+                        "text/plain",
+                        file.getPath(),
+                        "",
+                        "",
+                        file.length(),
+                        Attachment.FAILED);
+        onState(
+                () -> {
+                    @SuppressWarnings("unchecked")
+                    List<Attachment> chips = (List<Attachment>) field("chips");
+                    chips.clear();
+                    chips.add(attachment);
+                    field("draft", "Prepared retained attachment draft");
+                    invoke("saveDraft");
+                    invoke("publish");
+                    return null;
+                });
+        return attachment;
+    }
+
+    private Attachment remote() throws Exception {
+        byte[] bytes = "Prepared cached attachment".getBytes(StandardCharsets.UTF_8);
+        StringBuilder digest = new StringBuilder();
+        for (byte b : java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+            digest.append(String.format(Locale.ROOT, "%02x", b & 255));
+        return new Attachment(
+                "access-qa-remote.txt",
+                "text/plain",
+                "",
+                digest.toString(),
+                "/qa/ordinary.txt",
+                bytes.length,
+                Attachment.UPLOADED);
+    }
+
+    private static final class FileReceipt implements PocketController.FileResult {
+        final AtomicInteger ready = new AtomicInteger(), failed = new AtomicInteger();
+        final CountDownLatch done = new CountDownLatch(1);
+
+        public void ready(File file, String mime) {
+            ready.incrementAndGet();
+            done.countDown();
+        }
+
+        public void failed() {
+            failed.incrementAndGet();
+            done.countDown();
+        }
+    }
+
+    private void rejected(Settings settings, Exchange exchange, String label) throws Exception {
+        check(
+                exchange.started.await(2, TimeUnit.SECONDS),
+                label + " reaches the ordinary transport");
+        await(settings::unauthorized, 2500);
+        onState(() -> null);
+        check(
+                settings.unauthorized()
+                        && controller.snapshot().connection
+                                == PocketController.Connection.NEEDS_PAIRING
+                        && controller.snapshot().lastError.equals("设备凭据已失效，请重新配对")
+                        && source.groups.isEmpty(),
+                label + " revokes current credentials and keeps the shared authorization notice");
+    }
+
+    private void ordinaryAccess(Settings settings) throws Exception {
+        for (String operation :
+                new String[] {"history", "older", "upload", "download", "background", "speech"}) {
+            Exchange exchange = new Exchange(401);
+            exchange.release.countDown();
+            String route =
+                    operation.equals("upload")
+                            ? "/api/upload?"
+                            : operation.equals("download")
+                                    ? "/api/attachment?"
+                                    : operation.equals("speech") ? "/api/speech?" : "/api/imlog?";
+            source.routes.put(route, exchange);
+            FileReceipt receipt = new FileReceipt();
+            AtomicInteger completed = new AtomicInteger();
+            Attachment attachment = operation.equals("upload") ? chip() : null;
+            switch (operation) {
+                case "history":
+                    history();
+                    break;
+                case "older":
+                    controller.loadOlder();
+                    break;
+                case "upload":
+                    controller.retryAttachment(attachment.localPath);
+                    break;
+                case "download":
+                    controller.download(remote(), receipt);
+                    break;
+                case "background":
+                    controller.backgroundFetch(completed::incrementAndGet);
+                    break;
+                case "speech":
+                    controller.readAloud(
+                            Message.mine(
+                                    "qa-read",
+                                    "Prepared speech",
+                                    "phone",
+                                    0,
+                                    Message.DELIVERED,
+                                    Collections.emptyList()));
+                    break;
+            }
+            rejected(settings, exchange, operation);
+            if (operation.equals("upload"))
+                check(
+                        controller.snapshot().chips.size() == 1
+                                && controller.snapshot().chips.get(0).state == Attachment.FAILED
+                                && new File(attachment.localPath).isFile()
+                                && controller.draft().equals("Prepared retained attachment draft"),
+                        "unauthorized upload retains a retryable chip, local bytes and draft");
+            if (operation.equals("download"))
+                check(
+                        receipt.done.await(2, TimeUnit.SECONDS)
+                                && receipt.failed.get() == 1
+                                && receipt.ready.get() == 0,
+                        "unauthorized download completes once without opening a file");
+            if (operation.equals("background")) {
+                await(() -> completed.get() > 0, 2000);
+                check(completed.get() == 1, "unauthorized catch-up finishes its job exactly once");
+            }
+            if (operation.equals("speech"))
+                check(
+                        controller.snapshot().readingId.isEmpty()
+                                && !(Boolean) onState(() -> field("readInFlight")),
+                        "unauthorized speech releases native read state");
+            recover(settings);
+        }
+        for (int status : new int[] {401, 403}) {
+            Exchange exchange = new Exchange(status);
+            exchange.response =
+                    Source.json(
+                            status, Json.object("error", status == 401 ? "other" : "unauthorized"));
+            exchange.release.countDown();
+            source.routes.put("/api/imlog?", exchange);
+            history();
+            check(exchange.started.await(2, TimeUnit.SECONDS), "ordinary error history dispatches");
+            await(() -> controller.snapshot().lastError.equals("暂时无法加载历史，可稍后重试"), 2000);
+            check(
+                    !settings.unauthorized() && online(),
+                    "ordinary 401/403 cannot revoke the room token");
+            source.routes.clear();
+        }
+        Exchange anonymous = new Exchange(401);
+        anonymous.release.countDown();
+        source.routes.put("/healthz", anonymous);
+        try {
+            top.kuaner.pockete2.net.ChannelClient client =
+                    onState(
+                            () -> {
+                                Method method = PocketController.class.getDeclaredMethod("client");
+                                method.setAccessible(true);
+                                return (top.kuaner.pockete2.net.ChannelClient)
+                                        method.invoke(controller);
+                            });
+            client.health();
+        } catch (top.kuaner.pockete2.net.ChannelClient.Failure expected) {
+        }
+        check(
+                !settings.unauthorized() && online(),
+                "anonymous health rejection cannot revoke room credentials");
+        source.routes.clear();
+        cancelledOrdinary(settings);
+        lateOrdinary(settings);
+        offlineFiles(settings);
+        onState(
+                () -> {
+                    @SuppressWarnings("unchecked")
+                    List<Attachment> chips = (List<Attachment>) field("chips");
+                    for (Attachment value : chips) new File(value.localPath).delete();
+                    chips.clear();
+                    field("draft", "");
+                    invoke("saveDraft");
+                    invoke("publish");
+                    return null;
+                });
+    }
+
+    private void cancelledOrdinary(Settings settings) throws Exception {
+        Attachment attachment = chip();
+        Exchange history = new Exchange(200),
+                upload = new Exchange(200),
+                download = new Exchange(200);
+        source.routes.put("/api/imlog?", history);
+        source.routes.put("/api/upload?", upload);
+        source.routes.put("/api/attachment?", download);
+        FileReceipt receipt = new FileReceipt();
+        history();
+        controller.retryAttachment(attachment.localPath);
+        controller.download(remote(), receipt);
+        check(
+                history.started.await(2, TimeUnit.SECONDS)
+                        && upload.started.await(2, TimeUnit.SECONDS)
+                        && download.started.await(2, TimeUnit.SECONDS),
+                "all ordinary workers hold actual controller requests before cancellation");
+        int calls = history.calls.get();
+        AtomicInteger completed = new AtomicInteger();
+        controller.backgroundFetch(completed::incrementAndGet);
+        controller.loadOlder();
+        onState(() -> null);
+        status("NeedsMachineAuth");
+        check(
+                history.cancelled.await(1500, TimeUnit.MILLISECONDS)
+                        && upload.cancelled.await(1500, TimeUnit.MILLISECONDS)
+                        && download.cancelled.await(1500, TimeUnit.MILLISECONDS),
+                "node authorization loss cancels history, upload and download registrations");
+        await(() -> completed.get() == 1 && receipt.failed.get() == 1, 2500);
+        check(
+                completed.get() == 1
+                        && receipt.failed.get() == 1
+                        && history.calls.get() == calls
+                        && !settings.unauthorized()
+                        && source.groups.isEmpty()
+                        && controller.snapshot().lastError.equals("请完成 Tailscale 授权")
+                        && controller.snapshot().chips.get(0).state == Attachment.FAILED,
+                "retired queued requests never dispatch, jobs finish and late errors preserve"
+                        + " authorization feedback");
+        recover(settings);
+    }
+
+    private void lateOrdinary(Settings settings) throws Exception {
+        for (int status : new int[] {200, 401}) {
+            Exchange delayed = new Exchange(status);
+            delayed.ignoreCancellation = true;
+            delayed.response =
+                    status == 200
+                            ? Source.json(200, Json.object("entries", new JSONArray(), "seq", 919))
+                            : null;
+            source.routes.put("/api/imlog?", delayed);
+            AtomicInteger completed = new AtomicInteger();
+            controller.backgroundFetch(completed::incrementAndGet);
+            check(delayed.started.await(2, TimeUnit.SECONDS), "old-token catch-up is in flight");
+            status("NeedsMachineAuth");
+            recover(settings);
+            long cursor = controller.snapshot().cursor;
+            delayed.release.countDown();
+            await(() -> completed.get() == 1, 2000);
+            check(
+                    completed.get() == 1
+                            && online()
+                            && !settings.unauthorized()
+                            && controller.snapshot().cursor == cursor,
+                    "same-room replacement ignores a late old-token success or unauthorized"
+                            + " response");
+        }
+        Attachment attachment = chip();
+        Exchange delayed = new Exchange(200);
+        delayed.response = Source.json(200, Json.object("path", "/qa/late-upload.txt"));
+        source.routes.put("/api/upload?", delayed);
+        controller.retryAttachment(attachment.localPath);
+        check(
+                delayed.started.await(2, TimeUnit.SECONDS),
+                "old upload starts before owner admission is held");
+        onState(
+                () -> {
+                    delayed.release.countDown();
+                    java.util.concurrent.ThreadPoolExecutor network =
+                            (java.util.concurrent.ThreadPoolExecutor) field("network");
+                    long until = SystemClock.elapsedRealtime() + 2000;
+                    while (network.getActiveCount() != 0 && SystemClock.elapsedRealtime() < until)
+                        Thread.sleep(10);
+                    if (network.getActiveCount() != 0)
+                        throw new AssertionError("upload did not finish while owner was held");
+                    invoke("retireRoomAccess");
+                    settings.saveConnection(
+                            "example.test",
+                            443,
+                            true,
+                            "qa",
+                            "Access QA",
+                            "qa",
+                            "room",
+                            "qa-after-return");
+                    invoke("publish");
+                    return null;
+                });
+        onState(() -> null);
+        check(
+                controller.snapshot().chips.get(0).state == Attachment.FAILED
+                        && controller.snapshot().chips.get(0).remotePath.isEmpty(),
+                "a successful upload already queued on the owner cannot update a new credential"
+                        + " generation");
+        source.routes.clear();
+    }
+
+    private void offlineFiles(Settings settings) throws Exception {
+        Attachment local = chip(), cached = remote();
+        AttachmentStore store = new AttachmentStore(context);
+        File cache =
+                store.cache(cached, "Prepared cached attachment".getBytes(StandardCharsets.UTF_8));
+        try {
+            status("NeedsMachineAuth");
+            FileReceipt first = new FileReceipt(), second = new FileReceipt();
+            controller.previewAttachment(local, first);
+            controller.download(cached, second);
+            check(
+                    first.done.await(2, TimeUnit.SECONDS)
+                            && second.done.await(2, TimeUnit.SECONDS)
+                            && first.ready.get() == 1
+                            && second.ready.get() == 1,
+                    "local originals and validated cached files remain available without node"
+                            + " authorization");
+            recover(settings);
+        } finally {
+            cache.delete();
+        }
+    }
+
+    private void discardedRejection(Settings settings) throws Exception {
+        Exchange discarded = new Exchange(401);
+        discarded.ignoreCancellation = true;
+        String id = queue(discarded, false);
+        check(
+                discarded.started.await(2, TimeUnit.SECONDS),
+                "a discard race begins under current credentials");
+        controller.discard(id);
+        onState(() -> null);
+        discarded.release.countDown();
+        Executor network = (Executor) field("sendNetwork");
+        CountDownLatch returned = new CountDownLatch(1);
+        network.execute(returned::countDown);
+        check(
+                returned.await(2, TimeUnit.SECONDS),
+                "the retired sender returns before inspecting access");
+        onState(() -> null);
+        check(
+                !settings.unauthorized() && online() && pending(id) == null,
+                "a late unauthorized response from a discarded operation cannot reject current"
+                        + " access");
+    }
+
     private static final class Exchange {
         final int status;
         final AtomicInteger calls = new AtomicInteger();
@@ -678,6 +1060,8 @@ final class AccessRecoveryProbe {
                 tokens = new CopyOnWriteArrayList<>(),
                 surfaces = new CopyOnWriteArrayList<>();
         final List<byte[]> bodies = new CopyOnWriteArrayList<>();
+        volatile boolean ignoreCancellation;
+        volatile ChannelConnection.Response response;
 
         Exchange() {
             this(202);
@@ -697,19 +1081,22 @@ final class AccessRecoveryProbe {
             started.countDown();
             if (!release.await(8, TimeUnit.SECONDS))
                 throw new IOException("Prepared access request expired");
-            return Source.json(
-                    status,
-                    Json.object(
-                            "message_id",
-                            headers.optString("Idempotency-Key"),
-                            "error",
-                            status == 401 ? "unauthorized" : ""));
+            return response != null
+                    ? response
+                    : Source.json(
+                            status,
+                            Json.object(
+                                    "message_id",
+                                    headers.optString("Idempotency-Key"),
+                                    "error",
+                                    status == 401 ? "unauthorized" : ""));
         }
     }
 
-    /** No network delegate, native node, microphone or speech path exists in this source. */
+    /** Prepared HTTP/speech statuses only; no real network delegate or microphone path. */
     private static final class Source implements ChannelConnection {
         final Map<String, Exchange> exchanges = new ConcurrentHashMap<>();
+        final Map<String, Exchange> routes = new ConcurrentHashMap<>();
         final Map<Long, Exchange> groups = new ConcurrentHashMap<>();
         final AtomicInteger opens = new AtomicInteger();
         volatile LiveListener listener;
@@ -739,7 +1126,7 @@ final class AccessRecoveryProbe {
             Exchange exchange = groups.remove(id);
             if (exchange != null) {
                 exchange.cancelled.countDown();
-                exchange.release.countDown();
+                if (!exchange.ignoreCancellation) exchange.release.countDown();
             }
         }
 
@@ -754,10 +1141,18 @@ final class AccessRecoveryProbe {
                 long timeout)
                 throws Exception {
             Exchange exchange = exchanges.get(headers.optString("Idempotency-Key"));
-            if (exchange == null) throw new AssertionError("Unregistered access fixture");
+            if (exchange == null)
+                for (Map.Entry<String, Exchange> route : routes.entrySet())
+                    if (path.startsWith(route.getKey())) {
+                        exchange = route.getValue();
+                        break;
+                    }
+            if (exchange == null)
+                return request(endpoint, token, method, path, headers, body, timeout);
             groups.put(id, exchange);
             Response response = exchange.request(token, headers, body);
-            if (!groups.containsKey(id)) throw new IOException("Prepared cancelled request");
+            if (!groups.containsKey(id) && !exchange.ignoreCancellation)
+                throw new IOException("Prepared cancelled request");
             return response;
         }
 
@@ -772,7 +1167,7 @@ final class AccessRecoveryProbe {
             if (method.equals("GET") && path.equals("/healthz"))
                 return json(200, Json.object("ok", true));
             if (method.equals("GET") && path.startsWith("/api/state?"))
-                return json(200, Json.object("room", "qa"));
+                return json(200, Json.object("room", "qa", "date", "2026-11-14"));
             if (method.equals("GET") && path.startsWith("/api/imlog?"))
                 return json(200, Json.object("entries", new JSONArray(), "seq", 0));
             throw new AssertionError("Unexpected unscoped access request");
@@ -813,8 +1208,11 @@ final class AccessRecoveryProbe {
                 String path,
                 byte[] body,
                 StreamListener listener,
-                BooleanSupplier current) {
-            throw new AssertionError("No synthesis in access acceptance");
+                BooleanSupplier current)
+                throws Exception {
+            Exchange exchange = routes.get("/api/speech?");
+            if (exchange == null) throw new AssertionError("Unregistered prepared speech status");
+            return exchange.request(token, Json.object(), body);
         }
 
         public void cancelStream(long id) {}

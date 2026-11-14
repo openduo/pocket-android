@@ -5,9 +5,13 @@ package tsbridge
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type chunks struct {
@@ -112,5 +116,71 @@ func TestStreamCancelledBeforeItStartsIsNotSent(t *testing.T) {
 	StreamCancel(5)
 	if _, err := Stream(5, "POST", "/api/speech", "", nil, &chunks{}); err == nil || sent {
 		t.Fatalf("err=%v sent=%v", err, sent)
+	}
+}
+
+func TestScopedStreamRetirementDoesNotKeepTombstones(t *testing.T) {
+	var sent atomic.Int32
+	setupUpstream(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent.Add(1)
+		w.Write([]byte{1, 0, 9})
+	}))
+	target := currentTarget()
+	stream := func(id int64, handler StreamHandler) (*Response, error) {
+		return StreamAtRequest(id, target.Host, target.Port, target.TLS, target.Token,
+			"POST", "/api/speech", "", nil, handler)
+	}
+	if err := RequestBegin(810); err != nil {
+		t.Fatal(err)
+	}
+	RequestEnd(810)
+	if _, err := stream(810, &chunks{}); !errors.Is(err, context.Canceled) || sent.Load() != 0 {
+		t.Fatalf("retired stream: err=%v sent=%d", err, sent.Load())
+	}
+	if err := RequestBegin(811); err != nil {
+		t.Fatal(err)
+	}
+	defer RequestEnd(811)
+	if res, err := stream(811, &chunks{}); err != nil || res.Status != 200 || sent.Load() != 1 {
+		t.Fatalf("replacement: res=%v err=%v sent=%d", res, err, sent.Load())
+	}
+	RequestEnd(811)
+	RequestEnd(811)
+	streamMu.Lock()
+	tombstones := len(streamCancelled)
+	streamMu.Unlock()
+	requestMu.Lock()
+	groups := len(requestGroups)
+	requestMu.Unlock()
+	if tombstones != 0 || groups != 0 {
+		t.Fatalf("retirement retained groups=%d tombstones=%d", groups, tombstones)
+	}
+}
+
+func TestScopedStreamRetirementCancelsBody(t *testing.T) {
+	setupUpstream(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte{1, 0, 9})
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	if err := RequestBegin(812); err != nil {
+		t.Fatal(err)
+	}
+	defer RequestEnd(812)
+	h := &chunks{on: func() { RequestEnd(812) }}
+	target := currentTarget()
+	done := make(chan error, 1)
+	go func() {
+		_, err := StreamAtRequest(812, target.Host, target.Port, target.TLS, target.Token,
+			"POST", "/api/speech", "", nil, h)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("cancelled stream completed successfully")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("retired streaming body did not stop")
 	}
 }

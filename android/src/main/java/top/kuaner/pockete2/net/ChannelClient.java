@@ -346,7 +346,7 @@ public final class ChannelClient {
     private byte[] call(
             String method, String path, JSONObject headers, byte[] body, long timeout, int expected)
             throws Failure {
-        boolean anonymous = path.equals("/healthz") || path.equals("/api/pair");
+        boolean anonymous = !needsToken(path);
         if (!anonymous && token.isEmpty()) throw new Failure("请先配对房间", 401, false);
         ChannelTransport.Response response;
         try {
@@ -356,18 +356,25 @@ public final class ChannelClient {
         } catch (Exception failure) {
             throw new Failure("暂时无法连接房间", 0, true);
         }
-        if (response.status != expected) {
-            String reason;
-            try {
-                reason =
-                        new JSONObject(new String(response.body, StandardCharsets.UTF_8))
-                                .optString("error", "请求失败");
-            } catch (Exception failure) {
-                reason = "请求失败";
-            }
-            throw new Failure(reason, response.status, false);
-        }
+        if (response.status != expected) throw failure(response);
         return response.body;
+    }
+
+    public static Failure failure(ChannelTransport.Response response) {
+        String reason;
+        try {
+            reason =
+                    new JSONObject(new String(response.body, StandardCharsets.UTF_8))
+                            .optString("error", "请求失败");
+        } catch (Exception failure) {
+            reason = "请求失败";
+        }
+        return new Failure(reason, response.status, false);
+    }
+
+    static boolean needsToken(String path) {
+        String route = path.split("\\?", 2)[0];
+        return !route.equals("/healthz") && !route.equals("/api/pair");
     }
 
     private JSONObject json(byte[] bytes) throws Failure {

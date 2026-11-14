@@ -132,10 +132,66 @@ handoff. One earlier run stopped at the actual-room idle guard before entering t
 component diagnostics. The guard now reports only states/counts; that earlier trigger remains
 unlocated and is not retroactively diagnosed by the later pass.
 
-These changes do not centralize every authenticated HTTP caller. History, attachment, read-aloud
-and background-fetch authorization/error boundaries still need a separate parity audit, alongside
-actual logout/relogin, revocation and prolonged standby acceptance.
 The updated APK also passed **336 complete capture/camera/import/paired-try assertions**, **17
 native background-upload assertions** and another **eight actual-room read-only scoped HTTP
 assertions**. Observed health time in that last run was 113 ms. It preserved the actual room,
 Online state and composer without sending another message or changing node authorization.
+
+The next P0 update centralizes authenticated HTTP and speech under an Android-independent
+`RoomAccess`. Each instance binds the connection, origin, token, room and local room namespace.
+A live-socket redial retains this credential generation; authorization loss, explicit logout,
+pairing, forgetting a room and entering/leaving Try retire it. Ordinary HTTP registers only at
+worker dispatch. An outbox operation still registers before queuing and retains that one native
+lifetime across retries. Retiring access cancels active registrations and prevents queued requests
+from starting. Exact authenticated **401 `{"error":"unauthorized"}`** rejects the generation once
+before notifying the state owner. Anonymous health/pairing, other 401 bodies, 403 and Try responses
+cannot revoke the real room credential. A retired generation's late success or rejection is ignored.
+An individually settled/discarded outbox request must still own its registration when its response
+returns; its late unauthorized status cannot revoke an otherwise current credential generation.
+
+History, older history, upload/download, catch-up and speech now share this boundary. Their state
+callbacks also check credential ownership after returning from HTTP, so an already queued success
+cannot update a newly paired room even when its host/room name is unchanged. Interrupted upload
+chips retain their local files and become retryable; cached attachments and local originals remain
+readable while authorization is paused. Catch-up does not dispatch during node authorization loss,
+explicit logout or pairing, and its completion callback runs once even when queued work is retired.
+Downloaded-file delivery rechecks ownership on the main thread too. Anonymous pairing remains
+independent of the stored room credential.
+
+Android speech now uses `StreamAtRequest` and the same native registration registry as ordinary
+HTTP, with immutable origin/token and cancellation through response-body reads. The adapter checks
+the read's current state when registering, cancels the registered scope on stop and removes it on
+return. Cancelling before dispatch or after completion requires no stream-cancellation tombstone.
+The original upstream stream API is retained for compatibility. This change does not add a stream
+deadline or claim cancellation of every live-node startup path.
+
+The expanded access probe passed **77 native assertions** with isolated preferences/SQLite and
+prepared response outcomes through the shipping controller. It exercises each HTTP/speech caller's
+actual unauthorized classification, ordinary/anonymous error distinctions, three occupied HTTP
+workers plus retired queued work, exact-once job/file completion, same-room replacement tokens,
+a success already queued on the state executor and offline local/cache access. The existing native
+foreground-service and storage-abort cases still pass. **260 host assertions**, Go vet and race
+tests also pass, including scoped-stream late-start prevention and in-flight cancellation. The
+actual node is not logged out, no room credential is revoked at the real service and no test
+message is sent. Actual logout/relogin, revocation/re-pairing and prolonged standby acceptance
+remain separate gaps.
+
+One complete regression stopped at the sustained-outage microphone-release check at 31033 ms
+without component diagnostics. That check previously stopped waiting when the native lease ended,
+then separately required the controller's asynchronous stopped callback to have completed. It now
+waits for both states within the same 3500 ms limit and reports the native lease, controller capture,
+stop flag and ambient state on failure. The unchanged production capture path passed a separate
+**41-assertion** outage run. That run did not observe a pending callback between the two states;
+the earlier failure's exact trigger remains unlocated. This observation change does not loosen the
+retry deadlines or establish prolonged stability.
+
+The final APK then passed **336 complete capture/camera/import/paired-try assertions** and **17
+native background-upload assertions**. The sustained-outage state check passed in both complete
+runs after its observation change. The final actual-room probes passed **eight scoped HTTP
+assertions** (observed health 80 ms) and **17 real-room assertions**, covering session list/rows,
+normal file upload/download with exact-byte verification and local cleanup, and incremental speech
+through Opus/muted AudioTrack completion plus in-flight cancellation. Real-room/composer/Online
+were retained without a new chat message or session notification. The static checks pass with
+414 explicit UI uses and 603 catalog entries; compact keyboard and 1.35-font screenshots were
+inspected. Natural acoustic recognition, audible playback, actual credential revocation and
+long-term standby remain unaccepted.

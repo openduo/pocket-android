@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** One outbox operation's cancellable requests, shared across its original-body retries. */
+/** A cancellable native lifetime, optionally shared across an outbox operation's retries. */
 public final class RequestScope implements ChannelTransport, AutoCloseable {
     private static final AtomicLong ids = new AtomicLong();
     private final long id = ids.incrementAndGet();
@@ -21,6 +21,10 @@ public final class RequestScope implements ChannelTransport, AutoCloseable {
     public RequestScope(ChannelTransport transport) throws Exception {
         this.transport = transport;
         transport.beginRequest(id);
+    }
+
+    long id() {
+        return id;
     }
 
     @Override
