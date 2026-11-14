@@ -67,6 +67,16 @@ details and the expanded transcript. Room/transcript screenshots were inspected 
 compact screen. `POCKET_E2_TEST_SIGHT_ONLY=1 POCKET_E2_TEST_CAMERA=1` runs this isolated acceptance;
 these prepared server controls do not establish actual service negotiation or recognisable scenes.
 
+The following arrival update passed **215 host assertions** and **25 targeted device assertions**
+on its final APK. It rejects invalid/out-of-order fixes and late lookup results after off/on,
+missing permission or expiry, isolates a new opt-in from old acknowledgements, and bounds receiver
+work. Actual ordered-broadcast deadline/overflow checks pass while its worker is deliberately
+blocked. Settings distinguish missing permission, disabled sources and unavailable place lookup.
+`POCKET_E2_TEST_ARRIVAL_ONLY=1` uses isolated preferences and prepared fixes/permission/geocoder
+outcomes without changing actual location settings or sending a message; real visit/geocoder and
+background relaunch acceptance remains. See [location.md](docs/location.md). The complete device
+suite was not repeated for this arrival update.
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual

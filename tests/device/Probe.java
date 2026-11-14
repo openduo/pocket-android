@@ -74,7 +74,8 @@ public final class Probe extends Instrumentation {
             if (arguments != null
                     && ("1".equals(arguments.getString("voiceOnly"))
                             || "1".equals(arguments.getString("locationOnly"))
-                            || "1".equals(arguments.getString("sightOnly")))) {
+                            || "1".equals(arguments.getString("sightOnly"))
+                            || "1".equals(arguments.getString("arrivalOnly")))) {
                 isolatedRoom(context);
                 report.putString(
                         "result",
@@ -84,7 +85,9 @@ public final class Probe extends Instrumentation {
                                         ? " location UI assertions"
                                         : "1".equals(arguments.getString("sightOnly"))
                                                 ? " Sight assertions"
-                                                : " voice upload assertions"));
+                                                : "1".equals(arguments.getString("arrivalOnly"))
+                                                        ? " arrival assertions"
+                                                        : " voice upload assertions"));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -173,7 +176,7 @@ public final class Probe extends Instrumentation {
                         && !controller.snapshot().uploadingVoice
                         && !controller.snapshot().cameraOn
                         && controller.snapshot().outbox.isEmpty(),
-                "voice-only probe requires the actual room idle");
+                "isolated-room probe requires the actual room idle");
         String target = controller.snapshot().importTarget, draft = controller.draft();
         try {
             controller.startTrying();
@@ -187,6 +190,8 @@ public final class Probe extends Instrumentation {
             } else if ("1".equals(arguments.getString("sightOnly"))) {
                 if ("1".equals(arguments.getString("camera"))) sightSession(context);
                 assertions += new SightUiProbe(this).run(context, screen, controller);
+            } else if ("1".equals(arguments.getString("arrivalOnly"))) {
+                assertions += top.kuaner.pockete2.location.ArrivalMonitorProbe.run(context);
             } else {
                 assertions +=
                         new VoiceUploadProbe(controller)
@@ -200,7 +205,7 @@ public final class Probe extends Instrumentation {
             check(
                     controller.snapshot().importTarget.equals(target)
                             && controller.draft().equals(draft),
-                    "voice-only probe restores the actual room and composer");
+                    "isolated-room probe restores the actual room and composer");
         }
     }
 

@@ -3,6 +3,8 @@
 
 package top.kuaner.pockete2.ui.pages;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Switch;
@@ -177,27 +179,11 @@ public final class SettingsPage implements PocketController.Listener {
                                                         ui.t("需要始终允许定位"),
                                                         new Sheets.Action(
                                                                 ui.t("打开应用权限设置"),
-                                                                () ->
-                                                                        host.activity()
-                                                                                .startActivity(
-                                                                                        new android
-                                                                                                .content
-                                                                                                .Intent(
-                                                                                                android
-                                                                                                        .provider
-                                                                                                        .Settings
-                                                                                                        .ACTION_APPLICATION_DETAILS_SETTINGS,
-                                                                                                android
-                                                                                                        .net
-                                                                                                        .Uri
-                                                                                                        .parse(
-                                                                                                                "package:"
-                                                                                                                        + host.activity()
-                                                                                                                                .getPackageName())))));
+                                                                this::locationSettings));
                                             else controller.arrivalsEnabled(true);
                                         });
                         });
-        arrivalStatus = row(body, "info", ui.t("到达检测方式"), "", null);
+        arrivalStatus = row(body, "info", ui.t("到达检测方式"), "", this::locationSettings);
         section(body, ui.t("会话"));
         row(
                 body,
@@ -307,6 +293,17 @@ public final class SettingsPage implements PocketController.Listener {
     private void appearance(String value) {
         controller.settings.appearance(value);
         host.activity().recreate();
+    }
+
+    private void locationSettings() {
+        boolean permission = controller.arrivalsNeedPermission();
+        Intent target =
+                new Intent(
+                        permission
+                                ? android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                                : android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+        if (permission) target.setData(Uri.parse("package:" + host.activity().getPackageName()));
+        host.activity().startActivity(target);
     }
 
     private void section(LinearLayout parent, String title) {
@@ -434,11 +431,7 @@ public final class SettingsPage implements PocketController.Listener {
         Ui.updateText(
                 notificationStatus,
                 !allowed ? ui.t("系统通知未开启，点按设置。") : ui.t("实时连接可用时即时提醒；离线时约每 15 分钟补取，系统省电可能延迟。"));
-        Ui.updateText(
-                arrivalStatus,
-                controller.arrivalsEnabled() && controller.arrivalsNeedPermission()
-                        ? ui.t("等待定位权限。需要精确位置；Android 10 及以上还需在系统设置中始终允许。")
-                        : ui.t("Android 使用低频网络与被动定位，停留后记录地名；省电策略可能延迟。"));
+        Ui.updateText(arrivalStatus, ui.explain(s.arrivalStatus));
     }
 
     public void close() {

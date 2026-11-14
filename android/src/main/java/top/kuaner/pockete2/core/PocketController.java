@@ -94,7 +94,8 @@ public final class PocketController {
                 olderLabel,
                 readingId,
                 sight,
-                sightRefusal;
+                sightRefusal,
+                arrivalStatus;
         public final String ambientError;
         public final String importTarget;
         public final String lastHeard;
@@ -129,6 +130,7 @@ public final class PocketController {
             ambient = c.ambient;
             ambientError = c.ambientFailure;
             ambientLinkPaused = c.ambientLinkPaused;
+            arrivalStatus = c.arrivals.status();
             sessions = c.viewer.snapshot();
             passport = c.passport.snapshot();
             rows = Collections.unmodifiableList(new ArrayList<>(c.cachedRows));

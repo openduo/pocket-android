@@ -73,6 +73,10 @@ public final class PlaceLedger {
     }
 
     public void settle(String value) {
+        settle(value, 0);
+    }
+
+    public void settle(String value, long earliest) {
         if (value == null || value.isEmpty()) return;
         try {
             JSONObject body = new JSONObject(java.net.URLDecoder.decode(value, "UTF-8"));
@@ -80,6 +84,7 @@ public final class PlaceLedger {
                     java.time.OffsetDateTime.parse(body.getString("arrived"))
                             .toInstant()
                             .toEpochMilli();
+            if (at < earliest) return;
             if (reported == null || reported.optLong("at") <= at)
                 reported =
                         Json.object(

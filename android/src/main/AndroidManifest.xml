@@ -30,7 +30,7 @@
             <intent-filter><action android:name="android.intent.action.SEND" /><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter>
         </activity>
         <service android:name=".app.BackgroundSync" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
-        <receiver android:name=".location.ArrivalReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>
+        <receiver android:name=".location.ArrivalReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /><action android:name="android.location.PROVIDERS_CHANGED" /><action android:name="android.location.MODE_CHANGED" /></intent-filter></receiver>
         <provider android:name=".app.PocketFiles" android:authorities="top.kuaner.pockete2.files" android:exported="false" android:grantUriPermissions="true" />
         <service android:name=".app.PocketSessionService" android:exported="false" android:foregroundServiceType="dataSync|microphone|connectedDevice" />
     </application>

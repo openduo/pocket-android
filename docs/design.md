@@ -32,6 +32,11 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   location updates and invalidate late geocoder results. Searches cannot enqueue unbounded work.
   Actual E2 coordinate insertion and the disabled-provider fallback passed a separate seven-assertion
   probe; this does not establish real GPS, tile, geocoder or visit-monitor reliability.
+- Arrival settings distinguish missing permission, disabled/missing sources, unavailable place
+  lookup and waiting for another app's passive fixes. The status row opens the relevant native
+  settings without changing system location. Checks are cached and published in the immutable
+  controller snapshot. Arrivals reject stale/out-of-order fixes and late work after off/on, missing
+  permission or expiry. See `location.md` for the broadcast budget and remaining visit acceptance.
 - External shares enter the composer as a complete ordered batch, without sending. Focused editors
   apply acknowledged draft updates and preserve typing that overlaps an incoming append; room/send
   resets invalidate stale editor changes. Attachment chips expose horizontal overflow and size their

@@ -79,6 +79,7 @@ probe_args=(
   -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}"
   -e locationOnly "${POCKET_E2_TEST_LOCATION_ONLY:-0}"
   -e sightOnly "${POCKET_E2_TEST_SIGHT_ONLY:-0}"
+  -e arrivalOnly "${POCKET_E2_TEST_ARRIVAL_ONLY:-0}"
   -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}"
   -e ambientRoomOnly "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}"
   -e ambientBrain "${POCKET_E2_TEST_AMBIENT_BRAIN:-0}"

@@ -594,6 +594,15 @@ public final class Contracts {
         check(
                 !ledger.arrived("old", "新区", 3000123),
                 "delayed old location cannot replace latest arrival");
+        PlaceLedger afterOptIn = new PlaceLedger(null);
+        afterOptIn.arrived("New visit", "District", 5000000);
+        afterOptIn.settle(placeA, 4500000);
+        check(
+                !new JSONObject(java.net.URLDecoder.decode(afterOptIn.pending(), "UTF-8"))
+                        .has("previous"),
+                "an acknowledgement from before the new opt-in cannot repopulate previous place");
+        afterOptIn.settle(afterOptIn.pending(), 4500000);
+        check(afterOptIn.pending().isEmpty(), "a current opt-in visit can still settle");
         check(
                 PlaceLedger.area("北京市", "朝阳区").equals("北京市朝阳区")
                         && PlaceLedger.area("San Francisco", "Mission")
