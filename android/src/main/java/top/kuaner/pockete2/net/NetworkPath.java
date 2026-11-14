@@ -108,6 +108,10 @@ public final class NetworkPath implements AutoCloseable {
                     "internet:"
                             + capabilities.hasCapability(
                                     NetworkCapabilities.NET_CAPABILITY_INTERNET));
+            parts.add(
+                    "validated:"
+                            + capabilities.hasCapability(
+                                    NetworkCapabilities.NET_CAPABILITY_VALIDATED));
             for (int transport = 0; transport <= 7; transport++)
                 if (capabilities.hasTransport(transport)) parts.add("transport:" + transport);
         }
