@@ -5,6 +5,11 @@ The product goal is a **1:1 functional migration** of `openduo/pocket-ios`, pinn
 placeholder, prepared reply, protocol test or compiled UI as an end-to-end feature completion.
 Maintain `docs/migration.md` with explicit implementation and verification gaps.
 
+The user deferred external Passport Bluetooth integration on 2026-11-14. Prioritize standalone E2
+use and omit Passport entry points from normal conversation/settings flows. Retain the existing
+implementation for later; external Passport hardware acceptance is not a current release blocker.
+This exception does not reduce the remaining 1:1 migration goal.
+
 - Follow E2Studio's filled surfaces, system fonts, real Lucide icons, bottom controls and bounded
   full-width sheets. Use the current viewport, not the physical panel size. Preserve scroll,
   drafts and focus. Do not change device density, overscan, launcher or another app's settings.

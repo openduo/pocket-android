@@ -39,6 +39,11 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("roomOnly"))) {
+                report.putString("result", new RoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("loginOnly"))) {
                 int login = new LoginProbe(this).run(context);
                 report.putString(

@@ -15,9 +15,12 @@ import top.kuaner.pockete2.core.Settings;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /** Ambient API v2: JSON, idempotent messages and the exact upstream Opus packet framing. */
 public final class ChannelClient {
@@ -205,7 +208,24 @@ public final class ChannelClient {
                                 60_000,
                                 200));
         if (response.optString("path").isEmpty()) throw new Failure("上传响应缺少 path", 200, false);
-        return attachment.withUpload(response.optString("sha256"), response.optString("path"));
+        String digest = sha256(bytes);
+        String supplied = response.isNull("sha256") ? "" : response.optString("sha256");
+        if (!supplied.isEmpty() && !digest.equalsIgnoreCase(supplied))
+            throw new Failure("上传响应的文件校验不一致", 200, false);
+        // Older servers acknowledge only the path. Downloads and logged attachments need the
+        // digest of the exact request body, rather than metadata saved before reading the file.
+        return attachment.withUpload(digest, response.optString("path"));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            StringBuilder value = new StringBuilder(64);
+            for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes))
+                value.append(String.format(Locale.ROOT, "%02x", b & 255));
+            return value.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new AssertionError(impossible);
+        }
     }
 
     public byte[] attachment(Attachment attachment) throws Failure {

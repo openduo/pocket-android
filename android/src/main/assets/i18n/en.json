@@ -37,6 +37,7 @@
   "Tailscale 登录链接": "Tailscale login link",
   "[图片：": "[Image: ",
   "上传响应缺少 path": "The upload response has no path",
+  "上传响应的文件校验不一致": "The uploaded file checksum does not match",
   "上次的位置": "Last known location",
   "不兼容": "Incompatible",
   "中文": "中文",

@@ -4,19 +4,26 @@ An independent native Android migration of [openduo/pocket-ios](https://github.c
 using E2Studio's visual and interaction conventions. **The target is 1:1 functional parity. The
 migration is in progress; this repository is not yet a parity-complete release.**
 
+The user deferred external Passport Bluetooth integration on 2026-11-14. The current scope is
+standalone E2 use; Passport shortcuts and prompts are omitted from conversation and settings.
+Its existing implementation is retained for later, without reducing the remaining migration goal.
+
 The upstream clone is kept separately at `../pocket-ios`; the initial reference commit is
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. `docs/migration.md` records both implemented paths and
 remaining gaps. Prepared try-mode replies never count as a real server response.
 
 The application includes the upstream tsnet bridge bound for Android, API-v2 HTTP and `/live`,
 SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStream read-aloud path,
-Passport central/press/reply logic, a scoped session viewer, attachment import/sharing, native map
-selection and Camera2 H.264 media-v1 uplink. Each path has its own verification status in the matrix.
+a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
+uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **154 host contract assertions and 149 E2 device assertions**,
+The latest local checkpoint passed **161 host contract assertions and 149 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
-login QR. Real-room authorization, pairing and text send/reply also passed; real audio and an external
-Passport remain unverified. These checks are regression evidence, not a parity-completion claim.
+login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
+passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
+and streamed synthesis/completion/cancellation with muted hardware playback. Microphone-to-room ASR
+and ambient audio remain unverified. These checks are regression evidence, not a parity-completion
+claim.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
 language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
@@ -28,6 +35,9 @@ recreation. Real system document-picker and camera returns exercise the same imp
 Picker/camera routes survive recreation; media conversion preserves dimensions, while document
 selection preserves bytes. The composer reports observed import bytes and can cancel stalled external
 reads/opens without losing its existing draft or admitting part of a batch.
+For older servers that acknowledge an upload path without a SHA-256, the client retains the digest
+of the exact uploaded bytes; supplied digests must match. Actual authenticated download then verifies
+the original content without test-only metadata.
 `docs/migration.md` keeps external-service/hardware gaps separate; `docs/imports.md` describes the
 handoff and its remaining failure/lifecycle acceptance work.
 
@@ -49,6 +59,8 @@ adb install -r dist/PocketE2.apk
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 scripts/test-device.sh
 # Opt in to the isolated try/UI suite when a real room is already paired:
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
+# Explicit real-service acceptance on an already paired, idle device:
+POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
@@ -64,6 +76,14 @@ On a paired device the try/UI tests require `POCKET_E2_TEST_PAIRED_TRY=1`; they 
 recording/camera work or a nonempty outbox and restore the original room, draft and presentation
 preferences. Their notifications and sends stay inside the disposable try transport. Omitting
 the flag runs the hardware/storage probes and cold start, which is a smaller acceptance scope.
+
+The separate `POCKET_E2_TEST_ROOM_ONLY=1` run requires the previously accepted live integration reply.
+It reads sessions permitted by the existing scope, uploads one small clearly named random fixture,
+downloads/verifies it through the ordinary controller and removes its local draft/cache copies. The
+server's upload API has no client delete operation, so the small remote fixture remains. It also
+requests actual read-aloud synthesis and cancels a second request. Only its own AudioTrack is muted;
+system volume is untouched. It preserves the real room/draft/files and sends no room messages or
+session notifications. It refuses active work in either Pocket E2 or E2Studio.
 
 The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
 or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the

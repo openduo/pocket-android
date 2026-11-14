@@ -103,13 +103,6 @@ public final class ConversationPage implements PocketController.Listener {
         heading.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(
                 ui.iconButton(
-                        "bluetooth",
-                        ui.t("Passport 配件"),
-                        ui.palette.secondary,
-                        () -> host.navigate("passport")),
-                new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
-        header.addView(
-                ui.iconButton(
                         "audio_lines",
                         ui.t("环境模式"),
                         ui.palette.accent,
@@ -495,14 +488,6 @@ public final class ConversationPage implements PocketController.Listener {
                                 ui.palette.raised,
                                 () -> host.navigate("ambient")),
                         20);
-                ui.add(
-                        empty,
-                        ui.button(
-                                ui.t("添加 Passport"),
-                                ui.palette.secondary,
-                                0,
-                                () -> host.navigate("passport")),
-                        8);
                 keyed.put("empty", empty);
             }
         }

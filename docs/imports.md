@@ -89,6 +89,15 @@ original display name and MIME when another app opens/shares a UUID/hash-named c
 cannot contain path separators/control characters. Both view and send intents include ClipData and
 a read grant; the camera receives a write grant for its output URI only.
 
+Upload responses require a remote path but may omit SHA-256, as the current real server does.
+`ChannelClient` derives a canonical digest from the exact uploaded request bytes; it never trusts
+stale attachment metadata. A supplied server digest must match those bytes. The digest is persisted
+and sent with message attachments so the existing authenticated download URL and cache validation
+work with either response shape. A separate opt-in real-room probe imports a tiny random fixture,
+uploads it through the ordinary controller, downloads a remote-only copy with that production digest,
+verifies the original bytes and removes its local draft/cache copies. It sends no room message; the
+API has no client remote-delete operation, so the tiny server fixture remains.
+
 Verification uses real filesystem interruption/corruption contracts, an injected SQLite receipt
 failure, actual ContentResolver copies, native focused typing interleavings, Activity recreation,
 picker/photo result callbacks and try cleanup. `POCKET_E2_TEST_IMPORT_UI=1` additionally drives the
@@ -102,7 +111,8 @@ and while opening a second file. The visible cancel action releases both within 
 removes partial files, preserves existing text/chips and rejects a repeated cancelled delivery.
 The next normal import succeeds. Native image checks distinguish unchanged inline/document bytes
 from converted media/camera pixels and test the encoded upload limit. These are provider/UI and
-native-codec checks; their uploads are prepared rather than real-room attachment acceptance.
+native-codec checks; their uploads are prepared. The separate real-room probe supplies the limited
+actual upload/download/removal acceptance described above.
 The optional UI probe currently runs on API 27: a narrowly scoped shell helper saves/restores the
 stock camera's location user-decision flags. The test declines optional location access and disables
 location tagging in its first-use screen. The helper and test source never ship in the application.
@@ -110,6 +120,6 @@ location tagging in its first-use screen. The helper and test source never ship 
 Remaining acceptance work includes process kill during an unfinished external-provider copy,
 recreation during an unanswered first permission dialog, revoked/noncooperative providers,
 low-storage/large-batch cancellation, modern Android, valid HEIC conversion, and real-room
-upload/retry/removal. An incomplete copy has no durable content manifest: its recovery still depends
+upload limit/failure/retry. An incomplete copy has no durable content manifest: its recovery still depends
 on the OS restoring the source intent/permission. The inbox does not claim to preserve an expired
 temporary URI before copying completes.

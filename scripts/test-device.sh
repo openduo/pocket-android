@@ -31,6 +31,10 @@ if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 ]]; then
   if adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then echo 'E2Studio is recording or working; capture probe refused.' >&2; exit 1; fi
   adb shell pm grant top.kuaner.pockete2 android.permission.RECORD_AUDIO
 fi
+if [[ "${POCKET_E2_TEST_ROOM_ONLY:-0}" == 1 ]] && adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then
+  echo 'E2Studio is recording or working; real-room playback probe refused.' >&2
+  exit 1
+fi
 if [[ "${POCKET_E2_TEST_CAMERA:-0}" == 1 ]]; then adb shell pm grant top.kuaner.pockete2 android.permission.CAMERA; fi
 adb install -r "$build/probe.apk"
 camera_location_flags=""
@@ -52,7 +56,7 @@ fi
 adb shell input keyevent 224
 adb shell wm dismiss-keyguard
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
-adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
+adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"
 adb pull /sdcard/Android/data/top.kuaner.pockete2/cache/qa "$build/screenshots" >/dev/null

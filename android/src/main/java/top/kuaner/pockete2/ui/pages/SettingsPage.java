@@ -198,8 +198,7 @@ public final class SettingsPage implements PocketController.Listener {
                                         });
                         });
         arrivalStatus = row(body, "info", ui.t("到达检测方式"), "", null);
-        section(body, ui.t("配件与会话"));
-        row(body, "bluetooth", "Passport", ui.t("按键语音配件"), () -> host.navigate("passport"));
+        section(body, ui.t("会话"));
         row(
                 body,
                 "messages_square",

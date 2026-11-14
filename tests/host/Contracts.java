@@ -716,6 +716,7 @@ public final class Contracts {
         checked += TryChannelContracts.run();
         checked += SessionViewerContracts.run();
         checked += ImportInboxContracts.run();
+        checked += UploadContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

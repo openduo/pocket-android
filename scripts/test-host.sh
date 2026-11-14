@@ -20,6 +20,7 @@ sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/sight/SightRec
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/text/TextCatalog.java")
 sources+=("$project_dir/tests/host/SessionViewerContracts.java")
 sources+=("$project_dir/tests/host/ImportInboxContracts.java")
+sources+=("$project_dir/tests/host/UploadContracts.java")
 zxing="$project_dir/android/libs/zxing-core-3.5.3.jar"
 javac -encoding UTF-8 --release 8 -classpath "$json:$android_jar:$zxing" -d "$build/classes" "${sources[@]}"
 java -ea -Dpocket.e2.root="$project_dir" -classpath "$json:$build/classes:$android_jar:$zxing" Contracts
