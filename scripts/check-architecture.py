@@ -30,6 +30,8 @@ for name in ('AdaptivePage', 'AdaptiveColumn', 'InsetsFrame', 'PageStates', 'Vie
 controller = (source / 'core/PocketController.java').read_text()
 if re.search(r'^import dev\.openduo\.pocket\.(?:ui|device\.e2)\.|\b(?:screenWidthDp|screenHeightDp|widthPixels|heightPixels|KeyEvent|InputDevice)\b', controller, re.M):
     errors.append('PocketController depends on UI geometry or OEM hardware')
+if re.search(r'\bnew\s+(?:(?:[\w]+\.)*)(?:CaptureSession|OpusDecoder|SpeechPlayer|PacketStream|VoiceRetry|ThreadPoolExecutor)\s*\(', controller):
+    errors.append('PocketController constructs resources owned by capture/playback/delivery/link components')
 for file in (source / 'ui').rglob('*.java'):
     if file.name not in ('Ui.java', 'InsetsFrame.java') and re.search(r'\b(?:widthPixels|heightPixels|screenWidthDp|screenHeightDp)\b', file.read_text()):
         errors.append(f'{file.relative_to(root)} reads window pixels outside the UI policy')

@@ -46,6 +46,10 @@ final class VoiceUploadProbe {
         return (ThreadPoolExecutor) worker.get(sender);
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -613,7 +617,7 @@ final class VoiceUploadProbe {
         check(
                 exchange.started.await(3, TimeUnit.SECONDS),
                 "the next upload starts after live failure");
-        int epoch = onState(() -> (Integer) field("connectionEpoch"));
+        int epoch = onState(() -> link().epoch());
         cleaned(id);
         exchange.release.countDown();
         Thread.sleep(700);
@@ -624,7 +628,7 @@ final class VoiceUploadProbe {
                         && current.cleaned.equals("prepared text")
                         && exchange.bodies.size() == 1
                         && controller.snapshot().connection == PocketController.Connection.ONLINE
-                        && onState(() -> (Integer) field("connectionEpoch")) == epoch,
+                        && onState(() -> link().epoch()) == epoch,
                 "live cleaned wins over a lost HTTP response without retry or a false reconnect");
         controller.discard(id);
         onState(() -> null);
@@ -637,7 +641,7 @@ final class VoiceUploadProbe {
                 exchange.started.await(3, TimeUnit.SECONDS),
                 "a note is in flight before its logged row");
         String path = pending(id).voiceFile;
-        int epoch = onState(() -> (Integer) field("connectionEpoch"));
+        int epoch = onState(() -> link().epoch());
         long seq = controller.snapshot().cursor + 1;
         frame(
                 Json.object(
@@ -668,7 +672,7 @@ final class VoiceUploadProbe {
                                                         && row.durationMs == 400)
                         && exchange.bodies.size() == 1
                         && controller.snapshot().connection == PocketController.Connection.ONLINE
-                        && onState(() -> (Integer) field("connectionEpoch")) == epoch,
+                        && onState(() -> link().epoch()) == epoch,
                 "authoritative row removes the packet file and rejects a late transport failure");
     }
 

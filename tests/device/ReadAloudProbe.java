@@ -36,7 +36,14 @@ final class ReadAloudProbe {
     }
 
     private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
-        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+        return (dev.openduo.pocket.audio.SpeechReader) playbackField("reader");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
     }
 
     private Object field(String name) throws Exception {
@@ -75,7 +82,7 @@ final class ReadAloudProbe {
 
     private boolean pending() {
         try {
-            return onState(() -> ((SpeechPlayer) field("player")).hasPending());
+            return onState(() -> ((SpeechPlayer) playbackField("player")).hasPending());
         } catch (Exception failure) {
             throw new IllegalStateException(failure);
         }
@@ -147,7 +154,7 @@ final class ReadAloudProbe {
                         () -> {
                             Field field = SpeechPlayer.class.getDeclaredField("track");
                             field.setAccessible(true);
-                            return (AudioTrack) field.get(field("player"));
+                            return (AudioTrack) field.get(playbackField("player"));
                         });
         check(
                 track != null
@@ -201,7 +208,8 @@ final class ReadAloudProbe {
                 controller.snapshot().readingId.isEmpty()
                         && !pending()
                         && controller.snapshot().lastError.isEmpty()
-                        && onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs()) == 20,
+                        && onState(() -> ((AmbientOutput) playbackField("output")).playedMs())
+                                == 20,
                 "a new native AudioTrack completes the fresh 20 ms read without inheriting the"
                         + " failure");
     }
@@ -217,7 +225,7 @@ final class ReadAloudProbe {
                     () -> {
                         field("channel", source);
                         invoke("ensurePlayer");
-                        ((SpeechPlayer) field("player")).silent(true);
+                        ((SpeechPlayer) playbackField("player")).silent(true);
                         return null;
                     });
             errors();
@@ -233,7 +241,8 @@ final class ReadAloudProbe {
             onState(
                     () -> {
                         invoke("stopPlayback");
-                        ((SpeechPlayer) field("player")).silent(controller.snapshot().ambientMuted);
+                        ((SpeechPlayer) playbackField("player"))
+                                .silent(controller.snapshot().ambientMuted);
                         field("channel", original);
                         return null;
                     });

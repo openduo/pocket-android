@@ -37,7 +37,14 @@ final class AudioOutputProbe {
     }
 
     private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
-        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+        return (dev.openduo.pocket.audio.SpeechReader) playbackField("reader");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
     }
 
     private Object field(String name) throws Exception {
@@ -83,7 +90,7 @@ final class AudioOutputProbe {
 
     private boolean pending() {
         try {
-            return onState(() -> ((SpeechPlayer) field("player")).hasPending());
+            return onState(() -> ((SpeechPlayer) playbackField("player")).hasPending());
         } catch (Exception failure) {
             throw new RuntimeException(failure);
         }
@@ -170,7 +177,7 @@ final class AudioOutputProbe {
             await(() -> !pending(), 2000);
             check(
                     source.played("c-qa-redeclared") == 0
-                            && onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs())
+                            && onState(() -> ((AmbientOutput) playbackField("output")).playedMs())
                                     == 0,
                     "a repeated declaration with the same wire id cannot credit old buffered PCM to"
                             + " the new stream");
@@ -183,7 +190,7 @@ final class AudioOutputProbe {
             check(
                     onState(
                             () ->
-                                    ((AmbientOutput) field("ambientOutput"))
+                                    ((AmbientOutput) playbackField("output"))
                                             .id()
                                             .equals("s-qa-filler")),
                     "a room stop preserves the filler owner and buffered PCM");
@@ -228,7 +235,7 @@ final class AudioOutputProbe {
             check(
                     source.played("c-qa-stale") == 0
                             && source.count("interrupted", "c-qa-stale") == 0
-                            && onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs())
+                            && onState(() -> ((AmbientOutput) playbackField("output")).playedMs())
                                     == 0
                             && controller.snapshot().ambient != PocketController.Ambient.SPEAKING,
                     "a remote stop emits no local interruption and rejects delayed hardware"
@@ -245,7 +252,7 @@ final class AudioOutputProbe {
                                         Field silent =
                                                 SpeechPlayer.class.getDeclaredField("silent");
                                         silent.setAccessible(true);
-                                        return !(Boolean) silent.get(field("player"));
+                                        return !(Boolean) silent.get(playbackField("player"));
                                     }),
                     "ending a muted ambient session restores output for later message-mode replies"
                             + " and local reads");
@@ -294,7 +301,7 @@ final class AudioOutputProbe {
             check(
                     source.shortStarted.getCount() == 0
                             && controller.snapshot().readingId.equals(proof.id)
-                            && onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs())
+                            && onState(() -> ((AmbientOutput) playbackField("output")).playedMs())
                                     == 20
                             && focusHeld,
                     "a short read's hardware drain retains reading state and focus while the HTTP"
@@ -369,7 +376,7 @@ final class AudioOutputProbe {
         check(
                 source.count("hush", "") == 1
                         && source.count("interrupted", "c-qa-live-priority") == 0
-                        && onState(() -> ((AmbientOutput) field("ambientOutput")).id().isEmpty()),
+                        && onState(() -> ((AmbientOutput) playbackField("output")).id().isEmpty()),
                 "local hush clears output and sends only hush rather than a second interruption");
     }
 

@@ -36,6 +36,24 @@ final class LiveRecoveryProbe {
         source = new Observed(original);
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
+    private Object microphoneField(String name) throws Exception {
+        Object owner = field("microphone");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
+    private ThreadPoolExecutor writer() throws Exception {
+        Object owner = field("liveLink");
+        Field member = owner.getClass().getDeclaredField("writer");
+        member.setAccessible(true);
+        return (ThreadPoolExecutor) member.get(owner);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -166,9 +184,7 @@ final class LiveRecoveryProbe {
                     onState(
                             () -> {
                                 for (int i = 0; i < 160; i++) send();
-                                return ((ThreadPoolExecutor) field("socketWriter"))
-                                        .getQueue()
-                                        .size();
+                                return ((ThreadPoolExecutor) writer()).getQueue().size();
                             });
             final int pressureOpened = opened;
             await(() -> source.opens.get() > pressureOpened && online(), 6000);
@@ -380,7 +396,7 @@ final class LiveRecoveryProbe {
         check(
                 controller.snapshot().holdLive && source.events.contains("mute:false"),
                 "holding a native note actually turns the room microphone switch off");
-        Object heldCapture = onState(() -> field("capture"));
+        Object heldCapture = onState(() -> microphoneField("capture"));
         int compatibilityOpened = source.opens.get();
         source.events.clear();
         controller.checkCompatibility();
@@ -403,7 +419,7 @@ final class LiveRecoveryProbe {
         check(
                 controller.snapshot().holdLive
                         && controller.snapshot().ambientActive
-                        && onState(() -> field("capture") == heldCapture)
+                        && onState(() -> microphoneField("capture") == heldCapture)
                         && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 "compatibility recheck preserves the same native capture and unfinished held note");
         source.events.clear();

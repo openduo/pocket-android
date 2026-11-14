@@ -45,6 +45,10 @@ final class VoiceDeathProbe {
         this.probe = probe;
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -162,13 +166,13 @@ final class VoiceDeathProbe {
         onState(
                 () -> {
                     invoke("retireRoomAccess");
-                    field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                    link().invalidate();
                     ((ChannelConnection) field("channel")).closeLive();
                     repository.select(scope(record));
                     field("channel", source);
                     field("roomState", null);
                     field("connection", PocketController.Connection.ONLINE);
-                    field("opening", false);
+                    link().ready();
                     field("retryNotBefore", 0L);
                     invoke("reload");
                     invoke("publish");
@@ -426,8 +430,8 @@ final class VoiceDeathProbe {
                             repository.select(controller.settings);
                             field("repo", repository);
                             field("channel", field("transport"));
-                            field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
-                            field("opening", false);
+                            link().invalidate();
+                            link().ready();
                             field("retryNotBefore", 0L);
                             field("connection", PocketController.Connection.OFFLINE);
                             invoke("restoreDraft");

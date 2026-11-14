@@ -16,6 +16,17 @@ Android decoding/playback stays behind `ReadAloudOutput`; database/service/audio
 stay in the controller on the same state executor. This changes maintainability, not the iOS
 feature-gap list or actual-service acceptance. See the [ownership boundaries](architecture.md).
 
+The final decomposition follow-up adds Composer, HistoryPager, AttachmentTransfers and RoomLink
+to pure core, plus Android TailnetSession, Microphone and RoomPlayback, and a separate
+ConversationComposer UI owner. The remaining controller coordinates application/database/service
+ordering without duplicating their state. An [ownership audit](architecture.md#stopping-point-and-ownership-audit)
+records the stopping point and why further forwarding or transactional-table splits would add no
+independent owner. The current source passes 2,615 JVM assertions (38 new), generic Debug and
+local same-package E2 Release builds, and a 24-assertion final E2 coordination check. It uses
+prepared Try-only sends, silent playback and a brief cancelled real capture; no recording is sent
+to the actual room, which returns Online with its pairing/composer retained. Preview 2 is unchanged.
+This refactor does not close the remaining actual-service or target-hardware gaps below.
+
 Read the [current status](status.md) first. [Expanded acceptance](acceptance.md) retains historical evidence; it does not require another full run.
 The current UI layer has a complete 22-case API 35 window/font matrix (9,616 checks), actual display
 rotation (20), freeform (8) and system split (12), actual TalkBack 15.0 traversal/gestures (12 scenes,

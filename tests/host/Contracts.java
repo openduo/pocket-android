@@ -34,6 +34,10 @@ public final class Contracts {
         checked += VoiceNotesContracts.run();
         checked += OutboxSenderContracts.run();
         checked += SpeechReaderContracts.run();
+        checked += ComposerContracts.run();
+        checked += HistoryPagerContracts.run();
+        checked += RoomLinkContracts.run();
+        checked += AttachmentTransferContracts.run();
         checked +=
                 PassportContracts.run(
                         java.nio.file.Paths.get(System.getProperty("pocket.android.root", ".")));

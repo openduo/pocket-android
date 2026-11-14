@@ -53,6 +53,13 @@ final class OutageProbe {
         source = new Observed(original);
     }
 
+    private Object microphoneField(String name) throws Exception {
+        Object owner = field("microphone");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -118,8 +125,8 @@ final class OutageProbe {
             check(
                     capturing() && source.hellos.get() > 0 && source.binary.get() > 0,
                     "ordinary ambient hello/uplink use the actual native microphone");
-            CaptureSession capture = onState(() -> (CaptureSession) field("capture"));
-            int captureEpoch = onState(() -> (Integer) field("captureEpoch"));
+            CaptureSession capture = onState(() -> (CaptureSession) microphoneField("capture"));
+            int captureEpoch = onState(() -> (Integer) microphoneField("epoch"));
 
             source.unreachable.set(true);
             long closedAt = SystemClock.elapsedRealtime();
@@ -154,8 +161,8 @@ final class OutageProbe {
                             capturing()
                                     && onState(
                                             () ->
-                                                    field("capture") == capture
-                                                            && (Integer) field("captureEpoch")
+                                                    microphoneField("capture") == capture
+                                                            && (Integer) microphoneField("epoch")
                                                                     == captureEpoch)
                                     && !controller.snapshot().ambientLinkPaused
                                     && controller.snapshot().ambient
@@ -176,8 +183,8 @@ final class OutageProbe {
                                         new boolean[] {
                                             controller.snapshot().ambientLinkPaused,
                                             capturing(),
-                                            field("capture") == null,
-                                            (Boolean) field("captureStopping")
+                                            microphoneField("capture") == null,
+                                            (Boolean) microphoneField("stopping")
                                         });
                 if (observed[0] && !observed[1] && !observed[2]) callbackPending = true;
                 if (observed[0] && !observed[1] && observed[2] && !observed[3]) {
@@ -195,7 +202,7 @@ final class OutageProbe {
                             && controller.snapshot().ambientLinkPaused
                             && controller.snapshot().ambient == PocketController.Ambient.OFFLINE
                             && !capturing()
-                            && onState(() -> field("capture") == null),
+                            && onState(() -> microphoneField("capture") == null),
                     "after about 31 real seconds the sustained outage releases the native mic: "
                             + outage
                             + " ms; nativeActive="
@@ -203,9 +210,9 @@ final class OutageProbe {
                             + ", callbackPendingObserved="
                             + callbackPending
                             + ", captureNull="
-                            + onState(() -> field("capture") == null)
+                            + onState(() -> microphoneField("capture") == null)
                             + ", captureStopping="
-                            + onState(() -> field("captureStopping"))
+                            + onState(() -> microphoneField("stopping"))
                             + ", ambient="
                             + controller.snapshot().ambient
                             + ", paused="
@@ -250,7 +257,7 @@ final class OutageProbe {
                     capturing()
                             && source.hellos.get() == hellos + 1
                             && !controller.snapshot().ambientLinkPaused
-                            && onState(() -> field("capture") != capture),
+                            && onState(() -> microphoneField("capture") != capture),
                     "foreground acquires a fresh native mic and sends exactly one fresh hello");
 
             holdDuringPause();
@@ -283,7 +290,7 @@ final class OutageProbe {
         check(
                 capturing() && controller.snapshot().holdLive,
                 "the overlap case starts an actual native held note");
-        CaptureSession capture = onState(() -> (CaptureSession) field("capture"));
+        CaptureSession capture = onState(() -> (CaptureSession) microphoneField("capture"));
         long packets = onState(() -> ((VoiceNotes) field("voiceNotes")).packets());
         // The real 31-second boundary was exercised above. Prime only this separate overlap case.
         onState(
@@ -303,7 +310,7 @@ final class OutageProbe {
                         && controller.snapshot().holdLive
                         && onState(
                                 () ->
-                                        field("capture") == capture
+                                        microphoneField("capture") == capture
                                                 && ((VoiceNotes) field("voiceNotes")).packets()
                                                         > packets),
                 "sustained room pause does not truncate the independent local held note");

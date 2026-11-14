@@ -22,7 +22,7 @@ version code 2). This adds the localization follow-up to the first preview and c
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
 | Handoff | Architecture, device/UI/localization guides, English screenshots and future iOS gap record; firmware, credentials, signing and private evidence excluded |
 
-## Current verification
+## Published preview verification
 
 - 325 JVM contracts pass, including Gradle `:core:check`; module/window/hardware/attribution boundaries and 617-entry localization checks pass.
 - Go vet/test and Gradle Release pass. Public APK contains arm64-v8a+x86_64 and only the public native payload.
@@ -32,6 +32,38 @@ version code 2). This adds the localization follow-up to the first preview and c
 - [Remote CI for Preview 2](https://github.com/openduo/pocket-android/actions/runs/43609534160) passes, including host contracts, source/localization checks, Go checks and the dual-ABI APK build. Localization checks cover all 117 production Java sources, direct untranslated English labels, native resources and E2 array read-error translation. The signed release is build/contract-checked; audio/window smoke evidence remains attached to the first candidate. Published APK/checksum asset SHA-256 values match the local release.
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
+
+## Current ownership decomposition and stopping point
+
+The follow-up moves draft/quote/attachments and edit acknowledgement into `:core/Composer`,
+bounded history pagination into `:core/HistoryPager`, live generations/queues/final controls into
+`:core/RoomLink`, and cancellable upload/download jobs into `:core/AttachmentTransfers`.
+Android `AttachmentStore` supplies only file-storage operations. `:app/TailnetSession`,
+`:app/Microphone` and `:app/RoomPlayback` own authorization, capture and output lifetimes.
+`ConversationComposer` separates editor/IME/attachment state from the conversation feed.
+The owners share the controller's state executor; extracted state is not duplicated in the controller.
+
+This decomposition stops after an ownership audit of the remaining controller and larger classes.
+Pairing/Try/credential transitions, database admission, audio focus, permissions and foreground-service
+ordering remain application coordination. Existing feature owners, transactional SQLite and keyed
+feed rendering retain their cohesive boundaries. No new module, runtime container or broad forwarding
+interface was introduced. See the [owner table and stopping decisions](architecture.md#stopping-point-and-ownership-audit).
+
+The final lightweight JVM check passes 2,615 assertions, including 38 new deterministic assertions
+for draft/import admission, bounded history and its late bootstrap, live generations/final controls,
+and per-attachment cancellation/result admission. Generic Debug and same-package local E2 Release
+builds pass. Source/localization checks pass across 143 production Java sources and 646 catalog
+entries; the generic dual-ABI APK contains only the public native payload.
+
+The final installed original-package E2 build passes 24 short coordination assertions: prepared
+Try-only file import/upload/download, editor-to-draft acknowledgement, text/prepared voice sends,
+silent native playback/drain/cancellation, live reconnect, and a brief real capture cancelled without
+sending its recording. The original room returns Online with pairing and composer retained; the probe
+restores reply-audio, mute and input preferences. No actual room test content, human turn, notification,
+camera, rotation or long-background matrix was run. The explicit runner is
+`POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh`
+with `ANDROID_SERIAL` selecting the intended device and matching local build/classpath.
+The published Preview 2 APK remains unchanged; this is source and local legacy-build evidence.
 
 ## Outbox and read-aloud ownership refactor
 
@@ -59,9 +91,9 @@ published Preview 2 APK is unchanged. The explicit short runner is
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 scripts/test-device.sh`
 with `ANDROID_SERIAL` set to the intended device and a matching local build/classpath.
 
-Connection/reconnect, draft/attachment/history orchestration and ambient audio coordination
-remain controller responsibilities. Further extraction should follow those owners; the controller
-is not declared fully decomposed.
+At that checkpoint, connection/reconnect, draft/attachment/history and ambient audio still lived
+in the controller. The current follow-up above extracts their independently owned state/resources
+and records why the remaining application ordering stays together.
 
 ## Foreground input refactor after Preview 2
 
@@ -162,7 +194,7 @@ unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
 | Deferred: Sight | Explicitly deferred by the user on 2026-11-15; implementation retained, actual negotiation/uplink unaccepted | Resume only at the user's request with a media-capable room service; no automatic release polling or service changes |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and actual remote/key delivery remain open; shared foreground no-touch navigation is implemented | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
-| Maintenance | Connection/reconnect, draft/attachment/history orchestration and ambient audio coordination remain in the Android controller; persistence/system services remain in app | VoiceNotes, OutboxSender and SpeechReader now own their respective state/resources; continue along actual ownership within the existing boundaries |
+| Maintenance | Ownership decomposition has reached the documented stopping point; application ordering and Android persistence/system services remain in app | Extend the existing owner when appropriate; extract again only for independently owned state/resources or demonstrated coupling, rather than file length |
 | Passport physical acceptance | Protocol 1.3 fixed vectors and E2 ART pass; actual BLE pairing/CCCD, physical press/reply/alert and background wake remain open | Use an explicitly available accessory without taking E2Studio's connection; see [protocol evidence](passport.md) |
 | Deferred | Android push registration/relay/receiver, AES-GCM/HMAC/ledger/upstream vectors | Explicitly resume those areas in a later milestone |
 | Old-package migration | No cross-package database/AndroidKeyStore migration | Use the explicit same-package/same-signature build to retain the original node and data; the separate public package requires its own login/pairing |

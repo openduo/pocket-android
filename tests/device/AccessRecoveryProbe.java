@@ -58,7 +58,32 @@ final class AccessRecoveryProbe {
     }
 
     private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
-        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+        return (dev.openduo.pocket.audio.SpeechReader) playbackField("reader");
+    }
+
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
+    private Object tailnetField(String name) throws Exception {
+        Object owner = field("tailnet");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
+    private void tailnetField(String name, Object value) throws Exception {
+        Object owner = field("tailnet");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        member.set(owner, value);
     }
 
     private Object field(String name) throws Exception {
@@ -82,11 +107,8 @@ final class AccessRecoveryProbe {
     private void status(String value) throws Exception {
         onState(
                 () -> {
-                    Method method =
-                            PocketController.class.getDeclaredMethod(
-                                    "networkStatus", JSONObject.class);
-                    method.setAccessible(true);
-                    method.invoke(controller, Json.object("backend_state", value));
+                    ((dev.openduo.pocket.net.TailnetSession) field("tailnet"))
+                            .status(Json.object("backend_state", value));
                     return null;
                 });
     }
@@ -244,7 +266,7 @@ final class AccessRecoveryProbe {
         RoomRepository originalRepo = onState(() -> (RoomRepository) field("repo"));
         Object originalRoom = onState(() -> field("roomState"));
         String originalTailnet = initial.tailnetState;
-        String originalAuth = (String) field("authUrl");
+        String originalAuth = (String) tailnetField("authUrl");
         Context isolated =
                 new ContextWrapper(context) {
                     @Override
@@ -272,13 +294,13 @@ final class AccessRecoveryProbe {
             body = packets.toByteArray();
             onState(
                     () -> {
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         original.closeLive();
                         field("settings", settings);
                         field("channel", source);
                         field("repo", repository);
                         field("roomState", null);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         invoke("reload");
@@ -313,18 +335,18 @@ final class AccessRecoveryProbe {
                     () -> {
                         invoke("finishSend");
                         invoke("retireRoomAccess");
-                        field("tailnetActionEpoch", (Long) field("tailnetActionEpoch") + 1);
-                        field("tailnetLogoutRequested", false);
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        tailnetField("actionEpoch", (Long) tailnetField("actionEpoch") + 1);
+                        tailnetField("logoutRequested", false);
+                        link().invalidate();
                         source.closeLive();
                         repository.clear();
                         field("settings", originalSettings);
                         field("channel", original);
                         field("repo", originalRepo);
                         field("roomState", originalRoom);
-                        field("tailnetState", originalTailnet);
-                        field("authUrl", originalAuth);
-                        field("opening", false);
+                        tailnetField("backend", originalTailnet);
+                        tailnetField("authUrl", originalAuth);
+                        link().ready();
                         field("connection", PocketController.Connection.OFFLINE);
                         field("retryNotBefore", 0L);
                         field("lastError", initial.lastError);
@@ -611,8 +633,8 @@ final class AccessRecoveryProbe {
             // real node.
             onState(
                     () -> {
-                        field("tailnetActionEpoch", (Long) field("tailnetActionEpoch") + 1);
-                        field("tailnetLogoutRequested", false);
+                        tailnetField("actionEpoch", (Long) tailnetField("actionEpoch") + 1);
+                        tailnetField("logoutRequested", false);
                         return null;
                     });
             releaseWorkers.countDown();
@@ -767,7 +789,7 @@ final class AccessRecoveryProbe {
                             "qa",
                             "room",
                             "qa-renewed-" + UUID.randomUUID());
-                    field("tailnetState", "Running");
+                    tailnetField("backend", "Running");
                     field("retryNotBefore", 0L);
                     invoke("connect");
                     return null;
@@ -801,11 +823,12 @@ final class AccessRecoveryProbe {
                         Attachment.FAILED);
         onState(
                 () -> {
-                    @SuppressWarnings("unchecked")
-                    List<Attachment> chips = (List<Attachment>) field("chips");
-                    chips.clear();
-                    chips.add(attachment);
-                    field("draft", "Prepared retained attachment draft");
+                    ((Composer) field("composer"))
+                            .imported(
+                                    new Composer.Content(
+                                            "Prepared retained attachment draft",
+                                            "",
+                                            Collections.singletonList(attachment)));
                     invoke("saveDraft");
                     invoke("publish");
                     return null;
@@ -964,11 +987,10 @@ final class AccessRecoveryProbe {
         offlineFiles(settings);
         onState(
                 () -> {
-                    @SuppressWarnings("unchecked")
-                    List<Attachment> chips = (List<Attachment>) field("chips");
-                    for (Attachment value : chips) new File(value.localPath).delete();
-                    chips.clear();
-                    field("draft", "");
+                    Composer composer = (Composer) field("composer");
+                    for (Attachment value : composer.content().attachments)
+                        new File(value.localPath).delete();
+                    composer.reset();
                     invoke("saveDraft");
                     invoke("publish");
                     return null;

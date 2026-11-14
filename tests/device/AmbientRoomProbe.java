@@ -54,6 +54,17 @@ final class AmbientRoomProbe {
         fixtureName = brain ? "ambient-brain-20ms" : "ambient-room-20ms";
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -117,8 +128,7 @@ final class AmbientRoomProbe {
 
     private boolean closing() {
         try {
-            return onState(
-                    () -> ((Integer) field("closingEpoch")).equals(field("connectionEpoch")));
+            return onState(() -> link().closing());
         } catch (Exception failure) {
             throw new RuntimeException(failure);
         }
@@ -353,7 +363,8 @@ final class AmbientRoomProbe {
                 onState(
                         () -> {
                             invoke("ensurePlayer");
-                            ((dev.openduo.pocket.audio.SpeechPlayer) field("player")).silent(true);
+                            ((dev.openduo.pocket.audio.SpeechPlayer) playbackField("player"))
+                                    .silent(true);
                             return null;
                         });
                 await(

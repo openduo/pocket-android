@@ -1,7 +1,21 @@
 # Pocket Android engineering rules
 
-Current milestone (2026-11-15): continue splitting application orchestration by state/resource
-ownership. Extract outbox HTTP/retry/cancellation from PocketController into pure core ownership;
+Current milestone (2026-11-15): continue splitting by actual ownership until further splitting
+would add forwarding, duplicate state or conceal necessary coordination. Composer/HistoryPager own
+pure composition/pagination, RoomLink owns live generations/queues/final controls, TailnetSession
+owns authorization intent, AttachmentTransfers owns file-transfer jobs, Microphone and RoomPlayback
+own Android audio lifetimes, and ConversationComposer owns editor-only View state. Keep policy and
+transaction ordering in PocketController. Audit remaining owners in docs/architecture.md; do not
+split cohesive reducers, transactional SQLite or page renderers solely for line count.
+The ownership audit is complete. The final generic Debug and local original-package E2 Release
+builds pass, alongside 2,615 JVM assertions (38 new), source/localization checks (646 entries,
+143 production Java sources) and the final E2's 24-assertion Try-only coordination check.
+That check includes brief real capture cancelled without send, prepared attachment transfers,
+silent playback, editor acknowledgement and reconnect. The original room returns Online with
+pairing/composer retained. The local legacy APK is installed; published Preview 2 is unchanged.
+These checks need not be repeated for documentation-only changes.
+
+Previous ownership milestone: extract outbox HTTP/retry/cancellation into pure core ownership;
 keep SQLite admission, foreground-service gating and room effects in app. Preserve cancellation
 before dispatch, immutable idempotent bodies, monotonic voice/Passport budgets and live-first
 settlement. Read-aloud stream identity/framing/cancellation belong to SpeechReader; its worker

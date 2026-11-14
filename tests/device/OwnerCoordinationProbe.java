@@ -19,11 +19,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.*;
 
-/** Short Try-only wiring check: retained sends and silent real decoding/playback, no capture. */
+/** Short Try-only wiring check, with optional explicitly enabled capture cancelled before send. */
 final class OwnerCoordinationProbe {
     private final Probe probe;
     private PocketController controller;
@@ -32,6 +35,13 @@ final class OwnerCoordinationProbe {
 
     OwnerCoordinationProbe(Probe probe) {
         this.probe = probe;
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
     }
 
     private Object field(String name) throws Exception {
@@ -69,7 +79,7 @@ final class OwnerCoordinationProbe {
                 && controller.snapshot().outbox.stream().noneMatch(item -> item.id.equals(id));
     }
 
-    String run(Context context) throws Exception {
+    String run(Context context, boolean capture) throws Exception {
         Activity screen =
                 probe.startActivitySync(
                         new Intent(context, MainActivity.class)
@@ -110,7 +120,112 @@ final class OwnerCoordinationProbe {
                     5000,
                     "outgoing work is isolated in Try");
 
-            controller.draft("Owner coordination: local Try only");
+            File shared = new File(context.getCacheDir(), "shared");
+            shared.mkdirs();
+            File prepared = new File(shared, "owner-coordination.txt");
+            byte[] fixture = "Prepared attachment; local Try only".getBytes(StandardCharsets.UTF_8);
+            Files.write(prepared.toPath(), fixture);
+            CountDownLatch imported = new CountDownLatch(1);
+            controller.importContent(
+                    UUID.randomUUID().toString(),
+                    "",
+                    Collections.singletonList(
+                            dev.openduo.pocket.app.PocketFiles.uri(
+                                    context, prepared, prepared.getName(), "text/plain")),
+                    imported::countDown);
+            check(
+                    imported.await(5, TimeUnit.SECONDS),
+                    "prepared import completes its durable handoff");
+            await(
+                    () ->
+                            controller.snapshot().chips.size() == 1
+                                    && controller.snapshot().chips.get(0).state
+                                            == Attachment.UPLOADED,
+                    5000,
+                    "composer attachment reaches the owned upload worker");
+            Attachment uploaded = controller.snapshot().chips.get(0);
+            Attachment remote =
+                    new Attachment(
+                            uploaded.name,
+                            uploaded.mime,
+                            "",
+                            uploaded.sha256,
+                            uploaded.remotePath,
+                            uploaded.size,
+                            Attachment.UPLOADED);
+            CountDownLatch loaded = new CountDownLatch(1);
+            File[] downloaded = {null};
+            controller.previewAttachment(
+                    remote,
+                    new PocketController.FileResult() {
+                        public void ready(File file, String mime) {
+                            downloaded[0] = file;
+                            loaded.countDown();
+                        }
+
+                        public void failed() {
+                            loaded.countDown();
+                        }
+                    });
+            check(
+                    loaded.await(5, TimeUnit.SECONDS)
+                            && downloaded[0] != null
+                            && Arrays.equals(Files.readAllBytes(downloaded[0].toPath()), fixture),
+                    "owned download verifies and admits the prepared attachment bytes");
+            controller.removeAttachment(uploaded.localPath);
+            await(
+                    () -> controller.snapshot().chips.isEmpty(),
+                    1500,
+                    "removing an attachment updates the composer without a stale upload result");
+            prepared.delete();
+
+            controller.loadOlder();
+            await(
+                    () -> !controller.snapshot().olderLoading,
+                    2000,
+                    "history paging leaves no stuck request");
+
+            if (capture) {
+                controller.beginHold("owner-check");
+                await(
+                        () ->
+                                controller.snapshot().holdLive
+                                        && controller.snapshot().holdDurationMs >= 400,
+                        5000,
+                        "microphone owner reaches ready and supplies real captured packets");
+                controller.releaseHold("owner-check", true);
+                await(
+                        () ->
+                                !controller.snapshot().holdRecording
+                                        && !dev.openduo.pocket.audio.input.RecordingInput
+                                                .isActive(),
+                        5000,
+                        "cancel releases the actual microphone without sending its recording");
+            }
+
+            await(
+                    () -> {
+                        boolean[] visible = {false};
+                        probe.runOnMainSync(
+                                () -> {
+                                    android.widget.EditText input =
+                                            screen.findViewById(dev.openduo.pocket.R.id.composer);
+                                    visible[0] = input != null && input.isShown();
+                                });
+                        return visible[0];
+                    },
+                    2000,
+                    "extracted conversation editor is visible in text mode");
+            probe.runOnMainSync(
+                    () -> {
+                        android.widget.EditText input =
+                                screen.findViewById(dev.openduo.pocket.R.id.composer);
+                        input.setText("Owner coordination: local Try only");
+                    });
+            await(
+                    () -> controller.snapshot().draft.equals("Owner coordination: local Try only"),
+                    2000,
+                    "native editor changes reach the owned composer through edit acknowledgement");
             controller.sendDraft();
             await(
                     () ->
@@ -189,8 +304,8 @@ final class OwnerCoordinationProbe {
                     () ->
                             onState(
                                     () ->
-                                            !((SpeechReader) field("speechReader")).inFlight()
-                                                    && ((SpeechPlayer) field("player"))
+                                            !((SpeechReader) playbackField("reader")).inFlight()
+                                                    && ((SpeechPlayer) playbackField("player"))
                                                             .hasPending()),
                     5000,
                     "HTTP completion preserves reading identity until real silent playback drains");
@@ -213,12 +328,28 @@ final class OwnerCoordinationProbe {
                             controller.snapshot().readingId.isEmpty()
                                     && onState(
                                             () ->
-                                                    !((SpeechReader) field("speechReader"))
+                                                    !((SpeechReader) playbackField("reader"))
                                                                     .inFlight()
-                                                            && !((SpeechPlayer) field("player"))
+                                                            && !((SpeechPlayer)
+                                                                            playbackField("player"))
                                                                     .hasPending()),
                     2000,
                     "shared stop action retires streaming and queued output together");
+            int before =
+                    onState(() -> ((dev.openduo.pocket.net.RoomLink) field("liveLink")).epoch());
+            controller.checkCompatibility();
+            await(
+                    () ->
+                            onState(
+                                                    () ->
+                                                            ((dev.openduo.pocket.net.RoomLink)
+                                                                            field("liveLink"))
+                                                                    .epoch())
+                                            > before
+                                    && controller.snapshot().connection
+                                            == PocketController.Connection.ONLINE,
+                    3000,
+                    "Try reconnect admits a new live generation and returns Online");
         } finally {
             controller.cancelOrStop();
             onState(
@@ -249,6 +380,8 @@ final class OwnerCoordinationProbe {
         return "PASS "
                 + assertions
                 + " bounded owner-coordination assertions; Try-only prepared sends;"
-                + " silent native decode/playback; no capture; original pairing Online";
+                + " silent native decode/playback; "
+                + (capture ? "bounded cancelled capture" : "no capture")
+                + "; original pairing Online";
     }
 }

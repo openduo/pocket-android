@@ -85,10 +85,13 @@ final class AudioBurstProbe {
         FutureTask<Void> stop =
                 new FutureTask<>(
                         () -> {
-                            Field player = PocketController.class.getDeclaredField("player");
+                            Field playback = PocketController.class.getDeclaredField("playback");
+                            playback.setAccessible(true);
+                            Object owner = playback.get(controller);
+                            Field player = owner.getClass().getDeclaredField("player");
                             player.setAccessible(true);
                             dev.openduo.pocket.audio.SpeechPlayer output =
-                                    (dev.openduo.pocket.audio.SpeechPlayer) player.get(controller);
+                                    (dev.openduo.pocket.audio.SpeechPlayer) player.get(owner);
                             decoded.set(output != null && output.hasPending());
                             invoke("stopPlayback");
                             return null;

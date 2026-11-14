@@ -46,6 +46,10 @@ final class BackgroundVoiceProbe {
         this.probe = probe;
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -223,12 +227,12 @@ final class BackgroundVoiceProbe {
             body = packets.toByteArray();
             onState(
                     () -> {
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         original.closeLive();
                         field("repo", repository);
                         field("channel", source);
                         field("roomState", null);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         invoke("reload");
@@ -393,7 +397,7 @@ final class BackgroundVoiceProbe {
                             // Cleanup also supports reproducing the regression on the previous APK.
                         }
                         invoke("refreshService");
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         source.closeLive();
                         repository.clear();
                         repository.close();
@@ -401,7 +405,7 @@ final class BackgroundVoiceProbe {
                         field("channel", original);
                         field("roomState", originalState);
                         field("lastError", originalError);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         invoke("restoreDraft");

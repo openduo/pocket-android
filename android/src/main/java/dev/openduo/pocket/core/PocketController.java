@@ -12,15 +12,14 @@ import android.os.Handler;
 import android.os.Looper;
 
 import dev.openduo.pocket.app.PocketSessionService;
-import dev.openduo.pocket.audio.CaptureSession;
-import dev.openduo.pocket.audio.OpusDecoder;
-import dev.openduo.pocket.audio.ReadAloudOutput;
-import dev.openduo.pocket.audio.SpeechPlayer;
-import dev.openduo.pocket.audio.SpeechReader;
+import dev.openduo.pocket.audio.Microphone;
+import dev.openduo.pocket.audio.RoomPlayback;
 import dev.openduo.pocket.net.ChannelClient;
 import dev.openduo.pocket.net.ChannelConnection;
 import dev.openduo.pocket.net.GoTransport;
 import dev.openduo.pocket.net.RoomAccess;
+import dev.openduo.pocket.net.RoomLink;
+import dev.openduo.pocket.net.TailnetSession;
 import dev.openduo.pocket.passport.PassportPolicy;
 import dev.openduo.pocket.trymode.TryChannel;
 
@@ -69,11 +68,7 @@ public final class PocketController {
         void changed();
     }
 
-    public interface FileResult {
-        void ready(File file, String mime);
-
-        default void failed() {}
-    }
+    public interface FileResult extends AttachmentTransfers.Result {}
 
     public static final class Snapshot {
         public final Connection connection;
@@ -143,7 +138,8 @@ public final class PocketController {
             passport = c.passport.snapshot();
             rows = Collections.unmodifiableList(new ArrayList<>(c.cachedRows));
             outbox = Collections.unmodifiableList(new ArrayList<>(c.pending));
-            chips = Collections.unmodifiableList(new ArrayList<>(c.chips));
+            Composer.Content composition = c.composer.content();
+            chips = composition.attachments;
             imports = c.imports.progress();
             configIssues = c.roomState == null ? Collections.emptyList() : c.roomState.configIssues;
             traces = c.turn.traces(rows);
@@ -153,7 +149,9 @@ public final class PocketController {
             sight = camera.status;
             sightRefusal = camera.refusal;
             lastHeard = c.lastHeard;
-            audioRoute = (c.capture == null ? "" : c.capture.route() + " → ") + c.outputRoute;
+            audioRoute =
+                    (c.microphone.active() ? c.microphone.route() + " → " : "")
+                            + c.playback.route();
             cameraOffered = camera.offered;
             cameraStatusVisible = camera.statusVisible;
             cameraOn = camera.on;
@@ -164,16 +162,16 @@ public final class PocketController {
             heatLevel = c.heatLevel;
             roomName = c.trying ? "体验房间" : c.settings.roomName();
             lastError = c.lastError;
-            draft = c.draft;
+            draft = composition.text;
             String identity = c.repo.roomIdentity();
             importTarget = identity.equals("unpaired") ? "" : identity;
-            draftGeneration = c.draftGeneration;
-            draftEditAck = c.draftEditAck;
-            quote = c.quote;
-            tailnetState = c.tailnetState;
-            authUrl = c.authUrl;
-            olderLabel = c.olderLabel;
-            readingId = c.speechReader.id();
+            draftGeneration = c.composer.generation();
+            draftEditAck = c.composer.editAck();
+            quote = composition.quote;
+            tailnetState = c.tailnet.backend();
+            authUrl = c.tailnet.authUrl();
+            olderLabel = c.history.label();
+            readingId = c.playback.readingId();
             voiceInput = c.settings.voiceInput();
             voiceAvailable = c.voiceAvailable();
             daemonAvailable = c.roomState == null || c.roomState.daemonOk;
@@ -182,12 +180,12 @@ public final class PocketController {
             holdLive = c.voiceNotes.live();
             holdOwner = c.voiceNotes.owner();
             trying = c.trying;
-            olderLoading = c.olderRequestEpoch == c.connectionEpoch;
+            olderLoading = c.history.loading();
             uploadingVoice = c.uploadForeground;
             ambientActive = c.ambientWanted;
             accessoryActive = PassportPolicy.ENABLED && !c.trying && c.passport.backgroundEnabled();
             pressMuted = c.ambientInput.pressMuted();
-            echoCancellation = c.capture != null && c.capture.echoCancellation();
+            echoCancellation = c.microphone.echoCancellation();
             latencyMs = c.latencyMs;
             cursor = c.repo.cursor();
             holdDurationMs = c.voiceNotes.packets() * 20L;
@@ -233,37 +231,21 @@ public final class PocketController {
     private TryChannel tryChannel;
     private final dev.openduo.pocket.audio.AudioFocus audioFocus;
     private final dev.openduo.pocket.audio.AudioDevices audioDevices;
-    private String outputRoute = "系统音频输出";
     private boolean audioSuspended;
     private final ScheduledExecutorService state =
             Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "DuoDuo Pocket state"));
     private final ExecutorService network =
             Executors.newFixedThreadPool(3, r -> new Thread(r, "DuoDuo Pocket network"));
     private final OutboxSender outboxSender = new OutboxSender(state);
-    private final SpeechReader speechReader = new SpeechReader(state, network);
-    private final ExecutorService liveConnector =
-            new java.util.concurrent.ThreadPoolExecutor(
-                    1,
-                    1,
-                    0,
-                    TimeUnit.MILLISECONDS,
-                    new java.util.concurrent.ArrayBlockingQueue<>(1),
-                    r -> new Thread(r, "DuoDuo Pocket live connector"),
-                    new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
-    private final java.util.concurrent.ThreadPoolExecutor socketWriter =
-            new java.util.concurrent.ThreadPoolExecutor(
-                    1,
-                    1,
-                    0,
-                    TimeUnit.MILLISECONDS,
-                    new java.util.concurrent.ArrayBlockingQueue<>(128),
-                    r -> new Thread(r, "DuoDuo Pocket socket writer"));
+    private final RoomPlayback playback;
+    private final RoomLink liveLink;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final TurnState turn = new TurnState();
     private final SessionViewer viewer = new SessionViewer();
     private final dev.openduo.pocket.passport.PassportCoordinator passport;
-    private final List<Attachment> chips = new ArrayList<>();
+    private final Composer composer = new Composer();
+    private final HistoryPager history;
     private List<Message> cachedRows = new ArrayList<>();
     private final List<Message> liveNotes = new ArrayList<>();
     private List<Outbox.Item> pending = new ArrayList<>();
@@ -271,42 +253,23 @@ public final class PocketController {
     private Connection connection = Connection.NEEDS_SETUP;
     private UpgradeNotice upgrade = UpgradeNotice.NONE;
     private Ambient ambient = Ambient.OFF;
-    private String lastError = "",
-            draft = "",
-            quote = "",
-            tailnetState = "NotStarted",
-            authUrl = "",
-            olderLabel = "查看更早的记录";
-    private String oldestDate = "";
+    private String lastError = "";
     private final AmbientInput ambientInput = new AmbientInput();
-    private final AmbientOutput ambientOutput = new AmbientOutput();
     private final RedialBackoff redial = new RedialBackoff();
     private long retryNotBefore;
-    private int latencyMs, visibleLimit = 200;
+    private int latencyMs;
     private boolean ambientLinkPaused;
     private String ambientFailure = "";
-    private volatile int connectionEpoch;
     private int roomStateRequestEpoch = -1;
-    private volatile int closingEpoch = -1, closingSourceEpoch = -1;
-    private volatile long tailnetActionEpoch;
-    private boolean tailnetLogoutRequested;
+    private final TailnetSession tailnet;
     private boolean restoreOutboxBeforeConnect;
     private long revision;
-    private long draftGeneration, draftEditAck;
-    private final java.util.concurrent.atomic.AtomicLong draftEdits =
-            new java.util.concurrent.atomic.AtomicLong();
-    private boolean foreground, trying, opening, ambientWanted, ambientMuted;
-    private boolean captureStopping;
-    private int olderRequestEpoch = -1;
+    private boolean foreground, trying, ambientWanted, ambientMuted;
     private final java.util.concurrent.atomic.AtomicBoolean publishing =
             new java.util.concurrent.atomic.AtomicBoolean();
     private ChannelClient.State roomState;
     private Boolean liveCerebellumOk;
-    private volatile CaptureSession capture;
-    private int captureEpoch;
-    private OpusDecoder decoder;
-    private SpeechPlayer player;
-    private boolean playerActive;
+    private final Microphone microphone;
     private final dev.openduo.pocket.sight.SightSession sightSession;
     private boolean legacyMedia;
     private String lastHeard = "";
@@ -314,6 +277,7 @@ public final class PocketController {
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
+    private final AttachmentTransfers attachmentTransfers;
     private final VoiceNotes voiceNotes;
     private final ImportCoordinator imports;
     private final dev.openduo.pocket.sight.DeviceHeat deviceHeat;
@@ -323,10 +287,17 @@ public final class PocketController {
         this.context = context;
         settings = new Settings(context);
         attachmentStore = new AttachmentStore(context);
+        attachmentTransfers =
+                new AttachmentTransfers(attachmentStore, state, main::post, this::notice);
         arrivals = new dev.openduo.pocket.location.ArrivalMonitor(context);
         arrivals.refresh();
         log = dev.openduo.pocket.diagnostics.AppLog.get(context);
         log.event("launch", "api=" + android.os.Build.VERSION.SDK_INT);
+        liveLink =
+                new RoomLink(
+                        state,
+                        (epoch, reason) -> linkClosed(reason, epoch),
+                        event -> log.event("live", event));
         voiceNotes =
                 new VoiceNotes(
                         new VoiceInbox(new File(context.getFilesDir(), "voice")),
@@ -348,6 +319,34 @@ public final class PocketController {
         dev.openduo.pocket.app.BackgroundSync.schedule(context);
         realRepo = new RoomRepository(context);
         repo = realRepo;
+        history =
+                new HistoryPager(
+                        state,
+                        network,
+                        new HistoryPager.Store() {
+                            public int count() {
+                                return repo.countRows();
+                            }
+
+                            public void admit(List<Message> rows, boolean today) {
+                                admitRows(rows, repo.cursor());
+                                if (today) repo.metadata("history_loaded", "1");
+                            }
+
+                            public String oldestDay() {
+                                return cachedRows.isEmpty() ? "" : Json.day(cachedRows.get(0).at);
+                            }
+                        },
+                        new HistoryPager.Events() {
+                            public void changed() {
+                                reload();
+                                publish();
+                            }
+
+                            public void notice(String message) {
+                                PocketController.this.notice(message);
+                            }
+                        });
         imports =
                 new ImportCoordinator(
                         context,
@@ -382,6 +381,22 @@ public final class PocketController {
                         });
         transport = new GoTransport(context);
         channel = transport;
+        tailnet =
+                new TailnetSession(
+                        transport,
+                        state,
+                        network,
+                        new TailnetSession.Listener() {
+                            public void changed() {
+                                networkStatus();
+                            }
+
+                            public void failed(String reason) {
+                                if (PassportPolicy.ENABLED) passport.connectionFailed();
+                                notice(reason);
+                            }
+                        },
+                        status -> log.event("network", status));
         networkPath =
                 new dev.openduo.pocket.net.NetworkPath(
                         context, () -> state.execute(this::networkPathChanged));
@@ -392,7 +407,7 @@ public final class PocketController {
                         Executors.newSingleThreadExecutor(
                                 r -> new Thread(r, "DuoDuo Pocket camera close")),
                         () -> channel.isOpen(),
-                        () -> socketWriter.getQueue().size() > 8,
+                        liveLink::backpressured,
                         new dev.openduo.pocket.sight.SightSession.Listener() {
                             public void changed() {
                                 publish();
@@ -404,6 +419,26 @@ public final class PocketController {
 
                             public void binary(byte[] frame) {
                                 sendBinary(frame);
+                            }
+                        });
+        playback =
+                new RoomPlayback(
+                        state,
+                        network,
+                        this::reportsPlayback,
+                        new RoomPlayback.Listener() {
+                            public void changed() {
+                                releaseAudioIfIdle();
+                                publish();
+                            }
+
+                            public void report(JSONObject frame) {
+                                send(frame);
+                            }
+
+                            public void failed(String reason) {
+                                releaseAudioIfIdle();
+                                notice(reason);
                             }
                         });
         audioFocus =
@@ -433,6 +468,33 @@ public final class PocketController {
                                 }
                             }
                         });
+        microphone =
+                new Microphone(
+                        context,
+                        state,
+                        new Microphone.Listener() {
+                            public void ready() {
+                                voiceNotes.ready();
+                                publish();
+                            }
+
+                            public void packet(byte[] bytes) {
+                                captured(bytes);
+                            }
+
+                            public void stopped(String reason, boolean intentional) {
+                                if (!reason.isEmpty() && !intentional) {
+                                    releaseOnState(false, true);
+                                    if (ambientWanted) {
+                                        ambient = Ambient.FAILED;
+                                        ambientWanted = false;
+                                        refreshService();
+                                    }
+                                    notice(reason);
+                                } else if (voiceNotes.active() || ambientWanted) startCapture();
+                                releaseAudioIfIdle();
+                            }
+                        });
         audioDevices =
                 new dev.openduo.pocket.audio.AudioDevices(
                         context,
@@ -440,9 +502,7 @@ public final class PocketController {
                                 state.execute(
                                         () -> {
                                             log.event("audio", "route_change");
-                                            if (capture != null
-                                                    && capture.isStarted()
-                                                    && !captureStopping) {
+                                            if (microphone.started()) {
                                                 if (voiceNotes.active())
                                                     releaseOnState(false, true);
                                                 stopCapture();
@@ -514,7 +574,7 @@ public final class PocketController {
                     passport.room(repo.roomIdentity());
                     if (snapshot == null) {
                         cleanupTry();
-                        chips.clear();
+                        composer.reset();
                     }
                     restoreDraft();
                     imports.recover(true);
@@ -565,8 +625,7 @@ public final class PocketController {
     }
 
     public float level() {
-        CaptureSession current = capture;
-        return current == null ? 0 : current.level();
+        return microphone.level();
     }
 
     private boolean accessoryWaiting() {
@@ -605,41 +664,27 @@ public final class PocketController {
 
     /** Mirrors the upstream foreground/keepalive check without blocking the state executor. */
     private void verifyLiveOnState() {
-        if (opening) return;
+        if (liveLink.opening()) return;
         if (!channel.isOpen()) {
             connect();
             return;
         }
-        final int epoch = connectionEpoch;
-        final ChannelConnection target = channel;
-        liveConnector.execute(
-                () -> {
-                    if (epoch != connectionEpoch || target != channel) return;
-                    try {
-                        target.ping(3000);
-                        state.execute(
-                                () -> {
-                                    if (epoch == connectionEpoch && target == channel)
-                                        refreshRoomState(
-                                                epoch, target, client(), true, new RedialBackoff());
-                                });
-                    } catch (Exception failure) {
-                        state.execute(
-                                () -> {
-                                    if (epoch == connectionEpoch && target == channel)
-                                        linkClosed(
-                                                "Network path changed; live connection is stale",
-                                                epoch);
-                                });
-                    }
-                });
+        ChannelConnection target = channel;
+        liveLink.verify(
+                target,
+                () ->
+                        refreshRoomState(
+                                liveLink.epoch(), target, client(), true, new RedialBackoff()),
+                failure ->
+                        linkClosed(
+                                "Network path changed; live connection is stale",
+                                liveLink.epoch()));
     }
 
     public void stop() {
         state.execute(
                 () -> {
-                    connectionEpoch++;
-                    opening = false;
+                    liveLink.invalidate();
                     channel.closeLive();
                     stopCapture();
                     stopPlayback();
@@ -675,11 +720,10 @@ public final class PocketController {
                         if (!ambientWanted
                                 && pending.isEmpty()
                                 && !accessoryWaiting()
-                                && closingEpoch != connectionEpoch) {
+                                && !liveLink.closing()) {
                             stopPlayback();
                             channel.closeLive();
-                            connectionEpoch++;
-                            opening = false;
+                            liveLink.invalidate();
                             connection = Connection.OFFLINE;
                         }
                     } else if (trying || settings.isComplete()) {
@@ -689,7 +733,7 @@ public final class PocketController {
                         else startNetwork();
                         verifyLiveOnState();
                         resumeAmbientLink();
-                        if (ambientWanted && capture == null) startCapture();
+                        if (ambientWanted && !microphone.active()) startCapture();
                         updateSight();
                     }
                     if (value && connection == Connection.ONLINE) pump();
@@ -700,22 +744,19 @@ public final class PocketController {
     public void draft(String value) {
         state.execute(
                 () -> {
-                    draft = value == null ? "" : value;
-                    draftGeneration++;
+                    composer.text(value);
                     if (!trying) saveDraft();
                     publish();
                 });
     }
 
     public long editDraft(String before, String after, long generation) {
-        long ticket = draftEdits.incrementAndGet();
+        long ticket = composer.nextEdit();
         state.execute(
                 () -> {
-                    if (generation == draftGeneration) {
-                        draft = DraftText.edit(draft, before, after);
-                        if (!trying) saveDraft();
-                    }
-                    draftEditAck = Math.max(draftEditAck, ticket);
+                    boolean current = generation == composer.generation();
+                    composer.edit(before, after, generation, ticket);
+                    if (current && !trying) saveDraft();
                     publish();
                 });
         return ticket;
@@ -724,7 +765,7 @@ public final class PocketController {
     public void appendDraft(String text) {
         state.execute(
                 () -> {
-                    draft = DraftText.append(draft, text);
+                    composer.append(text);
                     settings.voiceInput(false);
                     saveDraft();
                     publish();
@@ -734,7 +775,7 @@ public final class PocketController {
     public void quote(String value) {
         state.execute(
                 () -> {
-                    quote = value == null ? "" : value;
+                    composer.quote(value);
                     settings.voiceInput(false);
                     saveDraft();
                     publish();
@@ -796,73 +837,39 @@ public final class PocketController {
         state.execute(
                 () -> {
                     if (voiceNotes.active()) notice("本次录音结束后切换麦克风");
-                    else if (capture != null) stopCapture();
+                    else if (microphone.active()) stopCapture();
                     publish();
                 });
     }
 
     private void startNetwork() {
-        startNetwork(false);
+        if (!trying) tailnet.start(settings.networkLog());
     }
 
     public void loginTailnet() {
         state.execute(
                 () -> {
                     if (trying) stopTryingOnState(false);
-                    tailnetLogoutRequested = false;
-                    tailnetActionEpoch++;
                     resetRedial("tailnet_login");
-                    startNetwork(true);
+                    tailnet.login(settings.networkLog());
                 });
     }
 
-    private void startNetwork(boolean interactive) {
-        if (trying) return;
-        long action = tailnetActionEpoch;
-        network.execute(
-                () -> {
-                    try {
-                        transport.start(
-                                settings.networkLog(),
-                                status -> state.execute(() -> networkStatus(status)));
-                        if (interactive)
-                            synchronized (transport) {
-                                if (action == tailnetActionEpoch) transport.login();
-                            }
-                    } catch (Exception failure) {
-                        state.execute(
-                                () -> {
-                                    if (interactive && action != tailnetActionEpoch) return;
-                                    tailnetState = "Failed";
-                                    lastError = "无法启动 Tailscale 网络节点";
-                                    if (PassportPolicy.ENABLED) passport.connectionFailed();
-                                    publish();
-                                });
-                    }
-                });
-    }
-
-    private void networkStatus(JSONObject status) {
-        String previousState = tailnetState;
-        tailnetState = status.optString("backend_state", "NotStarted");
-        if (tailnetLogoutRequested && tailnetState.equals("Running")) tailnetState = "NeedsLogin";
-        if (!previousState.equals(tailnetState)) log.event("network", tailnetState);
-        authUrl = tailnetLogoutRequested ? "" : status.optString("auth_url");
-        if (!trying && tailnetNeedsLogin() && !settings.unauthorized()) {
+    private void networkStatus() {
+        if (!trying && tailnet.needsLogin() && !settings.unauthorized()) {
             if (connection == Connection.ONLINE
                     || connection == Connection.CONNECTING
                     || outboxSender.active()
                     || ambientWanted
                     || voiceNotes.active()
-                    || !speechReader.id().isEmpty()
+                    || !playback.readingId().isEmpty()
                     || roomAccess != null)
                 pauseRoomAccess(
                         settings.isComplete() ? Connection.OFFLINE : Connection.NEEDS_SETUP);
             lastError = "请完成 Tailscale 授权";
         }
         if (!trying
-                && !tailnetLogoutRequested
-                && tailnetState.equals("Running")
+                && tailnet.running()
                 && settings.isComplete()
                 && !settings.unauthorized()
                 && !channel.isOpen()) connect();
@@ -870,44 +877,20 @@ public final class PocketController {
     }
 
     public void refreshTailnet() {
-        network.execute(transport::reportStatus);
+        tailnet.refresh();
     }
 
     public void logoutTailnet() {
         state.execute(
                 () -> {
                     if (trying) stopTryingOnState(false);
-                    tailnetLogoutRequested = true;
-                    long action = ++tailnetActionEpoch;
-                    tailnetState = "NeedsLogin";
-                    authUrl = "";
-                    pauseRoomAccess(
-                            settings.unauthorized()
-                                    ? Connection.NEEDS_PAIRING
-                                    : settings.isComplete()
-                                            ? Connection.OFFLINE
-                                            : Connection.NEEDS_SETUP);
-                    lastError = settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权";
-                    publish();
-                    network.execute(
-                            () -> {
-                                try {
-                                    synchronized (transport) {
-                                        if (action == tailnetActionEpoch) transport.logout();
-                                    }
-                                } catch (Exception failure) {
-                                    state.execute(
-                                            () -> {
-                                                if (action == tailnetActionEpoch) notice("退出网络失败");
-                                            });
-                                }
-                            });
+                    tailnet.logout();
                 });
     }
 
     public void networkLogging(boolean value) {
         settings.networkLog(value);
-        network.execute(() -> transport.logging(value));
+        tailnet.logging(value);
     }
 
     private ChannelClient client() {
@@ -959,13 +942,8 @@ public final class PocketController {
         roomAccess = null;
         if (retired == null) return;
         retired.close();
-        boolean changed = false;
-        for (int i = 0; i < chips.size(); i++)
-            if (chips.get(i).state == Attachment.UPLOADING) {
-                chips.set(i, chips.get(i).failed());
-                changed = true;
-            }
-        if (changed)
+        attachmentTransfers.cancelUploads();
+        if (composer.retireUploads())
             try {
                 saveDraft();
             } catch (RuntimeException storageFailure) {
@@ -974,11 +952,11 @@ public final class PocketController {
     }
 
     private boolean tailnetNeedsLogin() {
-        return tailnetLogoutRequested || tailnetState.startsWith("Needs");
+        return tailnet.needsLogin();
     }
 
     private void connect() {
-        if (opening
+        if (liveLink.opening()
                 || android.os.SystemClock.elapsedRealtime() < retryNotBefore
                 || channel.isOpen()
                 || pairingActive
@@ -986,7 +964,7 @@ public final class PocketController {
                         && (!settings.isComplete()
                                 || settings.unauthorized()
                                 || tailnetNeedsLogin())
-                || (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()))
+                || !foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting())
             return;
         if (restoreOutboxBeforeConnect) {
             try {
@@ -998,96 +976,60 @@ public final class PocketController {
                 return;
             }
         }
-        opening = true;
         ambientInput.socketOpened();
         sightSession.connectionReset();
         if (PassportPolicy.ENABLED && !trying) passport.beginReplay(repo.hasCursor());
-        int epoch = ++connectionEpoch;
         connection = Connection.CONNECTING;
         ChannelConnection target = channel;
         Endpoint endpoint = trying ? TryChannel.ENDPOINT : settings.endpoint();
         String token = trying ? TryChannel.TOKEN : settings.token();
-        final boolean demo = trying;
-        final String place = !demo && ambientWanted ? arrivals.pending() : "";
+        boolean demo = trying;
+        String place = !demo && ambientWanted ? arrivals.pending() : "";
         ChannelClient client = client();
-        long cursor = repo.cursor();
         boolean resume = repo.hasCursor();
         boolean audio =
                 !audioSuspended && (ambientWanted || foreground && settings.ambientOutput());
         liveCerebellumOk = null;
-        log.event("live_dial", "generation=" + epoch);
-        publish();
-        liveConnector.execute(
-                () -> {
-                    if (epoch != connectionEpoch || target != channel) return;
-                    try {
-                        target.live(
-                                endpoint,
-                                token,
-                                client.livePath(cursor, resume, audio, !legacyMedia),
-                                place.isEmpty()
-                                        ? Json.object()
-                                        : Json.object("X-Ambient-Place", place),
-                                new ChannelConnection.LiveListener() {
-                                    @Override
-                                    public void text(String text) {
-                                        state.execute(
-                                                () -> {
-                                                    if (epoch == connectionEpoch)
-                                                        frame(text, resume);
-                                                });
-                                    }
+        liveLink.open(
+                target,
+                endpoint,
+                token,
+                client.livePath(repo.cursor(), resume, audio, !legacyMedia),
+                place.isEmpty() ? Json.object() : Json.object("X-Ambient-Place", place),
+                new RoomLink.Listener() {
+                    public void text(String text) {
+                        frame(text, resume);
+                    }
 
-                                    @Override
-                                    public void binary(byte[] bytes) {
-                                        byte[] copy = bytes.clone();
-                                        state.execute(
-                                                () -> {
-                                                    if (epoch == connectionEpoch)
-                                                        PocketController.this.binary(copy);
-                                                });
-                                    }
+                    public void binary(byte[] bytes) {
+                        PocketController.this.binary(bytes);
+                    }
 
-                                    @Override
-                                    public void closed(String reason) {
-                                        state.execute(() -> linkClosed(reason, epoch));
-                                    }
-                                },
-                                // Keep only the retiring transport valid for its final control
-                                // write. Its listener still uses the original epoch above.
-                                () ->
-                                        epoch == connectionEpoch
-                                                || closingEpoch == connectionEpoch
-                                                        && epoch == closingSourceEpoch);
-                        state.execute(
-                                () -> {
-                                    if (epoch == connectionEpoch) {
-                                        opening = false;
-                                        if (!demo) arrivals.settle(place);
-                                        log.event("live", "opened");
-                                        refreshRoomState(
-                                                epoch, target, client, resume, new RedialBackoff());
-                                        refreshLatency(epoch, target, client);
-                                        surface();
-                                    }
-                                });
-                    } catch (Exception failure) {
-                        state.execute(
-                                () -> {
-                                    if (epoch != connectionEpoch) return;
-                                    opening = false;
-                                    if (!demo
-                                            && (failure instanceof ChannelClient.Failure
-                                                            && ((ChannelClient.Failure) failure)
-                                                                    .unauthorized()
-                                                    || String.valueOf(failure.getMessage())
-                                                            .startsWith(
-                                                                    "tsbridge: live unauthorized")))
-                                        unauthorized();
-                                    else linkClosed("暂时无法连接房间", epoch);
-                                });
+                    public void closed(String reason) {
+                        linkClosed(reason, liveLink.epoch());
+                    }
+
+                    public void opened() {
+                        int epoch = liveLink.epoch();
+                        if (!demo) arrivals.settle(place);
+                        log.event("live", "opened");
+                        refreshRoomState(epoch, target, client, resume, new RedialBackoff());
+                        refreshLatency(epoch, target, client);
+                        surface();
+                    }
+
+                    public void failed(Exception failure) {
+                        if (!demo
+                                && (failure instanceof ChannelClient.Failure
+                                                && ((ChannelClient.Failure) failure).unauthorized()
+                                        || String.valueOf(failure.getMessage())
+                                                .startsWith("tsbridge: live unauthorized")))
+                            unauthorized();
+                        else linkClosed("暂时无法连接房间", liveLink.epoch());
                     }
                 });
+        log.event("live_dial", "generation=" + liveLink.epoch());
+        publish();
     }
 
     /** Supplemental HTTP cannot hold the live dial or retire a working socket on a timeout. */
@@ -1101,12 +1043,12 @@ public final class PocketController {
         roomStateRequestEpoch = epoch;
         network.execute(
                 () -> {
-                    if (epoch != connectionEpoch || target != channel) return;
+                    if (epoch != liveLink.epoch() || target != channel) return;
                     try {
                         ChannelClient.State room = client.state();
                         state.execute(
                                 () -> {
-                                    if (epoch != connectionEpoch || target != channel) return;
+                                    if (epoch != liveLink.epoch() || target != channel) return;
                                     roomStateRequestEpoch = -1;
                                     roomState = room;
                                     if (!resumed || !repo.metadata("history_loaded").equals("1"))
@@ -1116,7 +1058,7 @@ public final class PocketController {
                     } catch (ChannelClient.Failure failure) {
                         state.execute(
                                 () -> {
-                                    if (epoch != connectionEpoch || target != channel) return;
+                                    if (epoch != liveLink.epoch() || target != channel) return;
                                     roomStateRequestEpoch = -1;
                                     if (failure.unauthorized() && !trying) {
                                         unauthorized();
@@ -1126,7 +1068,7 @@ public final class PocketController {
                                     log.event("room_state", "retry_ms=" + delay);
                                     state.schedule(
                                             () -> {
-                                                if (epoch == connectionEpoch
+                                                if (epoch == liveLink.epoch()
                                                         && target == channel
                                                         && target.isOpen())
                                                     refreshRoomState(
@@ -1142,12 +1084,12 @@ public final class PocketController {
     private void refreshLatency(int epoch, ChannelConnection target, ChannelClient client) {
         network.execute(
                 () -> {
-                    if (epoch != connectionEpoch || target != channel) return;
+                    if (epoch != liveLink.epoch() || target != channel) return;
                     try {
                         int latency = client.health();
                         state.execute(
                                 () -> {
-                                    if (epoch != connectionEpoch || target != channel) return;
+                                    if (epoch != liveLink.epoch() || target != channel) return;
                                     latencyMs = latency;
                                     publish();
                                 });
@@ -1163,59 +1105,20 @@ public final class PocketController {
 
     private void reconnect(JSONObject closingFrame) {
         sightSession.connectionReset();
-        int sourceEpoch = connectionEpoch;
-        int epoch = ++connectionEpoch;
-        closingEpoch = closingSourceEpoch = -1;
-        opening = false;
         ambientInput.socketOpened();
-        socketWriter.getQueue().clear();
         stopPlayback();
-        ChannelConnection target = channel;
-        if (closingFrame == null) {
-            target.closeLive();
-            connect();
-            return;
-        }
-        // Room controls outlive their socket. Give the final unmute one bounded writer turn
-        // before closing; never wait for a network write on the state owner.
-        closingEpoch = epoch;
-        closingSourceEpoch = sourceEpoch;
-        opening = true;
-        try {
-            socketWriter.execute(
-                    () -> {
-                        if (epoch != connectionEpoch) return;
-                        try {
-                            target.send(closingFrame);
-                        } catch (Exception failure) {
-                            log.event("live", "release_failed");
-                        } finally {
-                            state.execute(() -> finishReconnect(epoch, target));
-                        }
-                    });
-        } catch (java.util.concurrent.RejectedExecutionException failure) {
-            finishReconnect(epoch, target);
-        }
-    }
-
-    private void finishReconnect(int epoch, ChannelConnection target) {
-        if (epoch != connectionEpoch) return;
-        closingEpoch = closingSourceEpoch = -1;
-        opening = false;
-        target.closeLive();
-        connect();
+        liveLink.reconnect(channel, closingFrame, this::connect);
     }
 
     private void linkClosed(String reason, int epoch) {
-        if (epoch != connectionEpoch) return;
+        if (epoch != liveLink.epoch()) return;
         if (!trying && reason.contains("4401")) {
             unauthorized();
             return;
         }
         // A failed write or a full writer queue need not produce a reader-close callback.
         // Retire the whole generation before redialling, even if the bridge still holds it.
-        int retryEpoch = ++connectionEpoch;
-        socketWriter.getQueue().clear();
+        int retryEpoch = liveLink.invalidate();
         channel.closeLive();
         sightSession.connectionReset();
         if (PassportPolicy.ENABLED) {
@@ -1224,9 +1127,8 @@ public final class PocketController {
         }
         viewer.dropPending();
         connection = Connection.OFFLINE;
-        opening = false;
         ambientInput.socketOpened();
-        if (speechReader.id().isEmpty()) stopPlayback();
+        if (playback.readingId().isEmpty()) stopPlayback();
         if (ambientWanted && (reason.contains("PolicyViolation") || reason.contains("1008")))
             ambientFailure = "频道拒绝了这个房间";
         long delay = redial.failedMs();
@@ -1242,7 +1144,7 @@ public final class PocketController {
         publish();
         state.schedule(
                 () -> {
-                    if (retryEpoch == connectionEpoch) connect();
+                    if (retryEpoch == liveLink.epoch()) connect();
                 },
                 delay,
                 TimeUnit.MILLISECONDS);
@@ -1266,10 +1168,7 @@ public final class PocketController {
         retireRoomAccess();
         if (PassportPolicy.ENABLED) passport.connectionFailed();
         connection = next;
-        opening = false;
-        connectionEpoch++;
-        closingEpoch = closingSourceEpoch = -1;
-        socketWriter.getQueue().clear();
+        liveLink.invalidate();
         channel.closeLive();
         sightSession.connectionReset();
         viewer.dropPending();
@@ -1318,7 +1217,7 @@ public final class PocketController {
             } else if (type.equals("ready")) {
                 connection = Connection.ONLINE;
                 if (PassportPolicy.ENABLED && !trying) passport.online(true);
-                opening = false;
+                liveLink.ready();
                 resetRedial("ready");
                 upgrade = upgrade.afterReady(frame);
                 lastError = ambientFailure;
@@ -1331,7 +1230,7 @@ public final class PocketController {
                 if (foreground && sessionsAccess().canView && viewer.snapshot().watching)
                     send(viewer.watchFrame());
                 resumeAmbientLink();
-                if (ambientWanted && !audioSuspended && capture == null) startCapture();
+                if (ambientWanted && !audioSuspended && !microphone.active()) startCapture();
                 pump();
             } else if (type.equals("message")) {
                 lifecycle(frame);
@@ -1357,7 +1256,7 @@ public final class PocketController {
                     if (ambientInput.roomState().equals("unowned")) ambient = Ambient.DEAF;
                     else if (ambientInput.role().equals("peer")) ambient = Ambient.SEAT_TAKEN;
                     else if (ambientInput.helloSent() && ambientInput.role().equals("master"))
-                        ambient = playerActive ? Ambient.SPEAKING : Ambient.LISTENING;
+                        ambient = playback.active() ? Ambient.SPEAKING : Ambient.LISTENING;
                 }
             } else if (type.equals("audio_params")) {
                 if (frame.optInt("rate", 16000) != 16000) {
@@ -1384,7 +1283,7 @@ public final class PocketController {
             } else if (type.equals("speech")) {
                 speech(frame.optString("speech_id"));
             } else if (type.equals("stop_audio")) {
-                if (ambientOutput.acceptsStop(frame)) stopPlayback();
+                if (playback.acceptsStop(frame)) stopPlayback();
             } else if (type.equals("cerebellum") && roomState != null) {
                 if (frame.has("ok")) {
                     liveCerebellumOk = frame.optBoolean("ok");
@@ -1466,99 +1365,29 @@ public final class PocketController {
 
     private void historyToday() {
         if (roomState == null || roomState.date.isEmpty()) return;
-        String day = roomState.date;
-        int epoch = connectionEpoch;
+        int epoch = liveLink.epoch();
         RoomAccess access = access();
-        ChannelClient client = access.client();
-        network.execute(
-                () -> {
-                    try {
-                        ChannelClient.Rows rows = client.history(day);
-                        state.execute(
-                                () -> {
-                                    if (epoch != connectionEpoch || !currentAccess(access)) return;
-                                    admitRows(rows.messages, repo.cursor());
-                                    repo.metadata("history_loaded", "1");
-                                    oldestDate =
-                                            cachedRows.isEmpty()
-                                                    ? day
-                                                    : Json.day(cachedRows.get(0).at);
-                                    publish();
-                                });
-                    } catch (ChannelClient.Failure failure) {
-                        state.execute(
-                                () -> {
-                                    if (epoch == connectionEpoch && currentAccess(access))
-                                        notice("暂时无法加载历史，可稍后重试");
-                                });
-                    }
-                });
+        history.today(
+                access.client(),
+                roomState.date,
+                () -> epoch == liveLink.epoch() && currentAccess(access));
     }
 
     public void loadOlder() {
         state.execute(
                 () -> {
-                    if (olderRequestEpoch == connectionEpoch) return;
-                    if (repo.countRows() > visibleLimit) {
-                        visibleLimit += 200;
-                        reload();
-                        publish();
-                        return;
-                    }
-                    if (connection != Connection.ONLINE) {
-                        notice("本机较早的记录已显示，联网后可继续加载");
-                        return;
-                    }
-                    olderRequestEpoch = connectionEpoch;
-                    publish();
-                    int epoch = connectionEpoch;
-                    String before = oldestDate;
-                    if (before.isEmpty())
-                        before =
-                                roomState == null || roomState.date.isEmpty()
-                                        ? Json.day(System.currentTimeMillis())
-                                        : roomState.date;
-                    final String start = before;
-                    RoomAccess access = access();
-                    ChannelClient client = access.client();
-                    network.execute(
-                            () -> {
-                                List<Message> found = new ArrayList<>();
-                                String scanned = start;
-                                try {
-                                    for (int i = 0; i < 14 && found.isEmpty(); i++) {
-                                        if (epoch != connectionEpoch) return;
-                                        scanned =
-                                                java.time.LocalDate.parse(scanned)
-                                                        .minusDays(1)
-                                                        .toString();
-                                        found.addAll(client.history(scanned).messages);
-                                    }
-                                    final String oldest = scanned;
-                                    state.execute(
-                                            () -> {
-                                                if (epoch != connectionEpoch
-                                                        || !currentAccess(access)) return;
-                                                oldestDate = oldest;
-                                                olderRequestEpoch = -1;
-                                                visibleLimit += Math.max(100, found.size());
-                                                admitRows(found, repo.cursor());
-                                                olderLabel =
-                                                        found.isEmpty()
-                                                                ? oldest + " 之前暂未找到 · 继续找"
-                                                                : "查看更早的记录";
-                                                publish();
-                                            });
-                                } catch (Exception failure) {
-                                    state.execute(
-                                            () -> {
-                                                if (epoch != connectionEpoch
-                                                        || !currentAccess(access)) return;
-                                                olderRequestEpoch = -1;
-                                                notice("更早记录加载失败，轻点重试");
-                                            });
-                                }
-                            });
+                    int epoch = liveLink.epoch();
+                    boolean online = connection == Connection.ONLINE;
+                    RoomAccess access = online ? access() : null;
+                    String day =
+                            roomState == null || roomState.date.isEmpty()
+                                    ? Json.day(System.currentTimeMillis())
+                                    : roomState.date;
+                    history.older(
+                            access == null ? null : access.client(),
+                            online,
+                            day,
+                            () -> epoch == liveLink.epoch() && currentAccess(access));
                 });
     }
 
@@ -1570,15 +1399,13 @@ public final class PocketController {
                         return;
                     }
                     boolean textMode = !settings.voiceInput() || ambientWanted;
-                    String text = textMode ? draft.trim() : "";
-                    if (textMode && !quote.isEmpty())
-                        text = "> " + quote.replace("\n", "\n> ") + "\n\n" + text;
+                    String text = composer.message(textMode);
+                    List<Attachment> chips = composer.content().attachments;
                     if (text.isEmpty() && chips.isEmpty()) return;
-                    for (Attachment attachment : chips)
-                        if (attachment.state != Attachment.UPLOADED) {
-                            notice("请等附件上传完成，失败的附件可点按重试");
-                            return;
-                        }
+                    if (!composer.attachmentsReady()) {
+                        notice("请等附件上传完成，失败的附件可点按重试");
+                        return;
+                    }
                     String id = UUID.randomUUID().toString();
                     if (!trying && !settings.isComplete()) {
                         notice("请先连接房间，或从欢迎页进入体验");
@@ -1599,12 +1426,7 @@ public final class PocketController {
                                     System.currentTimeMillis(),
                                     0);
                     repo.enqueue(Message.mine(id, text, "", 0, Message.QUEUED, chips), item);
-                    if (textMode) {
-                        draft = "";
-                        draftGeneration++;
-                        quote = "";
-                    }
-                    chips.clear();
+                    composer.sent(textMode);
                     saveDraft();
                     reload();
                     publish();
@@ -1746,7 +1568,7 @@ public final class PocketController {
             log.event("send", "request_scope_failed");
             uploadForeground = false;
             refreshService();
-            linkClosed("Unable to prepare send", connectionEpoch);
+            linkClosed("Unable to prepare send", liveLink.epoch());
             return;
         }
         try {
@@ -1812,7 +1634,7 @@ public final class PocketController {
         }
         reload();
         if (error != null && error.transport) {
-            linkClosed("发送连接中断", connectionEpoch);
+            linkClosed("发送连接中断", liveLink.epoch());
         }
         publish();
         if (error == null || !error.transport) pump();
@@ -1863,13 +1685,9 @@ public final class PocketController {
     }
 
     private void admitImportedDraft(ImportBatch batch) {
-        List<Attachment> combined = new ArrayList<>(chips);
-        combined.addAll(batch.attachments);
-        String next = batch.appendTo(draft);
-        if (repo.importDraft(batch.id, next, quote, encodeChips(combined))) {
-            draft = next;
-            chips.clear();
-            chips.addAll(combined);
+        Composer.Content next = composer.importing(batch);
+        if (repo.importDraft(batch.id, next.text, next.quote, next.encodedAttachments())) {
+            composer.imported(next);
             if (!batch.text.isEmpty()) settings.voiceInput(false);
             publish();
             for (Attachment attachment : batch.attachments) upload(attachment);
@@ -1879,11 +1697,9 @@ public final class PocketController {
     public void removeAttachment(String path) {
         state.execute(
                 () -> {
-                    for (int i = chips.size() - 1; i >= 0; i--)
-                        if (chips.get(i).localPath.equals(path)) {
-                            new File(path).delete();
-                            chips.remove(i);
-                        }
+                    attachmentTransfers.cancelUpload(path);
+                    for (Attachment removed : composer.remove(path))
+                        new File(removed.localPath).delete();
                     saveDraft();
                     publish();
                 });
@@ -1892,7 +1708,7 @@ public final class PocketController {
     public void retryAttachment(String path) {
         state.execute(
                 () -> {
-                    for (Attachment attachment : chips)
+                    for (Attachment attachment : composer.content().attachments)
                         if (attachment.localPath.equals(path)) {
                             upload(attachment);
                             break;
@@ -1912,8 +1728,6 @@ public final class PocketController {
             return;
         }
         RoomAccess access = access();
-        ChannelClient client = access.client();
-        ChannelClient.State room = roomState;
         replaceChip(
                 new Attachment(
                         attachment.name,
@@ -1923,37 +1737,22 @@ public final class PocketController {
                         attachment.remotePath,
                         attachment.size,
                         Attachment.UPLOADING));
-        network.execute(
-                () -> {
-                    try {
-                        Attachment result = client.upload(attachment, room);
-                        state.execute(
-                                () -> {
-                                    if (currentAccess(access)) replaceChip(result);
-                                });
-                    } catch (ChannelClient.Failure failure) {
-                        state.execute(
-                                () -> {
-                                    if (!currentAccess(access)) return;
-                                    if (replaceChip(attachment.failed()))
-                                        notice(
-                                                failure.status == 413
-                                                        ? "文件太大，请移除或选择较小文件"
-                                                        : "附件上传失败，点按重试");
-                                });
-                    }
+        attachmentTransfers.upload(
+                attachment,
+                new AttachmentTransfers.Room(repo.roomIdentity(), trying, access),
+                roomState,
+                (result, failure) -> {
+                    if (failure == null) replaceChip(result);
+                    else if (replaceChip(attachment.failed()))
+                        notice(failure.status == 413 ? "文件太大，请移除或选择较小文件" : "附件上传失败，点按重试");
                 });
     }
 
     private boolean replaceChip(Attachment value) {
-        for (int i = 0; i < chips.size(); i++)
-            if (chips.get(i).localPath.equals(value.localPath)) {
-                chips.set(i, value);
-                saveDraft();
-                publish();
-                return true;
-            }
-        return false;
+        if (!composer.replace(value)) return false;
+        saveDraft();
+        publish();
+        return true;
     }
 
     /** Compatibility entry for platform integrations; UI inputs use an explicit owner token. */
@@ -1989,8 +1788,8 @@ public final class PocketController {
         if (!channel.isOpen()) connect();
         for (JSONObject outgoing : ambientInput.press("phone", true)) send(outgoing);
         interruptPlayback();
-        if (capture == null) startCapture();
-        else if (!captureStopping) voiceNotes.ready();
+        if (!microphone.active()) startCapture();
+        else if (!microphone.stopping()) voiceNotes.ready();
         publish();
     }
 
@@ -2097,8 +1896,8 @@ public final class PocketController {
     }
 
     private void startCapture() {
-        if (capture != null
-                || captureStopping
+        if (microphone.active()
+                || microphone.stopping()
                 || audioSuspended
                 || ambientLinkPaused && !voiceNotes.active()
                 || ambientWanted && !voiceNotes.active() && connection != Connection.ONLINE
@@ -2110,67 +1909,16 @@ public final class PocketController {
             notice("其他应用正在使用音频，请稍后重试");
             return;
         }
-        int epoch = ++captureEpoch;
-        capture =
-                new CaptureSession(
-                        context,
-                        settings.headsetMic(),
-                        new CaptureSession.Listener() {
-                            @Override
-                            public void started() {
-                                state.execute(
-                                        () -> {
-                                            if (epoch == captureEpoch) {
-                                                voiceNotes.ready();
-                                                publish();
-                                            }
-                                        });
-                            }
-
-                            @Override
-                            public void packet(byte[] packet) {
-                                state.execute(
-                                        () -> {
-                                            if (epoch == captureEpoch) captured(packet);
-                                        });
-                            }
-
-                            @Override
-                            public void stopped(String reason) {
-                                state.execute(
-                                        () -> {
-                                            if (epoch != captureEpoch) return;
-                                            capture = null;
-                                            boolean intentional = captureStopping;
-                                            captureStopping = false;
-                                            if (!reason.isEmpty() && !intentional) {
-                                                releaseOnState(false, true);
-                                                if (ambientWanted) {
-                                                    ambient = Ambient.FAILED;
-                                                    ambientWanted = false;
-                                                    refreshService();
-                                                }
-                                                notice(reason);
-                                            } else if (voiceNotes.active() || ambientWanted)
-                                                startCapture();
-                                            if (!voiceNotes.active()
-                                                    && !ambientWanted
-                                                    && !playerActive) audioFocus.release();
-                                        });
-                            }
-                        });
+        microphone.start(settings.headsetMic());
     }
 
     private void stopCapture() {
         ambientInput.captureStopped();
-        if (capture != null) {
-            captureStopping = true;
-            capture.stop();
-        }
+        microphone.stop();
     }
 
     private void captured(byte[] packet) {
-        if (captureStopping) return;
+        if (microphone.stopping()) return;
         if (voiceNotes.active()) {
             try {
                 if (voiceNotes.append(packet)) publish();
@@ -2186,8 +1934,7 @@ public final class PocketController {
         if (!ambientWanted || ambientLinkPaused || !channel.isOpen()) return;
         boolean before = ambientInput.helloSent();
         for (JSONObject outgoing :
-                ambientInput.packet(currentRoom(), capture != null && capture.echoCancellation()))
-            send(outgoing);
+                ambientInput.packet(currentRoom(), microphone.echoCancellation())) send(outgoing);
         if (!before && ambientInput.helloSent()) {
             ambient = Ambient.STARTING;
             publish();
@@ -2273,7 +2020,7 @@ public final class PocketController {
 
     private void setOutputMuted(boolean muted) {
         ambientMuted = muted;
-        if (player != null) player.silent(muted);
+        playback.mute(muted);
     }
 
     public void ambientHush() {
@@ -2294,7 +2041,7 @@ public final class PocketController {
                     }
                     audioSuspended = false;
                     for (JSONObject outgoing : ambientInput.takeover(currentRoom())) send(outgoing);
-                    if (capture == null) startCapture();
+                    if (!microphone.active()) startCapture();
                     ambient = Ambient.STARTING;
                     publish();
                 });
@@ -2388,51 +2135,23 @@ public final class PocketController {
     }
 
     private void send(JSONObject frame) {
-        int epoch = connectionEpoch;
-        ChannelConnection target = channel;
-        socketTask(epoch, () -> target.send(frame));
+        liveLink.send(channel, frame);
     }
 
     private void sendBinary(byte[] bytes) {
-        int epoch = connectionEpoch;
-        ChannelConnection target = channel;
-        socketTask(epoch, () -> target.sendBinary(bytes));
-    }
-
-    private interface SocketTask {
-        void run() throws Exception;
-    }
-
-    private void socketTask(int epoch, SocketTask task) {
-        try {
-            socketWriter.execute(
-                    () -> {
-                        if (epoch != connectionEpoch) return;
-                        try {
-                            task.run();
-                        } catch (Exception failure) {
-                            state.execute(() -> linkClosed("实时连接中断", epoch));
-                        }
-                    });
-        } catch (java.util.concurrent.RejectedExecutionException failure) {
-            state.execute(() -> linkClosed("实时连接拥塞", epoch));
-        }
+        liveLink.sendBinary(channel, bytes);
     }
 
     private void speech(String id) {
         if (id.isEmpty()) return;
-        if (!speechReader.id().isEmpty()) stopPlayback();
-        if (decoder != null) decoder.close();
-        decoder = null;
         if (ambientInput.pressMuted()) {
-            ambientOutput.stop();
+            stopPlayback();
             if (reportsPlayback()) send(Json.object("type", "interrupted", "speech_id", id));
             return;
         }
-        ambientOutput.speech(id);
         try {
-            decoder = new OpusDecoder();
             ensurePlayer();
+            playback.speech(id);
         } catch (Exception failure) {
             notice("无法启动语音播放");
         }
@@ -2444,16 +2163,11 @@ public final class PocketController {
             if (bytes.length < 2 || bytes[0] != 1) return;
             bytes = Arrays.copyOfRange(bytes, 1, bytes.length);
         }
-        if (decoder == null
-                || ambientInput.pressMuted()
-                || !speechReader.id().isEmpty()
+        if (ambientInput.pressMuted()
+                || !playback.readingId().isEmpty()
                 || !foreground && !ambientWanted) return;
         try {
-            short[] pcm = decoder.packet(bytes);
-            if (ambientWanted && ambientMuted) {
-                JSONObject report = ambientOutput.skipped(pcm.length, reportsPlayback());
-                if (report != null) send(report);
-            } else player.enqueue(ambientOutput.playbackKey(), pcm);
+            playback.packet(bytes, ambientWanted && ambientMuted);
         } catch (Exception failure) {
             notice("语音解码失败");
             stopPlayback();
@@ -2463,103 +2177,29 @@ public final class PocketController {
     private void ensurePlayer() {
         if (!audioFocus.acquire(ambientWanted))
             throw new IllegalStateException("Audio focus unavailable");
-        if (player != null) return;
-        player =
-                new SpeechPlayer(
-                        new SpeechPlayer.Listener() {
-                            @Override
-                            public void route(String name) {
-                                state.execute(
-                                        () -> {
-                                            outputRoute = name;
-                                            publish();
-                                        });
-                            }
-
-                            @Override
-                            public void played(
-                                    int generation, String id, long ms, boolean drained) {
-                                state.execute(
-                                        () -> {
-                                            if (player == null || generation != player.generation())
-                                                return;
-                                            JSONObject report =
-                                                    ambientOutput.played(id, ms, reportsPlayback());
-                                            if (report != null) send(report);
-                                        });
-                            }
-
-                            @Override
-                            public void active(int generation, boolean active) {
-                                state.execute(
-                                        () -> {
-                                            if (player == null || generation != player.generation())
-                                                return;
-                                            if (playerActive == active) return;
-                                            playerActive = active;
-                                            if (ambientWanted
-                                                    && !audioSuspended
-                                                    && connection == Connection.ONLINE
-                                                    && ambientInput.role().equals("master"))
-                                                ambient =
-                                                        active
-                                                                ? Ambient.SPEAKING
-                                                                : Ambient.LISTENING;
-                                            if (!active) finishReadIfDrained();
-                                            if (!active
-                                                    && capture == null
-                                                    && !ambientWanted
-                                                    && !speechReader.inFlight()
-                                                    && !player.hasPending()) audioFocus.release();
-                                            publish();
-                                        });
-                            }
-
-                            @Override
-                            public void failed(int generation, String reason) {
-                                state.execute(
-                                        () -> {
-                                            if (player == null || generation != player.generation())
-                                                return;
-                                            stopPlayback();
-                                            notice(reason);
-                                        });
-                            }
-                        });
-        player.silent(ambientMuted);
+        playback.prepare();
     }
 
     private boolean reportsPlayback() {
         return ambientWanted && ambientInput.helloSent();
     }
 
-    private void finishReadIfDrained() {
-        if (!speechReader.inFlight()
-                && ambientOutput.reading()
-                && (player == null || !player.hasPending())) {
-            speechReader.cancel();
-            if (capture == null && !ambientWanted) audioFocus.release();
-        }
+    private void releaseAudioIfIdle() {
+        if (!microphone.active() && !ambientWanted && !playback.pending()) audioFocus.release();
     }
 
     private void interruptPlayback() {
-        JSONObject report = ambientOutput.interrupted(reportsPlayback());
-        stopPlayback();
-        if (report != null) send(report);
+        playback.interrupt();
+        releaseAudioIfIdle();
     }
 
     private void stopPlayback() {
-        speechReader.cancel();
-        if (player != null) player.stop();
-        if (decoder != null) decoder.close();
-        decoder = null;
-        ambientOutput.stop();
-        playerActive = false;
+        playback.stop();
         if (ambientWanted
                 && !audioSuspended
                 && connection == Connection.ONLINE
                 && ambientInput.role().equals("master")) ambient = Ambient.LISTENING;
-        if (capture == null && !ambientWanted) audioFocus.release();
+        releaseAudioIfIdle();
     }
 
     public void readAloud(Message message) {
@@ -2567,7 +2207,7 @@ public final class PocketController {
     }
 
     private void readAloudOnState(Message message) {
-        if (speechReader.id().equals(message.id)) {
+        if (playback.readingId().equals(message.id)) {
             stopPlayback();
             publish();
             return;
@@ -2591,17 +2231,13 @@ public final class PocketController {
             notice("其他应用正在使用音频，请稍后再朗读");
             return;
         }
-        ambientOutput.read(message.id);
-        final SpeechPlayer output = player;
-        final String speech = ambientOutput.playbackKey();
-        speechReader.start(
+        playback.read(
                 message,
                 access(),
                 currentRoom(),
-                () -> new ReadAloudOutput(output, speech),
                 (received, failure) -> {
                     if (failure == null) {
-                        finishReadIfDrained();
+                        releaseAudioIfIdle();
                         publish();
                     } else {
                         String reason =
@@ -2611,7 +2247,7 @@ public final class PocketController {
                                                 ? speechError((ChannelClient.Failure) failure)
                                                 : "连接不上，无法朗读";
                         if (!received) stopPlayback();
-                        else finishReadIfDrained();
+                        else releaseAudioIfIdle();
                         notice(reason);
                     }
                 });
@@ -2653,7 +2289,7 @@ public final class PocketController {
                         if (result != null) main.post(result::changed);
                         return;
                     }
-                    connectionEpoch++;
+                    liveLink.invalidate();
                     retireRoomAccess();
                     outboxSender.cancel();
                     final long pairTicket = ++pairingEpoch;
@@ -2663,7 +2299,6 @@ public final class PocketController {
                     reload();
                     connection = Connection.CONNECTING;
                     channel.closeLive();
-                    opening = false;
                     releaseOnState(true);
                     if (PassportPolicy.ENABLED) passport.connectionFailed();
                     stopCapture();
@@ -2675,9 +2310,7 @@ public final class PocketController {
                     network.execute(
                             () -> {
                                 try {
-                                    transport.start(
-                                            settings.networkLog(),
-                                            status -> state.execute(() -> networkStatus(status)));
+                                    tailnet.startOnWorker(settings.networkLog());
                                     JSONObject value =
                                             new ChannelClient(endpoint, "", "", transport)
                                                     .pair(code);
@@ -2704,7 +2337,7 @@ public final class PocketController {
                                                     viewer.reset();
                                                     turn.reset();
                                                     resetRoomTransient();
-                                                    chips.clear();
+                                                    composer.reset();
                                                     boolean wasUnpaired =
                                                             repo.roomIdentity().equals("unpaired");
                                                     repo.select(settings);
@@ -2714,7 +2347,7 @@ public final class PocketController {
                                                     imports.recover(false);
                                                     recoverVoiceNotes();
                                                     for (Attachment attachment :
-                                                            new ArrayList<>(chips))
+                                                            composer.content().attachments)
                                                         if (attachment.sha256.isEmpty())
                                                             upload(attachment);
                                                     connection = Connection.CONNECTING;
@@ -2755,9 +2388,9 @@ public final class PocketController {
                     ambientWanted = false;
                     pairingEpoch++;
                     pairingActive = false;
-                    connectionEpoch++;
+                    liveLink.invalidate();
                     retireRoomAccess();
-                    opening = false;
+                    liveLink.ready();
                     outboxSender.cancel();
                     uploadForeground = false;
                     viewer.reset();
@@ -2784,10 +2417,7 @@ public final class PocketController {
                     dev.openduo.pocket.app.BackgroundSync.schedule(context);
                     repo.select(settings);
                     connection = Connection.NEEDS_SETUP;
-                    draft = "";
-                    draftGeneration++;
-                    quote = "";
-                    chips.clear();
+                    composer.reset();
                     turn.reset();
                     reload();
                     publish();
@@ -2817,10 +2447,9 @@ public final class PocketController {
         saveDraft();
         retireRoomAccess();
         outboxSender.cancel();
-        connectionEpoch++;
-        opening = uploadForeground = false;
+        liveLink.invalidate();
+        uploadForeground = false;
         channel.closeLive();
-        socketWriter.getQueue().clear();
         stopCapture();
         stopPlayback();
         ambientWanted = false;
@@ -2836,9 +2465,8 @@ public final class PocketController {
         viewer.reset();
         turn.reset();
         resetRoomTransient();
-        chips.clear();
-        draft = quote = lastError = "";
-        draftGeneration++;
+        composer.reset();
+        lastError = "";
         refreshService();
         connection = Connection.CONNECTING;
         reload();
@@ -2854,10 +2482,10 @@ public final class PocketController {
     private void stopTryingOnState(boolean resumeReal) {
         if (!trying) return;
         releaseOnState(true);
-        connectionEpoch++;
+        liveLink.invalidate();
         retireRoomAccess();
         outboxSender.cancel();
-        opening = uploadForeground = false;
+        uploadForeground = false;
         stopPlayback();
         stopCapture();
         ambientWanted = false;
@@ -2867,8 +2495,7 @@ public final class PocketController {
         passport.suspended(false);
         resetRoomTransient();
         viewer.reset();
-        chips.clear();
-        draft = quote = "";
+        composer.reset();
         turn.reset();
         repo.select(settings);
         passport.room(repo.roomIdentity());
@@ -2941,10 +2568,7 @@ public final class PocketController {
                                 ChannelClient.Rows rows = null;
                                 try {
                                     if (access.current()) {
-                                        transport.start(
-                                                settings.networkLog(),
-                                                status ->
-                                                        state.execute(() -> networkStatus(status)));
+                                        tailnet.startOnWorker(settings.networkLog());
                                         rows = client.rows(cursor);
                                     }
                                 } catch (Exception failure) {
@@ -3203,122 +2827,24 @@ public final class PocketController {
 
     private void loadAttachment(Attachment attachment, FileResult result, boolean preview) {
         state.execute(
-                () -> {
-                    boolean local = !attachment.localPath.isEmpty();
-                    boolean demo = trying;
-                    String identity = repo.roomIdentity();
-                    String cacheScope = demo ? identity.substring(4) : "";
-                    RoomAccess access = demo || settings.isComplete() ? access() : null;
-                    network.execute(
-                            () -> {
-                                try {
-                                    File file;
-                                    boolean downloaded = false;
-                                    if (local && new File(attachment.localPath).isFile())
-                                        file =
-                                                preview
-                                                        ? new File(attachment.localPath)
-                                                        : attachmentStore.shareable(
-                                                                new File(attachment.localPath),
-                                                                attachment,
-                                                                demo);
-                                    else {
-                                        file = attachmentStore.cached(attachment, cacheScope);
-                                        if (file == null) {
-                                            if (access == null)
-                                                throw new java.io.IOException("Room is not paired");
-                                            file =
-                                                    attachmentStore.cache(
-                                                            attachment,
-                                                            access.client().attachment(attachment),
-                                                            cacheScope);
-                                            downloaded = true;
-                                        }
-                                        if (demo && !preview)
-                                            file =
-                                                    attachmentStore.shareable(
-                                                            file, attachment, true);
-                                    }
-                                    File ready = file;
-                                    boolean remote = downloaded;
-                                    state.execute(
-                                            () -> {
-                                                if (demo != trying
-                                                        || !identity.equals(repo.roomIdentity())
-                                                        || remote && !currentAccess(access)) {
-                                                    if (demo) {
-                                                        ready.delete();
-                                                        if (ready.getParentFile() != null)
-                                                            ready.getParentFile().delete();
-                                                    }
-                                                    main.post(result::failed);
-                                                } else
-                                                    main.post(
-                                                            () -> {
-                                                                Snapshot current = snapshot;
-                                                                String target =
-                                                                        identity.equals("unpaired")
-                                                                                ? ""
-                                                                                : identity;
-                                                                if (current != null
-                                                                        && current.trying == demo
-                                                                        && current.importTarget
-                                                                                .equals(target)
-                                                                        && (!remote
-                                                                                || access
-                                                                                        .current()))
-                                                                    result.ready(
-                                                                            ready, attachment.mime);
-                                                                else result.failed();
-                                                            });
-                                            });
-                                } catch (Exception failure) {
-                                    state.execute(
-                                            () -> {
-                                                if (!preview
-                                                        && demo == trying
-                                                        && identity.equals(repo.roomIdentity())
-                                                        && (access == null
-                                                                || currentAccess(access)))
-                                                    notice(
-                                                            access == null
-                                                                    ? "请先配对房间"
-                                                                    : "附件读取失败，请稍后重试");
-                                                main.post(result::failed);
-                                            });
-                                }
-                            });
-                });
+                () ->
+                        attachmentTransfers.load(
+                                attachment,
+                                new AttachmentTransfers.Room(
+                                        repo.roomIdentity(),
+                                        trying,
+                                        trying || settings.isComplete() ? access() : null),
+                                preview,
+                                result));
     }
 
     private void restoreDraft() {
-        draftGeneration++;
-        draft = repo.metadata("draft");
-        quote = repo.metadata("quote");
-        chips.clear();
-        try {
-            JSONArray a = new JSONArray(repo.metadata("chips"));
-            for (int i = 0; i < a.length(); i++) {
-                Attachment value = Attachment.from(a.optJSONObject(i));
-                if (value != null && new File(value.localPath).isFile())
-                    chips.add(value.state == Attachment.UPLOADING ? value.failed() : value);
-            }
-        } catch (org.json.JSONException ignored) {
-        }
+        composer.restore(repo.metadata("draft"), repo.metadata("quote"), repo.metadata("chips"));
     }
 
     private void saveDraft() {
-        repo.draft(draft, quote, encodeChips(chips));
-    }
-
-    private static String encodeChips(List<Attachment> values) {
-        JSONArray a = new JSONArray();
-        try {
-            for (Attachment chip : values) a.put(chip.json(true));
-        } catch (org.json.JSONException impossible) {
-            throw new AssertionError(impossible);
-        }
-        return a.toString();
+        Composer.Content draft = composer.content();
+        repo.draft(draft.text, draft.quote, draft.encodedAttachments());
     }
 
     public void clearNotice() {
@@ -3343,7 +2869,7 @@ public final class PocketController {
     }
 
     private void reload() {
-        cachedRows = repo.rows(visibleLimit);
+        cachedRows = repo.rows(history.limit());
         cachedRows.addAll(liveNotes);
         pending = repo.pending();
         for (VoiceInbox.Note note : voiceNotes.retained(repo.roomIdentity())) {
@@ -3374,16 +2900,15 @@ public final class PocketController {
     }
 
     private void resetRoomTransient() {
+        attachmentTransfers.reset();
         upgrade = UpgradeNotice.NONE;
         resetRedial("room_reset");
         ambientLinkPaused = false;
         ambientFailure = "";
         setOutputMuted(false);
         liveNotes.clear();
-        lastHeard = oldestDate = "";
-        olderRequestEpoch = -1;
-        olderLabel = "查看更早的记录";
-        visibleLimit = 200;
+        lastHeard = "";
+        history.reset();
         roomState = null;
         liveCerebellumOk = null;
     }
@@ -3429,7 +2954,7 @@ public final class PocketController {
             else if (!ambientInput.helloSent()) ambient = Ambient.STARTING;
             else if (ambientInput.role().equals("peer")) ambient = Ambient.SEAT_TAKEN;
             else if (ambientInput.roomState().equals("unowned")) ambient = Ambient.DEAF;
-            else ambient = playerActive ? Ambient.SPEAKING : Ambient.LISTENING;
+            else ambient = playback.active() ? Ambient.SPEAKING : Ambient.LISTENING;
         }
         snapshot = new Snapshot(this);
         if (!publishing.compareAndSet(false, true)) return;

@@ -37,10 +37,18 @@ snapshots. SQLite transactions own rows/outbox/cursors and cleanup receipts.
 
 | Owner | Responsibility and resource lifetime |
 | --- | --- |
+| `Composer` (`:core`) | Immutable draft/quote/attachment values, edit acknowledgement/generation, import handoff and interrupted-upload restoration |
+| `HistoryPager` (`:core`) | Visible-row limit, bounded day scans, pagination boundary, in-flight deduplication and stale-result admission |
+| `AttachmentTransfers` (`:core`) | Bounded upload/download jobs, individual cancellation scopes, room generation and main-thread result admission; Android `AttachmentStore` implements its three file-storage operations |
+| `RoomLink` (`:core`) | Live generation, connector/writer queues, ping checks, copied incoming binary frames and final-control-before-close handoff |
 | `VoiceNotes` (`:core`) | Recording bytes, input-source ownership, durable admission and recovery, with a store interface for SQLite |
 | `OutboxSender` (`:core`) | One HTTP delivery, registered request scope, frozen voice body/surface, monotonic retry budget and its own single-worker/one-slot queue |
 | `SpeechReader` (`:core`) | One read-aloud identity, incremental Opus framing, stream cancellation and admission of current-generation completion |
+| `TailnetSession` (`:app`) | Authorization intent/status, login/logout action fencing and normalized native network observations |
+| `Microphone` (`:app`) | Capture instance/generation, ready/stop admission and intentional shutdown; the capture thread still owns native cleanup |
+| `RoomPlayback` (`:app`) | Shared output timeline, live decoder, read stream, playback generation/route/muting and drain completion |
 | `ReadAloudOutput` (`:app`) | Stream-thread creation/use/release of the Android decoder, feeding the shared `SpeechPlayer` with bounded, cancellable backpressure |
+| `ConversationComposer` (`app/ui`) | Editor selection/acknowledgement, attachment scrolling, import/hold controls and keyboard lifecycle; the feed retains its own rows and reading position |
 | `PocketController` (`:app`) | Room admission, database transitions, foreground-service gating, permissions/audio focus, effects and snapshot publication |
 
 Sending has an explicit durable handoff: `prepare()` registers cancellation without queuing I/O;
@@ -53,17 +61,45 @@ Passport budget crosses the platform boundary as a **remaining duration**, rathe
 timestamp from a different clock origin. Both request timeouts and retry waits respect it.
 
 Reading distinguishes HTTP completion from playback drain. `SpeechReader` retains the message ID
-after the stream ends; the controller clears it only when `SpeechPlayer` has no pending audio.
+after the stream ends; `RoomPlayback` clears it only when `SpeechPlayer` has no pending audio.
 Cancel replaces the current generation before cancelling its native stream, so queued work, late
 packets and a retired unauthorized response cannot affect the next read. Each worker opens and
 closes its own `ReadAloudOutput`; the controller never releases another thread's decoder. Initial
 errors stop playback, while partial failures retain admitted audio and show the existing warning.
 
+Uploads removed/replaced by the user cancel their own request scope; a late response cannot change
+the draft. Room reset invalidates file results even after state has posted them to Android's main
+thread. Cached/local previews still work without a current network credential. History scans stop
+after fourteen empty days, preserve their boundary, and cannot move it forward when a late today
+bootstrap arrives. Attachment transfers no longer occupy the shared ordinary HTTP pool.
+
 These are concrete owners within existing modules, without device-specific branches or a broad
 controller forwarding interface. A new input adapter still dispatches the same application action;
-it does not implement retry, room state or playback. Connection/reconnect, draft/attachment/history
-orchestration and ambient capture/output coordination remain in the controller. Further extraction
-should follow their actual state/resource ownership rather than a controller line-count target.
+it does not implement retry, room state or playback.
+
+## Stopping point and ownership audit
+
+The 2026-11-15 follow-up stops after inspecting all remaining controller responsibilities and the
+largest production classes. File length alone is not the completion criterion. The controller
+still contains the application facade, immutable snapshot projection, composition/wiring and
+cross-owner transaction/policy ordering. It does not duplicate the extracted mutable state.
+
+| Inspected area | Decision and reason |
+| --- | --- |
+| Pairing, Try entry/exit and credential retirement | Keep application ordering together: retire old work, preserve/select storage, switch transport, then restore draft/voice and connect. A separate facade would need the same owners passed back through callbacks. |
+| Live ready/row/lifecycle admission and HTTP metadata | Keep admission and database/effect ordering at the state owner. Transport generations and retry/worker lifetimes already belong to RoomLink/RoomAccess/OutboxSender/HistoryPager. |
+| Ambient/hold/focus/foreground-service decisions | Keep the decisions that coordinate microphone, notes, playback, network and Android services together. Native/audio resources and wire reducers already have independent owners. |
+| Sessions, Sight, arrivals and Passport entry points | Keep short application commands; SessionViewer, SightSession, ArrivalMonitor and PassportCoordinator already own their feature state. Another layer would only forward calls. |
+| RoomRepository | Keep one transactional storage boundary for rows/outbox/cursors/import receipts. Splitting tables into DAOs would conceal the atomic invariants without adding independent lifetimes. |
+| ConversationPage and ConversationComposer | Split editor state from feed state. Keep message cells/actions/trace rendering with the feed because they share keyed rows, expansion and scroll anchoring. |
+| TryChannel, BLE link, camera capture and import coordinator | Retain each cohesive transport/resource/job owner. Prepared scripts, BLE reducers, native capture and import inbox policy are already separate. |
+| Generated GraphemeData and other pure reducers/values | Retain generated data and cohesive protocol/value types; shorter files add no ownership boundary. |
+
+Resume decomposition when a concrete feature introduces independently owned state/resources or
+demonstrates coupling across these boundaries. Avoid a generic runtime/service locator, empty
+modules, duplicate controller fields and large Host interfaces introduced merely to move methods.
+The architecture checker also prevents direct capture/decoder/player/send-worker construction in
+PocketController from creeping back in.
 
 Gradle wrapper 8.13, AGP 8.13.2 and CMake provide the standard build. Go tasks declare inputs and outputs; JNI names follow the Java package; Opus comes from a checksum-pinned source archive. Signing material stays outside the repository. Generic builds contain no E2 firmware payload. CI checks source boundaries, JVM contracts, Go and a generic Debug APK. Device probes are explicit opt-in.
 

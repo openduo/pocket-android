@@ -41,6 +41,10 @@ final class AmbientInterruptionProbe {
         this.probe = probe;
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
     private Object field(String name) throws Exception {
         Field value = PocketController.class.getDeclaredField(name);
         value.setAccessible(true);
@@ -251,13 +255,13 @@ final class AmbientInterruptionProbe {
             onState(
                     () -> {
                         invoke("retireRoomAccess");
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         original.closeLive();
                         field("settings", settings);
                         field("channel", source);
                         field("repo", repository);
                         field("roomState", null);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         invoke("reload");
@@ -400,13 +404,13 @@ final class AmbientInterruptionProbe {
             onState(
                     () -> {
                         invoke("retireRoomAccess");
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         source.closeLive();
                         field("settings", originalSettings);
                         field("channel", original);
                         field("repo", originalRepo);
                         field("roomState", originalRoom);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("lastError", initial.lastError);
                         field("connection", PocketController.Connection.OFFLINE);

@@ -14,7 +14,7 @@
 | 多窗口 | 复用窗口尺寸类别、列宽上限、短窗口/IME/Insets/页面状态；布局不根据 E2 型号或物理屏幕大小分支 |
 | 多硬件 | 默认 Android 录音/路由与能力发现；communication 音源不可用时尝试 MIC；E2 型号/固件/系统栏例外和阵列输入集中在设备模块 |
 | 品牌与分发 | 名称「多多 / DuoDuo Pocket」、包名 `dev.openduo.pocket`、`duoduopocket` 深链、上游绒球/声纹图标；legacy/adaptive/themed 图标；统一 0.4.0 版本来源；arm64+x86_64 APK |
-| 国际化 | 617 条中英文文案、跟随系统及英文回退；界面/原生控件/无障碍/通知/错误统一语言边界；全部生产模块与原生资源检查；英文公开文档与主要中文指南、英文截图 |
+| 国际化 | 当前源码 646 条中英文文案（首个预览版 617 条）、跟随系统及英文回退；界面/原生控件/无障碍/通知/错误统一语言边界；全部生产模块与原生资源检查；英文公开文档与主要中文指南、英文截图 |
 | P0 已实现 | Tailscale 登录/配对/live、网络恢复、文本/附件/历史、幂等 outbox/草稿/持久化、语音上传/重试、环境模式/播放/中断 |
 | P1 已实现 | Sight 协商与 Camera2/H.264、会话列表/详情与通知控制、地图/坐标/geocoder/到达 ledger、中英文主题、导入/分享、Try 与诊断 |
 | 实际连接故障 | Wi-Fi 恢复后 tsnet 仍缓存 network-down；恢复时注入 netmon 重采样，旧包在同进程下约 2.7 秒恢复房间在线，电脑 Tailscale 同时确认节点在线 |
@@ -29,6 +29,33 @@
 - Preview 2 的[远端 CI](https://github.com/openduo/pocket-android/actions/runs/43609534160) 已通过，包含契约、源码/国际化、Go 检查与双 ABI 构建。文案检查覆盖全部 117 个生产 Java 源文件、直接写入的英文界面文案和原生资源，并补齐 E2 阵列读取错误的转换；该包仅做相关构建与契约检查，音频/窗口 smoke 仍以首个候选包记录为准。GitHub APK 与校验文件的 SHA-256 均已核对，与本地发布文件一致。
 
 旧包曾通过实际房间文字/历史/文件/会话读取，E2 原生阵列/相机，以及实际服务合成语音 ASR → brain/tool → 静音硬件播放。历史记录有不同 APK 身份，不能作为本次新包相同字节的全面验收。本轮不再重跑全部旧测试，不重启八小时任务。
+
+## 当前所有权拆分与停止点
+
+本轮把草稿／引用／附件及编辑确认移到 `:core/Composer`，有限历史分页移到 `:core/HistoryPager`，
+live 代次／队列／最后控制帧移到 `:core/RoomLink`，可取消的上传／下载任务移到
+`:core/AttachmentTransfers`。Android `AttachmentStore` 只提供文件存储操作。
+`:app/TailnetSession`、`:app/Microphone` 和 `:app/RoomPlayback` 分别拥有授权、采集及播放生命周期；
+`ConversationComposer` 把编辑器／IME／附件状态与会话列表分开。所有者共用 controller 的 state
+executor，controller 不重复保存已拆出的状态。
+
+检查剩余 controller 和较大的生产类后，本轮拆分到此停止。配对／Try／凭据切换、数据库接纳、
+音频焦点、权限和前台服务的执行顺序继续由应用协调层负责；已有功能组件、事务存储及按 key
+更新的列表渲染保留内聚边界。没有新增空模块、运行时容器或大而全的转发接口。具体理由见
+[所有权表与停止点审查](architecture.zh-CN.md#停止点与所有权审查)。
+
+最终轻量 JVM 检查通过 2,615 项，其中新增 38 项可控顺序契约，覆盖草稿／导入提交、有限历史与
+迟到的当天初始化、live 代次／最后控制帧，以及附件独立取消／结果接纳。通用 Debug 与同包名本地
+E2 Release 构建通过；源码／国际化检查覆盖 143 个生产 Java 文件、646 条 catalog。通用双 ABI
+APK 已确认仅包含公开 native payload。
+
+最终覆盖安装的原包 E2 通过 24 项短联调：预制 Try 文件导入／上传／下载、编辑器到草稿的确认、
+文字／预制语音发送、原生静音播放／排空／取消、live 重连，以及短暂真实采集后取消且不发送录音。
+最后原房间恢复 Online，配对和草稿保留，回复音频、静音与输入选项恢复。没有向真实房间发送测试
+内容，也没有重复人声、通知、相机、旋转或长期后台矩阵。精确入口为
+`POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh`，
+需设置目标设备的 `ANDROID_SERIAL` 并使用匹配的本地构建／classpath。公开 Preview 2 APK 未更新；
+上述证据属于当前源码与本地原包构建。
 
 ## 发送与朗读流的所有权拆分
 
@@ -50,8 +77,8 @@ APK 没有更新。精确入口为
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 scripts/test-device.sh`，
 需设置目标设备的 `ANDROID_SERIAL` 并使用匹配的本地构建／classpath。
 
-连接／重连、草稿／附件／历史编排和环境音频协调仍在 controller；后续沿这些实际所有者继续拆分，
-当前不宣称 controller 已完全拆完。
+在这一历史检查点，连接／重连、草稿／附件／历史及环境音频仍在 controller。上方本轮跟进已拆出
+其中独立的状态／资源，并记录了其余应用执行顺序保留在一起的原因。
 
 ## Preview 2 之后的前台输入重构
 
@@ -130,7 +157,7 @@ Unicode 字素边界用例通过，修复了旧 Android 上家庭 emoji 截断�
 | 暂缓：Sight | 用户于 2026-11-15 明确暂缓；实现保留，真实协商/上传仍未验收 | 用户明确恢复且房间服务提供媒体能力后再继续，不自动检查发布状态或修改房间服务 |
 | 后续设备接入 | 目标带屏智能音箱尚未到位；共享前台无触摸路径已实现，实际遥控／按键派发、厂商阵列/AEC/后台仍未验证 | 确定 Android/API/ABI/输入能力；标准路径先验证，有差异再增加 adapter，不修改业务页面 |
 | 后续兼容 | 不含 ARMv7/32 位；并非全部 OEM、外接屏/折叠屏和权限/生命周期组合都已验证 | 有实际需求再增加 ABI/窗口或硬件验证 |
-| 后续维护 | 连接／重连、草稿／附件／历史编排及环境音频协调仍在 Android controller，存储与系统服务仍在 app | VoiceNotes、OutboxSender、SpeechReader 已分别拥有对应状态与资源；继续按实际所有权拆分，保留已有模块边界 |
+| 后续维护 | 所有权拆分已达到文档记录的合理停止点；应用执行顺序及 Android 存储／系统服务保留在 app | 优先扩展已有所有者；只有独立状态／资源或可证实的耦合才继续拆分，不按行数拆分 |
 | Passport 真机验收 | 1.3 固定协议向量与 E2 ART 通过；实际 BLE 配对/CCCD、实体按压/回答/提醒、后台唤醒未验收 | 使用明确可供本应用连接的外设，不接管 E2Studio 连接；见[协议证据](passport.zh-CN.md) |
 | 暂缓 | Android Push 注册/relay/receiver，以及 AES-GCM/HMAC/ledger 与上游向量 | 用户后续明确恢复该范围 |
 | 旧版迁移限制 | 旧包与公开包不能共享私有数据库/AndroidKeyStore；没有跨包数据迁移器 | 显式同包名/同签名构建保留原节点与数据；独立安装公开包时才需要自己的登录与配对 |

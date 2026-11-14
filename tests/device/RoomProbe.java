@@ -48,7 +48,14 @@ final class RoomProbe {
     }
 
     private dev.openduo.pocket.audio.SpeechReader reader() throws Exception {
-        return (dev.openduo.pocket.audio.SpeechReader) field("speechReader");
+        return (dev.openduo.pocket.audio.SpeechReader) playbackField("reader");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
     }
 
     private Object field(String name) throws ReflectiveOperationException {
@@ -118,7 +125,7 @@ final class RoomProbe {
                         && initial.imports.isEmpty()
                         && initial.readingId.isEmpty()
                         && initial.chips.stream().noneMatch(a -> a.state == Attachment.UPLOADING)
-                        && onState(() -> !(Boolean) field("playerActive")),
+                        && onState(() -> !(Boolean) playbackField("active")),
                 "real-service probe requires this app's recording, playback and outgoing work"
                         + " idle");
         Message proof =
@@ -159,7 +166,7 @@ final class RoomProbe {
             onState(
                     () -> {
                         invoke("stopPlayback");
-                        SpeechPlayer player = (SpeechPlayer) field("player");
+                        SpeechPlayer player = (SpeechPlayer) playbackField("player");
                         if (player != null) player.silent(controller.snapshot().ambientMuted);
                         return null;
                     });
@@ -338,7 +345,7 @@ final class RoomProbe {
         onState(
                 () -> {
                     invoke("ensurePlayer");
-                    ((SpeechPlayer) field("player")).silent(true);
+                    ((SpeechPlayer) playbackField("player")).silent(true);
                     return null;
                 });
         controller.clearNotice();
@@ -346,7 +353,7 @@ final class RoomProbe {
         long until = android.os.SystemClock.elapsedRealtime() + 55000;
         long played = 0;
         while (android.os.SystemClock.elapsedRealtime() < until) {
-            played = onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs());
+            played = onState(() -> ((AmbientOutput) playbackField("output")).playedMs());
             if (played > 0 && controller.snapshot().readingId.isEmpty()) break;
             if (!controller.snapshot().lastError.isEmpty()) break;
             Thread.sleep(30);
@@ -372,7 +379,8 @@ final class RoomProbe {
                                 () ->
                                         !reader().inFlight()
                                                 && reader().id().isEmpty()
-                                                && !((SpeechPlayer) field("player")).hasPending())
+                                                && !((SpeechPlayer) playbackField("player"))
+                                                        .hasPending())
                         && controller.snapshot().lastError.isEmpty(),
                 "stopping the real stream clears playback and ignores late response bytes/errors");
         speechEvidence = "real synthesis and cancellation with muted AudioTrack watermarks";

@@ -42,6 +42,17 @@ final class SightRoomProbe {
         this.probe = probe;
     }
 
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
+    private Object playbackField(String name) throws Exception {
+        Object owner = field("playback");
+        Field member = owner.getClass().getDeclaredField(name);
+        member.setAccessible(true);
+        return member.get(owner);
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -156,7 +167,8 @@ final class SightRoomProbe {
             owner(
                     () -> {
                         invoke("ensurePlayer");
-                        ((dev.openduo.pocket.audio.SpeechPlayer) field("player")).silent(true);
+                        ((dev.openduo.pocket.audio.SpeechPlayer) playbackField("player"))
+                                .silent(true);
                         return null;
                     });
             await(() -> source.role.equals("master") && source.audio.get() > 0, 15_000);
@@ -209,14 +221,14 @@ final class SightRoomProbe {
                     () -> {
                         invoke("stopPlayback");
                         dev.openduo.pocket.audio.SpeechPlayer player =
-                                (dev.openduo.pocket.audio.SpeechPlayer) field("player");
+                                (dev.openduo.pocket.audio.SpeechPlayer) playbackField("player");
                         if (player != null) player.silent(initial.ambientMuted);
                         return null;
                     });
             // Wait for the ordinary mic-restoration writer turn before retiring its connection.
             long until = SystemClock.elapsedRealtime() + 12_000;
-            while (owner(() -> ((Integer) field("closingEpoch")).equals(field("connectionEpoch")))
-                    && SystemClock.elapsedRealtime() < until) Thread.sleep(30);
+            while (owner(() -> link().closing()) && SystemClock.elapsedRealtime() < until)
+                Thread.sleep(30);
             owner(
                     () -> {
                         connection(original);

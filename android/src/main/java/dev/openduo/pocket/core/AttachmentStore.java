@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /** File I/O only. The caller chooses its executor and admits results into the current room. */
-public final class AttachmentStore {
+public final class AttachmentStore implements AttachmentTransfers.Storage {
     public static final long LOCAL_IMPORT_MAX_BYTES = 64L * 1024 * 1024;
     private final Context context;
 

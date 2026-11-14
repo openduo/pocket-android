@@ -38,6 +38,24 @@ final class HistoryProbe {
         this.probe = probe;
     }
 
+    private Object historyField(String name) throws Exception {
+        Object history = field("history");
+        Field field = history.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(history);
+    }
+
+    private void historyField(String name, Object value) throws Exception {
+        Object history = field("history");
+        Field field = history.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(history, value);
+    }
+
+    private dev.openduo.pocket.net.RoomLink link() throws Exception {
+        return (dev.openduo.pocket.net.RoomLink) field("liveLink");
+    }
+
     private Object field(String name) throws Exception {
         Field field = PocketController.class.getDeclaredField(name);
         field.setAccessible(true);
@@ -136,8 +154,8 @@ final class HistoryProbe {
                     repository.metadata("cursor", "0");
                     repository.metadata("history_loaded", "1");
                     ((TurnState) field("turn")).reset();
-                    field("oldestDate", source.today);
-                    field("visibleLimit", 200);
+                    historyField("oldest", source.today);
+                    historyField("limit", 200);
                     source.history.clear();
                     source.catchup = new JSONArray();
                     invoke("reload");
@@ -337,10 +355,10 @@ final class HistoryProbe {
                                 + " visible");
                 onState(
                         () -> {
-                            field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                            link().invalidate();
                             field("lastError", "Prepared current connection");
-                            field(
-                                    "oldestDate",
+                            historyField(
+                                    "oldest",
                                     java.time.LocalDate.parse(source.today)
                                             .minusDays(10)
                                             .toString());
@@ -428,9 +446,9 @@ final class HistoryProbe {
         Object originalState = onState(() -> field("roomState"));
         Object originalTurn = onState(() -> field("turn"));
         Object originalNotes = onState(() -> field("liveNotes"));
-        Object originalLimit = onState(() -> field("visibleLimit"));
-        Object originalDate = onState(() -> field("oldestDate"));
-        Object originalLabel = onState(() -> field("olderLabel"));
+        Object originalLimit = onState(() -> historyField("limit"));
+        Object originalDate = onState(() -> historyField("oldest"));
+        Object originalLabel = onState(() -> historyField("label"));
         android.content.SharedPreferences noticePrefs =
                 context.getSharedPreferences("answer.notices", Context.MODE_PRIVATE);
         String originalSeen = noticePrefs.getString("seen", null);
@@ -443,14 +461,14 @@ final class HistoryProbe {
         try {
             onState(
                     () -> {
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         original.closeLive();
                         field("repo", repository);
                         field("channel", source);
                         field("turn", new TurnState());
                         field("liveNotes", new ArrayList<Message>());
                         field("roomState", null);
-                        field("opening", false);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         invoke("reload");
@@ -634,7 +652,7 @@ final class HistoryProbe {
         } finally {
             onState(
                     () -> {
-                        field("connectionEpoch", (Integer) field("connectionEpoch") + 1);
+                        link().invalidate();
                         source.closeLive();
                         repository.clear();
                         repository.close();
@@ -644,10 +662,10 @@ final class HistoryProbe {
                         field("lastError", originalError);
                         field("turn", originalTurn);
                         field("liveNotes", originalNotes);
-                        field("visibleLimit", originalLimit);
-                        field("oldestDate", originalDate);
-                        field("olderLabel", originalLabel);
-                        field("opening", false);
+                        historyField("limit", originalLimit);
+                        historyField("oldest", originalDate);
+                        historyField("label", originalLabel);
+                        link().ready();
                         field("retryNotBefore", 0L);
                         field("connection", PocketController.Connection.OFFLINE);
                         if (originalSeen == null) noticePrefs.edit().remove("seen").commit();
