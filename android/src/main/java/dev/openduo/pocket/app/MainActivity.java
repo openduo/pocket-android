@@ -45,6 +45,12 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private String deliveryId;
     private boolean pairIntentHandled, inboundPresented;
     private ExternalInputs inputs;
+    private dev.openduo.pocket.app.input.InteractionDispatcher interaction;
+    private dev.openduo.pocket.app.input.InputBindings inputBindings;
+    private dev.openduo.pocket.app.input.HardwareInput hardwareInput;
+    private final dev.openduo.pocket.ui.FocusNavigation focusNavigation =
+            new dev.openduo.pocket.ui.FocusNavigation();
+    private dev.openduo.pocket.ui.pages.InputSettingsPage inputSettings;
     private Dialog imagePreview;
     private boolean loginWaiting;
     private dev.openduo.pocket.ui.components.TailnetLoginSheet loginSheet;
@@ -77,6 +83,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                         saved == null ? null : saved.getBundle("uiPages"));
         ui.immersive();
         controller = PocketController.get(this);
+        interaction = new dev.openduo.pocket.app.input.InteractionDispatcher(this, controller);
+        inputBindings = new dev.openduo.pocket.app.input.InputBindings(this);
+        hardwareInput = new dev.openduo.pocket.app.input.HardwareInput(inputBindings, interaction);
         page =
                 saved == null
                         ? controller.configured() ? "conversation" : "onboarding"
@@ -125,10 +134,26 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
         if (focused && ui != null) ui.immersive();
+        if (!focused) cancelInputs();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (hardwareInput != null
+                && hasWindowFocus()
+                && hardwareInput.dispatch(event, getCurrentFocus())) return true;
+        return super.dispatchKeyEvent(event);
+    }
+
+    private void cancelInputs() {
+        if (interaction != null && interaction.navigating()) return;
+        if (hardwareInput != null) hardwareInput.cancel();
+        if (interaction != null) interaction.cancel();
     }
 
     @Override
     protected void onStop() {
+        cancelInputs();
         inputs.stopped();
         if (pairing != null) pairing.hidden();
         if (conversation != null) conversation.hidden();
@@ -139,6 +164,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     protected void onDestroy() {
+        cancelInputs();
+        if (inputSettings != null) inputSettings.close();
         if (loginSheet != null) loginSheet.close();
         if (imagePreview != null) imagePreview.dismiss();
         controller.removeListener(this);
@@ -189,6 +216,11 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     }
 
     @Override
+    public dev.openduo.pocket.input.InputTarget input() {
+        return interaction;
+    }
+
+    @Override
     public void toast(String value) {
         ui.toast(value);
     }
@@ -202,6 +234,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     public void navigate(String destination) {
         if (destination == null || destination.equals(page) && views.containsKey(destination))
             return;
+        focusNavigation.remember(page, views.get(page));
+        cancelInputs();
         if (conversation != null) conversation.hidden();
         if (sessions != null && page.equals("sessions")) sessions.visible(false);
         if (location != null && page.equals("location")) location.hidden();
@@ -215,6 +249,11 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         if (selected == null) {
             View pageView;
             switch (page) {
+                case "input":
+                    inputSettings =
+                            new dev.openduo.pocket.ui.pages.InputSettingsPage(this, inputBindings);
+                    pageView = inputSettings.render();
+                    break;
                 case "conversation":
                     conversation = new ConversationPage(this, controller);
                     pageView = conversation.render();
@@ -272,6 +311,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                     ui.adaptiveWidth(new BottomNav(ui, this::navigate).render(page)),
                     new LinearLayout.LayoutParams(-1, -2));
         ui.immersive();
+        focusNavigation.restore(page, selected);
     }
 
     private View extraPage(String name) {

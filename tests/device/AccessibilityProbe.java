@@ -11,11 +11,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.FrameLayout;
 
 import dev.openduo.pocket.app.MainActivity;
 import dev.openduo.pocket.audio.input.RecordingInput;
-import dev.openduo.pocket.core.Attachment;
 import dev.openduo.pocket.core.Message;
 import dev.openduo.pocket.core.PocketController;
 import dev.openduo.pocket.ui.PageHost;
@@ -180,7 +178,7 @@ final class AccessibilityProbe {
                             if (selected != null) selected.recycle();
                         }
                     });
-            if (capture) pendingPermission();
+
             sheet();
             controller.setVoiceInput(false);
             controller.draft("QA accessible retained draft");
@@ -196,7 +194,7 @@ final class AccessibilityProbe {
                     });
             probe.screenshot(context, "accessibility-conversation-controls");
         } finally {
-            controller.releaseHold(true);
+            controller.cancelOrStop();
             controller.ambientHush();
             stateBarrier();
             controller.draft(draft);
@@ -278,102 +276,6 @@ final class AccessibilityProbe {
                         && controller.snapshot().outbox.isEmpty()
                         && controller.snapshot().rows.size() == count,
                 "accessible cancellation releases input without sending another note");
-    }
-
-    private void pendingPermission() throws Exception {
-        AtomicReference<Runnable> grant = new AtomicReference<>();
-        PageHost host = (PageHost) screen;
-        PageHost pending =
-                new PageHost() {
-                    public Activity activity() {
-                        return screen;
-                    }
-
-                    public Ui ui() {
-                        return ui;
-                    }
-
-                    public void navigate(String page) {
-                        host.navigate(page);
-                    }
-
-                    public void back() {
-                        host.back();
-                    }
-
-                    public void toast(String text) {
-                        host.toast(text);
-                    }
-
-                    public void permission(String[] names, Runnable action) {
-                        grant.set(action);
-                    }
-
-                    public void pickAttachment(String mime) {
-                        throw new AssertionError();
-                    }
-
-                    public void takePhoto() {
-                        throw new AssertionError();
-                    }
-
-                    public void openAttachment(Attachment attachment) {
-                        throw new AssertionError();
-                    }
-
-                    public void loginTailnet() {
-                        throw new AssertionError();
-                    }
-                };
-        AtomicReference<HoldToTalkView> waiting = new AtomicReference<>();
-        onMain(
-                () -> {
-                    FrameLayout content = screen.findViewById(android.R.id.content);
-                    waiting.set(new HoldToTalkView(pending, controller));
-                    content.addView(waiting.get(), new FrameLayout.LayoutParams(-1, ui.dp(48)));
-                });
-        try {
-            onMain(
-                    () -> {
-                        waiting.get()
-                                .performAccessibilityAction(
-                                        AccessibilityNodeInfo.ACTION_CLICK, null);
-                        check(
-                                grant.get() != null
-                                        && action(
-                                                waiting.get(),
-                                                AccessibilityNodeInfo.ACTION_DISMISS),
-                                "a pending permission action is cancellable before microphone"
-                                        + " start");
-                        Runnable obsolete = grant.get();
-                        waiting.get()
-                                .performAccessibilityAction(
-                                        AccessibilityNodeInfo.ACTION_DISMISS, null);
-                        waiting.get()
-                                .performAccessibilityAction(
-                                        AccessibilityNodeInfo.ACTION_CLICK, null);
-                        obsolete.run();
-                    });
-            stateBarrier();
-            check(
-                    !controller.snapshot().holdRecording && !RecordingInput.isActive(),
-                    "an old permission result cannot activate the replacement recording intent");
-            onMain(
-                    () -> {
-                        ((ViewGroup) waiting.get().getParent()).removeView(waiting.get());
-                        grant.get().run();
-                    });
-            stateBarrier();
-            check(
-                    !controller.snapshot().holdRecording && !RecordingInput.isActive(),
-                    "a permission result after the recording view detached cannot start capture");
-        } finally {
-            onMain(
-                    () -> {
-                        if (waiting.get().getParent() instanceof ViewGroup)
-                            ((ViewGroup) waiting.get().getParent()).removeView(waiting.get());
-                    });
-        }
     }
 
     private void stateBarrier() throws Exception {

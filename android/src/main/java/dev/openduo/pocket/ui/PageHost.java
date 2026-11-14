@@ -12,6 +12,8 @@ public interface PageHost {
 
     Ui ui();
 
+    dev.openduo.pocket.input.InputTarget input();
+
     void navigate(String page);
 
     void back();

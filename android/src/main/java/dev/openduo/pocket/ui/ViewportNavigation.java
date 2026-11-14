@@ -69,8 +69,58 @@ public final class ViewportNavigation {
                         return true;
                     }
                 });
+        boolean[] moving = {false};
+        CharSequence original = view.getContentDescription();
+        String description =
+                (original == null ? "" : original + ". ") + words.t("确认键进入或退出移动模式，返回键退出移动模式");
+        view.setContentDescription(description);
+        android.graphics.drawable.StateListDrawable focus =
+                new android.graphics.drawable.StateListDrawable();
+        focus.addState(
+                new int[] {android.R.attr.state_selected},
+                new android.graphics.drawable.ColorDrawable(0x401fd9de));
+        focus.addState(
+                new int[] {android.R.attr.state_focused},
+                new android.graphics.drawable.ColorDrawable(0x251fd9de));
+        focus.addState(new int[0], new android.graphics.drawable.ColorDrawable(0));
+        view.setForeground(focus);
+        view.setOnFocusChangeListener(
+                (host, focused) -> {
+                    if (!focused) {
+                        moving[0] = false;
+                        host.setSelected(false);
+                    }
+                });
         view.setOnKeyListener(
                 (host, code, event) -> {
+                    boolean confirm =
+                            code == KeyEvent.KEYCODE_DPAD_CENTER
+                                    || code == KeyEvent.KEYCODE_BUTTON_A
+                                    || code == KeyEvent.KEYCODE_ENTER
+                                    || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
+                    boolean exit = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE;
+                    if (confirm) {
+                        if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                            moving[0] = !moving[0];
+                            host.setSelected(moving[0]);
+                            android.widget.Toast.makeText(
+                                            host.getContext(),
+                                            moving[0]
+                                                    ? words.t("移动模式：方向键移动，确认或返回键退出")
+                                                    : words.t("已退出移动模式"),
+                                            android.widget.Toast.LENGTH_SHORT)
+                                    .show();
+                        }
+                        return true;
+                    }
+                    if (exit && moving[0]) {
+                        if (event.getAction() == KeyEvent.ACTION_UP) {
+                            moving[0] = false;
+                            host.setSelected(false);
+                        }
+                        return true;
+                    }
+                    if (!moving[0]) return false;
                     boolean handled =
                             code == KeyEvent.KEYCODE_DPAD_UP
                                     || code == KeyEvent.KEYCODE_DPAD_DOWN

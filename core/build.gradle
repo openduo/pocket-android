@@ -15,6 +15,7 @@ dependencies {
     implementation fileTree(dir: '../android/libs', include: ['commonmark*.jar'])
     testImplementation 'org.json:json:20250517'
     testImplementation project(':ui-policy')
+    testImplementation project(':input')
 }
 sourceSets.test.java.srcDirs = [rootProject.file('tests/host')]
 

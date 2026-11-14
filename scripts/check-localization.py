@@ -38,6 +38,7 @@ for key, value in catalog.items():
 files = list((SOURCE / 'ui').rglob('*.java'))
 files += [SOURCE / 'app' / name for name in ('MainActivity.java', 'ExternalInputs.java', 'AnswerNotifications.java', 'PocketSessionService.java')]
 files += [SOURCE / 'location/TileMapView.java']
+files += list((SOURCE / 'app/input').rglob('*.java'))
 checked = 0
 for path in files:
     text = path.read_text()

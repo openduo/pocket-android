@@ -17,6 +17,7 @@ import dev.openduo.pocket.core.Endpoint;
 import dev.openduo.pocket.core.Json;
 import dev.openduo.pocket.core.PocketController;
 import dev.openduo.pocket.core.RedialBackoff;
+import dev.openduo.pocket.core.VoiceNotes;
 import dev.openduo.pocket.net.ChannelConnection;
 import dev.openduo.pocket.text.AppText;
 
@@ -283,7 +284,7 @@ final class OutageProbe {
                 capturing() && controller.snapshot().holdLive,
                 "the overlap case starts an actual native held note");
         CaptureSession capture = onState(() -> (CaptureSession) field("capture"));
-        long packets = onState(() -> (Long) field("holdPackets"));
+        long packets = onState(() -> ((VoiceNotes) field("voiceNotes")).packets());
         // The real 31-second boundary was exercised above. Prime only this separate overlap case.
         onState(
                 () -> {
@@ -303,7 +304,8 @@ final class OutageProbe {
                         && onState(
                                 () ->
                                         field("capture") == capture
-                                                && (Long) field("holdPackets") > packets),
+                                                && ((VoiceNotes) field("voiceNotes")).packets()
+                                                        > packets),
                 "sustained room pause does not truncate the independent local held note");
         controller.releaseHold(true);
         await(() -> !capturing(), 3500);

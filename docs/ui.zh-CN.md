@@ -9,6 +9,7 @@
 | 层 | 实现 | 责任 |
 | --- | --- | --- |
 | 业务与协议 | `PocketController`、纯 Java reducer/codec、SQLite、Go transport | 房间、权限、消息、草稿、outbox、连接与设备资源；不读取窗口尺寸 |
+| 输入意图 | `:input`、`app/input`、设备默认映射 | 触屏／实体键／遥控统一动作与录音来源；业务不按按键或机型分叉 |
 | 纯尺寸策略 | `:ui-policy` 中的 `ui/AdaptiveMetrics` | 当前窗口 dp、字体、宽高类别、控件/媒体/sheet 的设计 token；不依赖 Android 或业务状态 |
 | 窗口与容器 | `AdaptivePage`、`AdaptiveColumn`、`InsetsFrame` | 列宽、短窗口/IME 下的页头与编辑器布局、系统栏/键盘 inset |
 | 页面 UI 状态 | `PageStates`、原生 View 的固定资源 ID | 旋转/窗口重建时保存每个页面的表单、阅读位置、焦点和选区；业务草稿仍以 controller 为准 |
@@ -17,6 +18,8 @@
 
 `scripts/check-architecture.py` 检查纯策略不引入 Android、适配容器不引入业务/协议 owner、controller
 不引入窗口尺寸，并阻止页面/组件直接读取物理像素。窗口和 IME 策略不应重新散落进业务代码。
+
+方向／确认／返回使用原生焦点导航。`Ui` 绘制填充焦点，`FocusNavigation` 保留当前窗口页面焦点，地图／图片使用明确的移动模式，避免困住方向键。可修改映射和 E2 案例见[输入架构](input.zh-CN.md)。
 
 ## 窗口与字体策略
 

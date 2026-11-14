@@ -12,11 +12,11 @@ version code 2). This adds the localization follow-up to the first preview and c
 
 | Area | Concrete result |
 | --- | --- |
-| Build boundaries | Standard Gradle wrapper/AGP/CMake; pure `:core`, pure `:ui-policy`, framework `:device`, example `:device-e2`, and `:app`; source-boundary checks and GitHub workflow |
+| Build boundaries | Standard Gradle wrapper/AGP/CMake; pure `:core`, pure `:ui-policy` and `:input`, framework `:device`, example `:device-e2`, and `:app`; source-boundary checks and GitHub workflow |
 | Windows | Shared size classes, bounded columns, short-window/IME/Insets and page-state handling; business logic does not branch on E2 or physical-panel dimensions |
 | Hardware | Default Android capture/routing and capability discovery; MIC fallback; E2 model/firmware/system-bar and optional array integration isolated in one module |
 | Identity | DuoDuo Pocket / 多多, `dev.openduo.pocket`, `duoduopocket` links, upstream brand mark, legacy/adaptive/themed icons, one version source; arm64+x86_64 APK |
-| Internationalization | English/Simplified Chinese and system fallback, 617-entry copy catalog, localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
+| Internationalization | English/Simplified Chinese and system fallback, 646-entry current-source copy catalog (617 in the first preview), localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
 | P0 implementation | Tailscale login/pairing/live and network recovery; text/attachments/history; durable/idempotent outbox/drafts; voice upload/retry, ambient playback/interruption |
 | P1 implementation | Sight negotiation and Camera2/H.264, sessions/details/notification controls, maps/coordinates/geocoder/arrival ledger, import/share/Try/diagnostics |
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
@@ -32,6 +32,28 @@ version code 2). This adds the localization follow-up to the first preview and c
 - [Remote CI for Preview 2](https://github.com/openduo/pocket-android/actions/runs/43609534160) passes, including host contracts, source/localization checks, Go checks and the dual-ABI APK build. Localization checks cover all 117 production Java sources, direct untranslated English labels, native resources and E2 array read-error translation. The signed release is build/contract-checked; audio/window smoke evidence remains attached to the first candidate. Published APK/checksum asset SHA-256 values match the local release.
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
+
+## Foreground input refactor after Preview 2
+
+The current source adds a pure `:input` module and shared touch/key/remote actions. E2 REC
+starts/sends voice; MARK cancels recording or stops speech. Settings can learn, reassign, disable
+or remove bindings per input device. Native D-pad/OK/Back navigation, filled focus states and
+map/image pan-mode exit support use without touch. `:core/VoiceNotes` now owns note bytes,
+source identity, durable admission and recovery; the controller coordinates capture without
+another copy of recording state. See [input architecture and extension rules](input.md).
+
+Generic Debug and same-package local E2 Release builds pass, along with the relevant new JVM
+contracts and architecture/localization checks (646 catalog entries). The final local E2 build
+passes 27 bounded input assertions: D-pad navigation, on-device key learning/action selection,
+one Try voice send, MARK cancellation, touch/hardware ownership, repeat and window-focus
+cancellation, and persistence/restoration of overrides. Actual native-array capture was used;
+Android key events were injected. The original room returned Online with its pairing and data
+preserved; no new tailnet authorization/node or real room test message was needed. The probe
+restored the initial voice-input setting and all bindings it changed.
+
+Physical REC/MARK presses, a real remote and target-speaker hardware remain unaccepted. No
+rotation, service-message, long-background or broad device matrix was added. These changes are
+in source and the installed local legacy build, **not the published Preview 2 APK**.
 
 ## Unreleased client follow-up
 
@@ -108,9 +130,9 @@ unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
 | P0 actual use | Full hands-free ambient conversation and long-term background recovery remain unaccepted | One actual human voice-note/audible-reply turn now passes on the local original-package E2; do not repeat or expand this check without a relevant need |
 | P1 actual services | Physical visits remain unverified; selected-session notification receipt now passes on the local original-package E2 build | Visits need a device with location/geocoder; notification disconnect uncertainty and broader target/platform coverage remain future work |
 | Deferred: Sight | Explicitly deferred by the user on 2026-11-15; implementation retained, actual negotiation/uplink unaccepted | Resume only at the user's request with a media-capable room service; no automatic release polling or service changes |
-| Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
+| Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and actual remote/key delivery remain open; shared foreground no-touch navigation is implemented | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
-| Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |
+| Maintenance | Android controller remains large; persistence/system services remain in app | Owned voice-note persistence/recovery is extracted; continue by business owner within the protocol/window/input/hardware boundaries |
 | Passport physical acceptance | Protocol 1.3 fixed vectors and E2 ART pass; actual BLE pairing/CCCD, physical press/reply/alert and background wake remain open | Use an explicitly available accessory without taking E2Studio's connection; see [protocol evidence](passport.md) |
 | Deferred | Android push registration/relay/receiver, AES-GCM/HMAC/ledger/upstream vectors | Explicitly resume those areas in a later milestone |
 | Old-package migration | No cross-package database/AndroidKeyStore migration | Use the explicit same-package/same-signature build to retain the original node and data; the separate public package requires its own login/pairing |

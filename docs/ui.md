@@ -7,6 +7,7 @@ The native View implementation uses Android window-size classes, WindowInsets, b
 | Layer | Owner | Responsibility |
 | --- | --- | --- |
 | Business/protocol | Controller, pure reducers/codecs, SQLite, transport | Room, drafts, outbox and resource coordination; no window measurements |
+| Input intents | `:input`, `app/input`, device defaults | Shared touch/key/remote actions, local bindings and recording source ownership; no page/model branches in room state |
 | Pure window policy | `:ui-policy` / `AdaptiveMetrics` | Current window dp, font scale, width/height classes and named design tokens |
 | Window containers | `AdaptivePage`, `AdaptiveColumn`, `InsetsFrame` | Column bounds, short windows, IME and system insets |
 | Transient UI state | `PageStates`, stable resource IDs | Form, scroll, focus and selection restoration; durable drafts remain controller-owned |
@@ -22,6 +23,8 @@ The native View implementation uses Android window-size classes, WindowInsets, b
 Navigation follows the same content bound. Sheets fill narrow windows and cap width in wider windows. Parent-window measurement determines height. API30+ uses systemBars/displayCutout/ime insets; API26–29 uses the visible region of the current window with the E2 top-inset fallback. No physical `getRealSize()` calculation decides IME layout.
 
 Short windows or IME visibility collapse auxiliary chrome and keep the editor reachable; restoring space restores the presentation without discarding draft/selection. Forms and composer footers can scroll. Controls grow with text. Stable IDs allow native per-page state to survive recreation.
+
+Native D-pad/OK/Back focus navigation is shared by pages and sheets. `Ui` draws filled focus states, `FocusNavigation` retains window-local page focus, and map/image `ViewportNavigation` uses explicit pan mode so arrows can leave the viewport. [Input architecture](input.md) describes remapping and the E2 example.
 
 When adding layout behavior, define a purposeful token in `AdaptiveMetrics` and expose it through shared controls. Compose existing containers before adding page-specific measurements. Preserve business values in their owner; restored Views must not overwrite newer controller drafts. Keep OEM matching in hardware adapters.
 

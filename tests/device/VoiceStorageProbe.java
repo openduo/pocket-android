@@ -102,7 +102,7 @@ final class VoiceStorageProbe {
                     "the ordinary hold path captures real native Opus before admission fails");
             onState(
                     () -> {
-                        original[0] = (File) field("heldFile");
+                        original[0] = ((VoiceNotes) field("voiceNotes")).file();
                         repository
                                 .getWritableDatabase()
                                 .execSQL(

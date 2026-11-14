@@ -481,7 +481,7 @@ final class VoiceUploadProbe {
 
     private void heldNote() throws Exception {
         beginCapturedHold();
-        File cancelled = onState(() -> (File) field("heldFile"));
+        File cancelled = onState(() -> ((VoiceNotes) field("voiceNotes")).file());
         controller.releaseHold(true);
         await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         check(
@@ -492,7 +492,7 @@ final class VoiceUploadProbe {
                         + " sending");
 
         beginCapturedHold();
-        File background = onState(() -> (File) field("heldFile"));
+        File background = onState(() -> ((VoiceNotes) field("voiceNotes")).file());
         controller.onForeground(false);
         await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         check(

@@ -185,14 +185,12 @@ final class VoiceDeathProbe {
         throw new IllegalStateException("Host did not terminate the live voice checkpoint");
     }
 
-    @SuppressWarnings("unchecked")
     private VoiceInbox.Note staged(String id) throws Exception {
-        Map<String, Object> admissions = (Map<String, Object>) field("voiceAdmissions");
-        Object admission = admissions.get(id);
-        if (admission == null) return null;
-        Field note = admission.getClass().getDeclaredField("note");
-        note.setAccessible(true);
-        return (VoiceInbox.Note) note.get(admission);
+        return ((VoiceNotes) field("voiceNotes"))
+                .retained(repository.roomIdentity()).stream()
+                        .filter(note -> note.id.equals(id))
+                        .findFirst()
+                        .orElse(null);
     }
 
     Bundle run(Context context, String phase) throws Exception {
@@ -206,7 +204,7 @@ final class VoiceDeathProbe {
         controller = PocketController.get(context);
         state = (Executor) field("state");
         repository = (RoomRepository) field("realRepo");
-        inbox = (VoiceInbox) field("voiceInbox");
+        inbox = new VoiceInbox(new File(context.getFilesDir(), "voice"));
         await(this::online, 35_000);
         check(
                 online() && !controller.snapshot().trying,
@@ -249,7 +247,7 @@ final class VoiceDeathProbe {
                             controller.snapshot().holdLive
                                     && controller.snapshot().holdDurationMs >= 1300,
                     6000);
-            File file = onState(() -> (File) field("heldFile"));
+            File file = onState(() -> ((VoiceNotes) field("voiceNotes")).file());
             check(
                     file != null && RecordingInput.isActive() && file.length() > 0,
                     "the real E2 holds its native recording with complete frames flushed before"
@@ -422,11 +420,9 @@ final class VoiceDeathProbe {
                             for (String key : new String[] {"recordingId", "commitId", "cancelId"})
                                 if (record.has(key))
                                     repository.acknowledgeVoice(record.getString(key));
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> admissions =
-                                    (Map<String, Object>) field("voiceAdmissions");
+                            VoiceNotes notes = (VoiceNotes) field("voiceNotes");
                             for (String key : new String[] {"recordingId", "commitId", "cancelId"})
-                                if (record.has(key)) admissions.remove(record.getString(key));
+                                if (record.has(key)) notes.discard(record.getString(key));
                             repository.select(controller.settings);
                             field("repo", repository);
                             field("channel", field("transport"));

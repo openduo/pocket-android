@@ -6,9 +6,11 @@ package dev.openduo.pocket.device.e2;
 import android.content.Context;
 import android.media.AudioDeviceInfo;
 import android.os.Build;
+import android.view.KeyEvent;
 
 import dev.openduo.pocket.audio.input.RecordingInput;
 import dev.openduo.pocket.device.AndroidDeviceAdapter;
+import dev.openduo.pocket.input.InputAction;
 
 import java.io.IOException;
 
@@ -27,6 +29,13 @@ public final class E2DeviceAdapter extends AndroidDeviceAdapter {
     @Override
     public boolean requiresDarkSystemBars() {
         return true;
+    }
+
+    @Override
+    public InputAction keyAction(int keyCode, int scanCode) {
+        if (keyCode == KeyEvent.KEYCODE_F1) return InputAction.TOGGLE_VOICE;
+        if (keyCode == KeyEvent.KEYCODE_F2) return InputAction.CANCEL_OR_STOP;
+        return super.keyAction(keyCode, scanCode);
     }
 
     @Override

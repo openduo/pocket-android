@@ -234,7 +234,7 @@ public final class Ui {
         field.setTextSize(15);
         field.setPadding(dp(12), dp(10), dp(12), dp(10));
         field.setMinHeight(controlHeight());
-        field.setBackground(surface(palette.raised, 12));
+        field.setBackground(focusSurface(palette.raised, 12));
         field.setInputType(
                 InputType.TYPE_CLASS_TEXT
                         | (multiline
@@ -289,11 +289,7 @@ public final class Ui {
     }
 
     public void clickable(View view, int bg, int radius, Runnable action) {
-        view.setBackground(
-                new RippleDrawable(
-                        ColorStateList.valueOf(0x25ffffff),
-                        surface(bg, radius),
-                        surface(0xffffffff, radius)));
+        view.setBackground(focusSurface(bg, radius));
         view.setClickable(true);
         view.setFocusable(true);
         view.setAccessibilityDelegate(
@@ -306,6 +302,36 @@ public final class Ui {
                     }
                 });
         if (action != null) view.setOnClickListener(v -> action.run());
+    }
+
+    /** Filled focus highlight works for both remotes and keyboards, in both themes. */
+    public android.graphics.drawable.Drawable focusSurface(int color, int radius) {
+        android.graphics.drawable.StateListDrawable fill =
+                new android.graphics.drawable.StateListDrawable();
+        int focused =
+                mix(
+                        color == 0 ? palette.surface : color,
+                        color == palette.accent ? palette.onAccent : palette.accent,
+                        .30f);
+        fill.addState(new int[] {android.R.attr.state_focused}, surface(focused, radius));
+        fill.addState(new int[0], surface(color, radius));
+        return new RippleDrawable(
+                ColorStateList.valueOf(palette.light ? 0x20000000 : 0x25ffffff),
+                fill,
+                surface(0xffffffff, radius));
+    }
+
+    private static int mix(int base, int tint, float amount) {
+        return android.graphics.Color.rgb(
+                Math.round(
+                        android.graphics.Color.red(base) * (1 - amount)
+                                + android.graphics.Color.red(tint) * amount),
+                Math.round(
+                        android.graphics.Color.green(base) * (1 - amount)
+                                + android.graphics.Color.green(tint) * amount),
+                Math.round(
+                        android.graphics.Color.blue(base) * (1 - amount)
+                                + android.graphics.Color.blue(tint) * amount));
     }
 
     public GradientDrawable surface(int color, int radius) {

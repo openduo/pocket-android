@@ -96,8 +96,26 @@ public final class AmbientPage implements PocketController.Listener {
         root.addView(transcript, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout controls = ui.row();
         ui.inset(controls, ui.pagePaddingDp(), 6);
-        mute = ui.button(ui.t("静音"), ui.palette.text, ui.palette.raised, controller::ambientMute);
-        hush = ui.button(ui.t("别说了"), ui.palette.text, ui.palette.raised, controller::ambientHush);
+        mute =
+                ui.button(
+                        ui.t("静音"),
+                        ui.palette.text,
+                        ui.palette.raised,
+                        () ->
+                                host.input()
+                                        .invoke(
+                                                dev.openduo.pocket.input.InputAction.MUTE_AMBIENT,
+                                                host.input().owner("ambient-mute")));
+        hush =
+                ui.button(
+                        ui.t("别说了"),
+                        ui.palette.text,
+                        ui.palette.raised,
+                        () ->
+                                host.input()
+                                        .invoke(
+                                                dev.openduo.pocket.input.InputAction.CANCEL_OR_STOP,
+                                                host.input().owner("ambient-stop")));
         compactControl(mute);
         compactControl(hush);
         controls.addView(mute, new LinearLayout.LayoutParams(0, -2, 1));
@@ -163,9 +181,10 @@ public final class AmbientPage implements PocketController.Listener {
                                             || s.ambient == PocketController.Ambient.FAILED))
                                 controller.reopenAmbient();
                             else
-                                host.permission(
-                                        new String[] {android.Manifest.permission.RECORD_AUDIO},
-                                        controller::ambientToggle);
+                                host.input()
+                                        .invoke(
+                                                dev.openduo.pocket.input.InputAction.TOGGLE_AMBIENT,
+                                                host.input().owner("ambient-toggle"));
                         });
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(ui.dp(12), ui.dp(4), ui.dp(12), ui.dp(12));

@@ -78,6 +78,7 @@ public final class SettingsPage implements PocketController.Listener {
                             ui.t("扫描与配对"),
                             () -> host.navigate("passport"));
         section(body, ui.t("声音与屏幕"));
+        row(body, "keyboard", ui.t("按键与遥控器"), ui.t("实体键映射与方向键导航"), () -> host.navigate("input"));
         audioRoute = row(body, "info", ui.t("音频路径"), "", null);
         toggle(
                 body,
@@ -364,6 +365,7 @@ public final class SettingsPage implements PocketController.Listener {
         ui.add(labels, ui.label(detail, 11, ui.palette.subtle, false), 5);
         row.addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
         Switch control = new Switch(ui.context);
+        control.setFocusable(false);
         control.setChecked(value);
         control.setContentDescription(title);
         control.setMinimumHeight(ui.touchTarget());
@@ -372,6 +374,7 @@ public final class SettingsPage implements PocketController.Listener {
         control.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         row.setContentDescription(title + ", " + detail);
         row.setFocusable(true);
+        row.setBackground(ui.focusSurface(ui.palette.surface, 12));
         row.setAccessibilityDelegate(
                 new View.AccessibilityDelegate() {
                     @Override

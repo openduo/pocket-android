@@ -127,7 +127,8 @@ public final class ConversationPage implements PocketController.Listener {
         chrome.addView(upgradeNotice);
         banner = ui.label("", 12, ui.palette.attention, false);
         ui.inset(banner, ui.pagePaddingDp(), 8);
-        banner.setBackground(ui.surface(ui.palette.attentionTint, 10));
+        banner.setBackground(ui.focusSurface(ui.palette.attentionTint, 10));
+        banner.setFocusable(true);
         banner.setOnClickListener(
                 v -> {
                     PocketController.Snapshot s = controller.snapshot();
@@ -209,9 +210,33 @@ public final class ConversationPage implements PocketController.Listener {
         holdPanel.addView(holdLabel);
         HoldToTalkView.Meter meter = new HoldToTalkView.Meter(ui, controller);
         holdPanel.addView(meter, new LinearLayout.LayoutParams(-1, ui.controlHeight()));
-        TextView hint = ui.label(ui.t("麦克风就绪后轻震 · 移出按钮取消"), 12, ui.palette.secondary, false);
+        TextView hint = ui.label(ui.t("确认键发送 · 取消按钮放弃本次录音"), 12, ui.palette.secondary, false);
         hint.setGravity(Gravity.CENTER);
         holdPanel.addView(hint);
+        LinearLayout voiceActions = ui.row();
+        voiceActions.addView(
+                ui.button(
+                        ui.t("取消录音"),
+                        ui.palette.secondary,
+                        ui.palette.raised,
+                        () ->
+                                host.input()
+                                        .invoke(
+                                                dev.openduo.pocket.input.InputAction.CANCEL_OR_STOP,
+                                                host.input().owner("voice-cancel"))),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        voiceActions.addView(
+                ui.button(
+                        ui.t("发送录音"),
+                        ui.palette.onAccent,
+                        ui.palette.accent,
+                        () ->
+                                host.input()
+                                        .invoke(
+                                                dev.openduo.pocket.input.InputAction.SEND_VOICE,
+                                                host.input().owner("voice-send"))),
+                new LinearLayout.LayoutParams(0, -2, 1));
+        holdPanel.addView(voiceActions);
         root.addView(holdPanel);
         holdPanel.setVisibility(View.GONE);
         composer = ui.column();
@@ -347,7 +372,7 @@ public final class ConversationPage implements PocketController.Listener {
         }
         updateWorking(s);
         if (readOnly) return;
-        boolean ambientOn = s.ambientActive, voice = s.voiceInput && !ambientOn;
+        boolean ambientOn = s.ambientActive, voice = s.holdRecording || s.voiceInput && !ambientOn;
         voiceToggle.setVisibility(ambientOn ? View.GONE : View.VISIBLE);
         voiceToggle.setContentDescription(voice ? ui.t("切换到文字输入") : ui.t("切换到按住说话"));
         hold.setVisibility(voice ? View.VISIBLE : View.GONE);

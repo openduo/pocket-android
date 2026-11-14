@@ -25,7 +25,6 @@ import dev.openduo.pocket.trymode.TryChannel;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -100,7 +99,8 @@ public final class PocketController {
                 readingId,
                 sight,
                 sightRefusal,
-                arrivalStatus;
+                arrivalStatus,
+                holdOwner;
         public final String ambientError;
         public final String importTarget;
         public final String lastHeard;
@@ -177,8 +177,9 @@ public final class PocketController {
             voiceAvailable = c.voiceAvailable();
             daemonAvailable = c.roomState == null || c.roomState.daemonOk;
             ambientMuted = c.ambientMuted;
-            holdRecording = c.holdRequested;
-            holdLive = c.holdLive;
+            holdRecording = c.voiceNotes.active();
+            holdLive = c.voiceNotes.live();
+            holdOwner = c.voiceNotes.owner();
             trying = c.trying;
             olderLoading = c.olderRequestEpoch == c.connectionEpoch;
             uploadingVoice = c.uploadForeground;
@@ -188,7 +189,7 @@ public final class PocketController {
             echoCancellation = c.capture != null && c.capture.echoCancellation();
             latencyMs = c.latencyMs;
             cursor = c.repo.cursor();
-            holdDurationMs = c.holdPackets * 20L;
+            holdDurationMs = c.voiceNotes.packets() * 20L;
             revision = c.revision;
         }
     }
@@ -298,13 +299,13 @@ public final class PocketController {
     private volatile long tailnetActionEpoch;
     private boolean tailnetLogoutRequested;
     private boolean restoreOutboxBeforeConnect;
-    private long revision, holdPackets, lastHoldPublish;
+    private long revision;
     private long draftGeneration, draftEditAck;
     private final java.util.concurrent.atomic.AtomicLong draftEdits =
             new java.util.concurrent.atomic.AtomicLong();
     private boolean foreground, trying, opening, ambientWanted, ambientMuted;
     private SendOperation sending;
-    private boolean holdRequested, holdLive, captureStopping;
+    private boolean captureStopping;
     private int olderRequestEpoch = -1;
     private final java.util.concurrent.atomic.AtomicBoolean publishing =
             new java.util.concurrent.atomic.AtomicBoolean();
@@ -312,9 +313,6 @@ public final class PocketController {
     private Boolean liveCerebellumOk;
     private volatile CaptureSession capture;
     private int captureEpoch;
-    private BufferedOutputStream heldOutput;
-    private FileOutputStream heldFileOutput;
-    private File heldFile;
     private OpusDecoder decoder;
     private SpeechPlayer player;
     private boolean playerActive;
@@ -328,23 +326,10 @@ public final class PocketController {
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
-    private final VoiceInbox voiceInbox, tryVoiceInbox;
-    private VoiceInbox.Note heldVoice;
-    private VoiceInbox heldInbox;
-    private final Map<String, VoiceAdmission> voiceAdmissions = new java.util.LinkedHashMap<>();
+    private final VoiceNotes voiceNotes;
     private final ImportCoordinator imports;
     private final dev.openduo.pocket.sight.DeviceHeat deviceHeat;
     private int heatLevel;
-
-    private static final class VoiceAdmission {
-        final VoiceInbox inbox;
-        final VoiceInbox.Note note;
-
-        VoiceAdmission(VoiceInbox inbox, VoiceInbox.Note note) {
-            this.inbox = inbox;
-            this.note = note;
-        }
-    }
 
     /** Mutable fields belong to the state executor; each HTTP attempt captures immutable inputs. */
     private static final class SendOperation {
@@ -382,12 +367,27 @@ public final class PocketController {
         this.context = context;
         settings = new Settings(context);
         attachmentStore = new AttachmentStore(context);
-        voiceInbox = new VoiceInbox(new File(context.getFilesDir(), "voice"));
-        tryVoiceInbox = new VoiceInbox(new File(context.getCacheDir(), "try-voice"));
         arrivals = new dev.openduo.pocket.location.ArrivalMonitor(context);
         arrivals.refresh();
         log = dev.openduo.pocket.diagnostics.AppLog.get(context);
         log.event("launch", "api=" + android.os.Build.VERSION.SDK_INT);
+        voiceNotes =
+                new VoiceNotes(
+                        new VoiceInbox(new File(context.getFilesDir(), "voice")),
+                        new VoiceInbox(new File(context.getCacheDir(), "try-voice")),
+                        new VoiceNotes.Events() {
+                            public void error(String message) {
+                                lastError = message;
+                            }
+
+                            public void log(String event) {
+                                PocketController.this.log.event("voice", event);
+                            }
+
+                            public void admitted() {
+                                if (lastError.equals(VoiceInbox.UNSAVED)) lastError = "";
+                            }
+                        });
         notifications = new dev.openduo.pocket.app.AnswerNotifications(context, settings);
         dev.openduo.pocket.app.BackgroundSync.schedule(context);
         realRepo = new RoomRepository(context);
@@ -487,7 +487,8 @@ public final class PocketController {
                                             if (capture != null
                                                     && capture.isStarted()
                                                     && !captureStopping) {
-                                                if (holdRequested) releaseOnState(false, true);
+                                                if (voiceNotes.active())
+                                                    releaseOnState(false, true);
                                                 stopCapture();
                                             }
                                             publish();
@@ -838,7 +839,7 @@ public final class PocketController {
         settings.headsetMic(value);
         state.execute(
                 () -> {
-                    if (holdRequested) notice("本次录音结束后切换麦克风");
+                    if (voiceNotes.active()) notice("本次录音结束后切换麦克风");
                     else if (capture != null) stopCapture();
                     publish();
                 });
@@ -896,7 +897,7 @@ public final class PocketController {
                     || connection == Connection.CONNECTING
                     || sending != null
                     || ambientWanted
-                    || holdRequested
+                    || voiceNotes.active()
                     || !readingId.isEmpty()
                     || roomAccess != null)
                 pauseRoomAccess(
@@ -1279,7 +1280,7 @@ public final class PocketController {
             ambientLinkPaused = true;
             ambientInput.captureStopped();
             // A local held note has its own lifetime and may still be cancelled or sent offline.
-            if (!holdRequested) stopCapture();
+            if (!voiceNotes.active()) stopCapture();
         }
         lastError = ambientFailure.isEmpty() ? "连不上房间，正在重试" : ambientFailure;
         publish();
@@ -1657,10 +1658,9 @@ public final class PocketController {
     public void retry(String id) {
         state.execute(
                 () -> {
-                    VoiceAdmission retained = voiceAdmissions.get(id);
-                    if (retained != null) {
-                        if (!retained.note.room.equals(repo.roomIdentity())) return;
-                        if (!admitVoice(retained)) {
+                    boolean retained = voiceNotes.hasRetained(id);
+                    if (retained) {
+                        if (!voiceNotes.retry(id, voiceStore(repo))) {
                             reload();
                             publish();
                             return;
@@ -1696,7 +1696,7 @@ public final class PocketController {
                                         System.currentTimeMillis(),
                                         0));
                     } else {
-                        if (item.state != Message.FAILED && retained == null) return;
+                        if (item.state != Message.FAILED && !retained) return;
                         if (item.state == Message.FAILED)
                             repo.transition(item.state(Message.QUEUED, ""));
                     }
@@ -1713,12 +1713,11 @@ public final class PocketController {
     public void discard(String id) {
         state.execute(
                 () -> {
-                    VoiceAdmission retained = voiceAdmissions.get(id);
-                    if (retained != null) {
-                        if (!retained.note.room.equals(repo.roomIdentity())) return;
+                    if (voiceNotes.hasRetained(id)) {
+                        if (voiceNotes.retained(repo.roomIdentity()).stream()
+                                .noneMatch(n -> n.id.equals(id))) return;
                         try {
-                            retained.inbox.discard(retained.note);
-                            voiceAdmissions.remove(id);
+                            voiceNotes.discard(id);
                             if (lastError.equals(VoiceInbox.UNSAVED)) lastError = "";
                         } catch (java.io.IOException failure) {
                             notice("录音未能删除，请稍后重试");
@@ -2128,51 +2127,102 @@ public final class PocketController {
         return false;
     }
 
+    /** Compatibility entry for platform integrations; UI inputs use an explicit owner token. */
     public void beginHold() {
+        beginHold("legacy");
+    }
+
+    public void beginHold(String owner) {
+        state.execute(() -> beginHoldOnState(owner));
+    }
+
+    private void beginHoldOnState(String owner) {
+        if (voiceNotes.active()) return;
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            notice("请允许麦克风权限");
+            return;
+        }
+        if (!trying && !settings.isComplete()) {
+            notice("请先连接房间");
+            return;
+        }
+        if (!trying && !voiceAvailable()) {
+            notice("语音服务暂不可用");
+            return;
+        }
+        if (!voiceNotes.begin(owner, repo.roomIdentity(), trying)) {
+            publish();
+            return;
+        }
+        audioSuspended = false;
+        resetRedial("local_press");
+        if (!channel.isOpen()) connect();
+        for (JSONObject outgoing : ambientInput.press("phone", true)) send(outgoing);
+        interruptPlayback();
+        if (capture == null) startCapture();
+        else if (!captureStopping) voiceNotes.ready();
+        publish();
+    }
+
+    /**
+     * Toggle is reduced atomically on the state owner, independent of snapshot delivery latency.
+     */
+    public void toggleHold(String owner) {
         state.execute(
                 () -> {
-                    if (holdRequested) return;
-                    if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                            != PackageManager.PERMISSION_GRANTED) {
-                        notice("请允许麦克风权限");
-                        return;
-                    }
-                    if (!trying && !settings.isComplete()) {
-                        notice("请先连接房间");
-                        return;
-                    }
-                    if (!trying && !voiceAvailable()) {
-                        notice("语音服务暂不可用");
-                        return;
-                    }
-                    try {
-                        heldInbox = trying ? tryVoiceInbox : voiceInbox;
-                        heldVoice = heldInbox.begin(repo.roomIdentity());
-                        heldFile = heldVoice.file;
-                        heldFileOutput = new FileOutputStream(heldFile);
-                        heldOutput = new BufferedOutputStream(heldFileOutput);
-                        holdRequested = true;
-                        holdLive = false;
-                        holdPackets = 0;
-                        lastHoldPublish = 0;
-                        audioSuspended = false;
-                        resetRedial("local_press");
-                        if (!channel.isOpen()) connect();
-                        for (JSONObject outgoing : ambientInput.press("phone", true))
-                            send(outgoing);
-                        interruptPlayback();
-                        if (capture == null) startCapture();
-                        else if (!captureStopping) holdLive = true;
-                        publish();
-                    } catch (Exception failure) {
-                        cancelHeldVoice();
-                        notice("无法准备语音存储");
-                    }
+                    if (voiceNotes.active()) releaseOnState(false);
+                    else beginHoldOnState(owner);
                 });
     }
 
     public void releaseHold(boolean cancel) {
-        state.execute(() -> releaseOnState(cancel));
+        releaseHold("legacy", cancel);
+    }
+
+    public void sendHold() {
+        state.execute(() -> releaseOnState(false));
+    }
+
+    public void releaseHold(String owner, boolean cancel) {
+        state.execute(
+                () -> {
+                    if (voiceNotes.owned(owner)) releaseOnState(cancel);
+                });
+    }
+
+    public void cancelVoiceInputs(String prefix) {
+        state.execute(
+                () -> {
+                    if (voiceNotes.active() && voiceNotes.owner().startsWith(prefix))
+                        releaseOnState(true);
+                });
+    }
+
+    public void cancelOrStop() {
+        state.execute(
+                () -> {
+                    if (voiceNotes.active()) releaseOnState(true);
+                    else {
+                        interruptPlayback();
+                        send(Json.object("type", "hush"));
+                        publish();
+                    }
+                });
+    }
+
+    public void readLatest() {
+        state.execute(
+                () -> {
+                    for (int i = cachedRows.size() - 1; i >= 0; i--) {
+                        Message row = cachedRows.get(i);
+                        if (row.kind == Message.DUODUO && !row.text.isEmpty()) {
+                            readAloudOnState(row);
+                            return;
+                        }
+                    }
+                    notice("还没有可以朗读的回复");
+                });
     }
 
     private void releaseOnState(boolean cancel) {
@@ -2180,139 +2230,50 @@ public final class PocketController {
     }
 
     private void releaseOnState(boolean cancel, boolean interrupted) {
-        if (!holdRequested) return;
-        holdRequested = false;
-        holdLive = false;
-        boolean writeFailed = false;
-        try {
-            if (heldOutput != null && !cancel && holdPackets >= 15) {
-                heldOutput.flush();
-                heldFileOutput.getFD().sync();
-            }
-        } catch (Exception failure) {
-            writeFailed = true;
-            lastError = "语音保存失败，请检查存储空间";
-        } finally {
-            try {
-                if (heldOutput != null) heldOutput.close();
-            } catch (Exception failure) {
-                writeFailed = true;
-                lastError = "语音保存失败，请检查存储空间";
-            }
-        }
-        heldOutput = null;
-        heldFileOutput = null;
+        if (!voiceNotes.active()) return;
+        boolean saved = voiceNotes.finish(cancel, interrupted, voiceStore(repo));
         if (!ambientWanted || ambientLinkPaused) stopCapture();
         for (JSONObject outgoing : ambientInput.press("phone", false)) send(outgoing);
-        if (cancel || holdPackets < 15) {
-            cancelHeldVoice();
-            if (!cancel) lastError = "按住说话，麦克风就绪后再松开";
-        } else {
-            try {
-                VoiceInbox.Note note =
-                        heldInbox.seal(heldVoice, holdPackets, interrupted || writeFailed);
-                if (note == null) cancelHeldVoice();
-                else {
-                    VoiceAdmission admission = new VoiceAdmission(heldInbox, note);
-                    voiceAdmissions.put(note.id, admission);
-                    admitVoice(admission);
-                }
-            } catch (java.io.IOException failure) {
-                // The recording manifest still owns the bytes; recovery never auto-sends it.
-                log.event("voice", "seal_deferred");
-                lastError = "语音保存失败，请检查存储空间";
-            }
-        }
-        heldVoice = null;
-        heldInbox = null;
-        heldFile = null;
         reload();
         publish();
-        if (!interrupted && !writeFailed) pump();
+        if (!interrupted && saved) pump();
     }
 
-    private void cancelHeldVoice() {
-        try {
-            if (heldOutput != null) heldOutput.close();
-        } catch (java.io.IOException ignored) {
-        }
-        heldOutput = null;
-        heldFileOutput = null;
-        try {
-            if (heldVoice != null) heldInbox.discard(heldVoice);
-        } catch (java.io.IOException failure) {
-            log.event("voice", "cancel_cleanup_deferred");
-            lastError = "录音未能删除，请稍后重试";
-        }
-        heldVoice = null;
-        heldInbox = null;
-        heldFile = null;
-    }
+    private VoiceNotes.Store voiceStore(RoomRepository repository) {
+        return new VoiceNotes.Store() {
+            public String room() {
+                return repository.roomIdentity();
+            }
 
-    private boolean admitVoice(VoiceAdmission admission) {
-        if (!repo.roomIdentity().equals(admission.note.room)) return false;
-        try {
-            admission.inbox.remember(admission.note);
-            repo.enqueueVoice(admission.note);
-        } catch (java.io.IOException | RuntimeException failure) {
-            log.event("voice", "admission_deferred");
-            lastError = VoiceInbox.UNSAVED;
-            return false;
-        }
-        voiceAdmissions.remove(admission.note.id);
-        try {
-            admission.inbox.acknowledge(admission.note.id);
-            repo.acknowledgeVoice(admission.note.id);
-        } catch (java.io.IOException | RuntimeException failure) {
-            log.event("voice", "acknowledgement_deferred");
-        }
-        if (lastError.equals(VoiceInbox.UNSAVED)) lastError = "";
-        return true;
+            public void enqueue(VoiceInbox.Note note) {
+                repository.enqueueVoice(note);
+            }
+
+            public void acknowledge(String id) {
+                repository.acknowledgeVoice(id);
+            }
+
+            public java.util.Set<String> receipts() {
+                return repository.voiceReceipts();
+            }
+        };
     }
 
     private void recoverVoiceNotes() {
-        recoverVoiceInbox(voiceInbox, realRepo);
-        if (trying) recoverVoiceInbox(tryVoiceInbox, repo);
-        for (VoiceAdmission admission : new ArrayList<>(voiceAdmissions.values()))
-            if (admission.note.room.equals(repo.roomIdentity())) admitVoice(admission);
+        voiceNotes.recover(voiceStore(realRepo), voiceStore(repo), trying);
     }
 
     private boolean discardVoiceAdmissions() {
-        for (VoiceAdmission admission : new ArrayList<>(voiceAdmissions.values()))
-            if (admission.note.room.equals(repo.roomIdentity()))
-                try {
-                    admission.inbox.discard(admission.note);
-                    voiceAdmissions.remove(admission.note.id);
-                } catch (java.io.IOException failure) {
-                    lastError = "录音未能删除，请稍后重试";
-                    return false;
-                }
-        return true;
-    }
-
-    private void recoverVoiceInbox(VoiceInbox inbox, RoomRepository repository) {
-        try {
-            java.util.Set<String> active = new java.util.HashSet<>(voiceAdmissions.keySet());
-            if (heldVoice != null) active.add(heldVoice.id);
-            java.util.Set<String> receipts = repository.voiceReceipts();
-            VoiceInbox.Scan scan = inbox.pending(receipts, active);
-            for (VoiceInbox.Note note : scan.notes)
-                voiceAdmissions.put(note.id, new VoiceAdmission(inbox, note));
-            for (String id : receipts) if (!inbox.awaiting(id)) repository.acknowledgeVoice(id);
-            if (scan.unreadable > 0) lastError = "有录音未能恢复，请检查存储空间后重新打开应用";
-        } catch (java.io.IOException | RuntimeException failure) {
-            log.event("voice", "recovery_deferred");
-            lastError = "有录音未能恢复，请检查存储空间后重新打开应用";
-        }
+        return voiceNotes.discardRetained(repo.roomIdentity());
     }
 
     private void startCapture() {
         if (capture != null
                 || captureStopping
                 || audioSuspended
-                || ambientLinkPaused && !holdRequested
-                || ambientWanted && !holdRequested && connection != Connection.ONLINE
-                || (!holdRequested && !ambientWanted)) return;
+                || ambientLinkPaused && !voiceNotes.active()
+                || ambientWanted && !voiceNotes.active() && connection != Connection.ONLINE
+                || (!voiceNotes.active() && !ambientWanted)) return;
         if (!audioFocus.acquire(ambientWanted)) {
             audioSuspended = audioFocus.interrupted();
             releaseOnState(true);
@@ -2331,7 +2292,7 @@ public final class PocketController {
                                 state.execute(
                                         () -> {
                                             if (epoch == captureEpoch) {
-                                                if (holdRequested) holdLive = true;
+                                                voiceNotes.ready();
                                                 publish();
                                             }
                                         });
@@ -2361,10 +2322,11 @@ public final class PocketController {
                                                     refreshService();
                                                 }
                                                 notice(reason);
-                                            } else if (holdRequested || ambientWanted)
+                                            } else if (voiceNotes.active() || ambientWanted)
                                                 startCapture();
-                                            if (!holdRequested && !ambientWanted && !playerActive)
-                                                audioFocus.release();
+                                            if (!voiceNotes.active()
+                                                    && !ambientWanted
+                                                    && !playerActive) audioFocus.release();
                                         });
                             }
                         });
@@ -2380,18 +2342,10 @@ public final class PocketController {
 
     private void captured(byte[] packet) {
         if (captureStopping) return;
-        if (holdRequested && heldOutput != null) {
+        if (voiceNotes.active()) {
             try {
-                heldOutput.write(packet.length & 255);
-                heldOutput.write(packet.length >>> 8);
-                heldOutput.write(packet);
-                holdPackets++;
-                if (holdPackets % 50 == 0) heldOutput.flush();
-                if (holdPackets * 20 - lastHoldPublish >= 100) {
-                    lastHoldPublish = holdPackets * 20;
-                    publish();
-                }
-                if (heldFile.length() > 16L * 1024 * 1024) {
+                if (voiceNotes.append(packet)) publish();
+                if (voiceNotes.tooLarge()) {
                     releaseOnState(true);
                     notice("语音已达到本机大小上限");
                 }
@@ -2784,118 +2738,111 @@ public final class PocketController {
     }
 
     public void readAloud(Message message) {
-        state.execute(
+        state.execute(() -> readAloudOnState(message));
+    }
+
+    private void readAloudOnState(Message message) {
+        if (readingId.equals(message.id)) {
+            stopPlayback();
+            publish();
+            return;
+        }
+        if (voiceNotes.active()) {
+            notice("请先结束收音");
+            return;
+        }
+        if (!trying && !settings.isComplete()) {
+            notice("请先连接房间");
+            return;
+        }
+        if (!accessAllowed()) {
+            notice(settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权");
+            return;
+        }
+        interruptPlayback();
+        try {
+            ensurePlayer();
+        } catch (Exception failure) {
+            notice("其他应用正在使用音频，请稍后再朗读");
+            return;
+        }
+        readingId = message.id;
+        ambientOutput.read(message.id);
+        final SpeechPlayer output = player;
+        final String speech = ambientOutput.playbackKey();
+        final long request = ++nextReadRequest;
+        readRequest = request;
+        readInFlight = true;
+        ChannelConnection target = channel;
+        readChannel = target;
+        RoomAccess access = access();
+        String room = currentRoom();
+        publish();
+        network.execute(
                 () -> {
-                    if (readingId.equals(message.id)) {
-                        stopPlayback();
-                        publish();
-                        return;
-                    }
-                    if (holdRequested) {
-                        notice("请先结束收音");
-                        return;
-                    }
-                    if (!trying && !settings.isComplete()) {
-                        notice("请先连接房间");
-                        return;
-                    }
-                    if (!accessAllowed()) {
-                        notice(settings.unauthorized() ? "设备凭据已失效，请重新配对" : "请完成 Tailscale 授权");
-                        return;
-                    }
-                    interruptPlayback();
-                    try {
-                        ensurePlayer();
-                    } catch (Exception failure) {
-                        notice("其他应用正在使用音频，请稍后再朗读");
-                        return;
-                    }
-                    readingId = message.id;
-                    ambientOutput.read(message.id);
-                    final SpeechPlayer output = player;
-                    final String speech = ambientOutput.playbackKey();
-                    final long request = ++nextReadRequest;
-                    readRequest = request;
-                    readInFlight = true;
-                    ChannelConnection target = channel;
-                    readChannel = target;
-                    RoomAccess access = access();
-                    String room = currentRoom();
-                    publish();
-                    network.execute(
-                            () -> {
-                                dev.openduo.pocket.audio.PacketStream packets =
-                                        new dev.openduo.pocket.audio.PacketStream();
-                                final boolean[] received = {false};
-                                final Exception[] parseError = {null};
-                                try (OpusDecoder read = new OpusDecoder()) {
-                                    dev.openduo.pocket.net.ChannelTransport.Response response =
-                                            access.stream(
-                                                    request,
-                                                    "/api/speech?room=" + Endpoint.query(room),
-                                                    Json.object("text", message.text)
-                                                            .toString()
-                                                            .getBytes(StandardCharsets.UTF_8),
-                                                    bytes -> {
-                                                        if (!access.current()
-                                                                || readRequest != request
-                                                                || parseError[0] != null) return;
-                                                        try {
-                                                            for (byte[] packet :
-                                                                    packets.push(bytes)) {
-                                                                received[0] = true;
-                                                                if (!output.enqueueWaiting(
-                                                                        speech,
-                                                                        read.packet(packet),
-                                                                        () ->
-                                                                                access.current()
-                                                                                        && readRequest
-                                                                                                == request))
-                                                                    break;
-                                                            }
-                                                        } catch (Exception failure) {
-                                                            parseError[0] = failure;
-                                                            target.cancelStream(request);
-                                                        }
-                                                    },
-                                                    () -> readRequest == request);
-                                    if (parseError[0] != null) throw parseError[0];
-                                    packets.finish();
-                                    if (response.status != 200)
-                                        throw ChannelClient.failure(response);
-                                    state.execute(
-                                            () -> {
-                                                if (currentAccess(access)
-                                                        && readRequest == request) {
-                                                    readInFlight = false;
-                                                    finishReadIfDrained();
-                                                    publish();
+                    dev.openduo.pocket.audio.PacketStream packets =
+                            new dev.openduo.pocket.audio.PacketStream();
+                    final boolean[] received = {false};
+                    final Exception[] parseError = {null};
+                    try (OpusDecoder read = new OpusDecoder()) {
+                        dev.openduo.pocket.net.ChannelTransport.Response response =
+                                access.stream(
+                                        request,
+                                        "/api/speech?room=" + Endpoint.query(room),
+                                        Json.object("text", message.text)
+                                                .toString()
+                                                .getBytes(StandardCharsets.UTF_8),
+                                        bytes -> {
+                                            if (!access.current()
+                                                    || readRequest != request
+                                                    || parseError[0] != null) return;
+                                            try {
+                                                for (byte[] packet : packets.push(bytes)) {
+                                                    received[0] = true;
+                                                    if (!output.enqueueWaiting(
+                                                            speech,
+                                                            read.packet(packet),
+                                                            () ->
+                                                                    access.current()
+                                                                            && readRequest
+                                                                                    == request))
+                                                        break;
                                                 }
-                                            });
-                                } catch (Exception failure) {
-                                    state.execute(
-                                            () -> {
-                                                if (!currentAccess(access)
-                                                        || readRequest != request) return;
-                                                readInFlight = false;
-                                                String reason =
-                                                        received[0]
-                                                                ? "朗读中断，已播放的不是完整回答"
-                                                                : failure
-                                                                                instanceof
-                                                                                ChannelClient
-                                                                                        .Failure
-                                                                        ? speechError(
-                                                                                ((ChannelClient
-                                                                                                .Failure)
-                                                                                        failure))
-                                                                        : "连接不上，无法朗读";
-                                                if (!received[0]) stopPlayback();
-                                                else finishReadIfDrained();
-                                                notice(reason);
-                                            });
-                                }
-                            });
+                                            } catch (Exception failure) {
+                                                parseError[0] = failure;
+                                                target.cancelStream(request);
+                                            }
+                                        },
+                                        () -> readRequest == request);
+                        if (parseError[0] != null) throw parseError[0];
+                        packets.finish();
+                        if (response.status != 200) throw ChannelClient.failure(response);
+                        state.execute(
+                                () -> {
+                                    if (currentAccess(access) && readRequest == request) {
+                                        readInFlight = false;
+                                        finishReadIfDrained();
+                                        publish();
+                                    }
+                                });
+                    } catch (Exception failure) {
+                        state.execute(
+                                () -> {
+                                    if (!currentAccess(access) || readRequest != request) return;
+                                    readInFlight = false;
+                                    String reason =
+                                            received[0]
+                                                    ? "朗读中断，已播放的不是完整回答"
+                                                    : failure instanceof ChannelClient.Failure
+                                                            ? speechError(
+                                                                    ((ChannelClient.Failure)
+                                                                            failure))
+                                                            : "连接不上，无法朗读";
+                                    if (!received[0]) stopPlayback();
+                                    else finishReadIfDrained();
+                                    notice(reason);
+                                });
+                    }
                 });
     }
 
@@ -3186,7 +3133,7 @@ public final class PocketController {
             repo = realRepo;
         }
         channel = transport;
-        voiceAdmissions.values().removeIf(admission -> admission.inbox == tryVoiceInbox);
+        voiceNotes.forgetTry();
         for (String name :
                 new String[] {"try-channel", "try-attachments", "try-downloads", "try-voice"})
             deleteTryFiles(new File(context.getCacheDir(), name));
@@ -3626,11 +3573,10 @@ public final class PocketController {
         cachedRows = repo.rows(visibleLimit);
         cachedRows.addAll(liveNotes);
         pending = repo.pending();
-        for (VoiceAdmission admission : voiceAdmissions.values())
-            if (admission.note.room.equals(repo.roomIdentity())) {
-                cachedRows.add(admission.note.row(true));
-                pending.add(admission.note.item(true));
-            }
+        for (VoiceInbox.Note note : voiceNotes.retained(repo.roomIdentity())) {
+            cachedRows.add(note.row(true));
+            pending.add(note.item(true));
+        }
         cachedRows.sort(java.util.Comparator.comparingLong(row -> row.at));
         revision++;
     }
@@ -3671,7 +3617,7 @@ public final class PocketController {
 
     private String presence() {
         if (trying) return "体验中 · 预设回答";
-        if (holdRequested) return holdLive ? "在听你说" : "准备麦克风…";
+        if (voiceNotes.active()) return voiceNotes.live() ? "在听你说" : "准备麦克风…";
         if (ambientWanted) {
             switch (ambient) {
                 case SPEAKING:

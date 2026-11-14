@@ -90,4 +90,6 @@ To add an OEM integration, create `:device-<vendor>` depending on `:device`, imp
 
 First establish Android/API/ABI, install permission, AudioRecord/AudioTrack, authorization and whether navigation is touch, remote or physical keys. Some locked-down devices restrict third-party recording or background work. Default foreground use needs no root, system signing, replacement launcher or density change.
 
-Once hardware is available, verify login/room online, natural voice upload and audible replies first. Add full-duplex/array and background checks only as required by that device. Wake words, kiosk/always-on launcher behavior, system-level background execution, OEM AEC and a dedicated no-touch experience are not implemented by this milestone. The landscape screenshot shows layout reuse, not completed speaker-hardware acceptance.
+Foreground key learning, D-pad/OK/Back navigation and the E2 REC/MARK example are now implemented in the current source; see [keys and remotes](input.md). Firmware-consumed keys remain outside the app.
+
+Once hardware is available, verify login/room online, natural voice upload and audible replies first. Add full-duplex/array and background checks only as required by that device. Wake words, kiosk/always-on launcher behavior, system-level background execution, OEM AEC and target-speaker hardware acceptance remain open. The shared foreground no-touch input path is implemented, with bounded E2 event-delivery evidence. The landscape screenshot shows layout reuse, not completed speaker-hardware acceptance.

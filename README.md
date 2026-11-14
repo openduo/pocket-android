@@ -25,6 +25,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 - Passport protocol 1.3 and Android BLE integration in the current source: press/audio assembly, RESULT/WORK/REPLY, quiet delivery and replay memory; [upstream differential checks and hardware limits](docs/passport.md).
 - Session lists/details/notification controls, Camera2/H.264 Sight, maps/coordinates/geocoding and arrival tracking.
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
+- Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example in the current source; [input guide](docs/input.md). These changes follow Preview 2.
 - Compact/medium/expanded window policy, bounded reading columns, system-bar/IME insets, scrollable short-window controls and page-state restoration.
 
 Implementation and real-service acceptance are tracked separately. The local original-package E2 build has passed one human voice-note turn with a user-confirmed audible reply, and one notification delivery with a correlated success and unique recipient record. Recognition had a wording error. These results use the local E2 array build and do not accept the public Preview 2 APK. Sight is explicitly deferred at the user's request, with its implementation and remaining media-service acceptance retained; full hands-free ambient conversation, physical arrivals and long-term background behavior remain unverified. Android push remains deferred. Passport has resumed in the current source and passes fixed protocol vectors on the JVM and E2 Android runtime; physical accessory acceptance is still open and this follow-up is not in Preview 2. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
@@ -70,6 +71,7 @@ E2 array capture is an [explicit local build option](docs/devices.md). Proprieta
 | Module | Responsibility |
 | --- | --- |
 | `:core` | Pure Java protocol, models, reducers, request boundaries and Try transport; no Android, UI or hardware dependency |
+| `:input` | Pure Java actions, input targets and paired key gestures; no Android or business dependency |
 | `:ui-policy` | Pure Java window/typography policy; no business state or model-specific layout |
 | `:device` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |
 | `:device-e2` | E2 model/firmware detection, system-bar quirk and optional array adapter |

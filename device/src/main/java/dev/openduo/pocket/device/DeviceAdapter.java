@@ -5,8 +5,10 @@ package dev.openduo.pocket.device;
 
 import android.content.Context;
 import android.media.AudioDeviceInfo;
+import android.view.KeyEvent;
 
 import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.input.InputAction;
 
 import java.io.IOException;
 
@@ -23,5 +25,10 @@ public interface DeviceAdapter {
     /** Some firmware cannot render dark system icons, even when requested by Android. */
     default boolean requiresDarkSystemBars() {
         return false;
+    }
+
+    /** Foreground key defaults only. Unknown keys and standard navigation stay with Android. */
+    default InputAction keyAction(int keyCode, int scanCode) {
+        return keyCode == KeyEvent.KEYCODE_MEDIA_RECORD ? InputAction.TOGGLE_VOICE : null;
     }
 }

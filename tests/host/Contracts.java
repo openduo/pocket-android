@@ -30,6 +30,8 @@ public final class Contracts {
     }
 
     public static void main(String[] args) throws Exception {
+        checked += InputContracts.run();
+        checked += VoiceNotesContracts.run();
         checked +=
                 PassportContracts.run(
                         java.nio.file.Paths.get(System.getProperty("pocket.android.root", ".")));

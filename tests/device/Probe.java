@@ -46,6 +46,13 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && "1".equals(arguments.getString("inputOnly"))) {
+                if (!"1".equals(arguments.getString("capture")))
+                    throw new AssertionError("Input capture requires explicit opt-in");
+                report.putString("result", new InputProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("hardwareSmokeOnly"))) {
                 check(
                         "1".equals(arguments.getString("capture")),
@@ -1759,6 +1766,10 @@ public final class Probe extends Instrumentation {
 
                                 public dev.openduo.pocket.ui.Ui ui() {
                                     return variant;
+                                }
+
+                                public dev.openduo.pocket.input.InputTarget input() {
+                                    return ((dev.openduo.pocket.ui.PageHost) screen).input();
                                 }
 
                                 public void navigate(String ignored) {}
