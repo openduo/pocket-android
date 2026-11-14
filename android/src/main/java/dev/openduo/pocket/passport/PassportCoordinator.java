@@ -1,22 +1,21 @@
-// Copyright 2026 pocket-e2 contributors
+// Copyright 2026 openduo and pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
 package dev.openduo.pocket.passport;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 
-import dev.openduo.pocket.core.Json;
 import dev.openduo.pocket.text.Markdown;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Executor;
 
-/** Runs on the controller's state executor; BLE callbacks never mutate room state themselves. */
+/** Android integration; all protocol reducers run on the controller's single state owner. */
 public final class PassportCoordinator {
     public interface Listener {
         void changed();
@@ -26,13 +25,15 @@ public final class PassportCoordinator {
         void expired(String message);
 
         void capturing(boolean active);
+
+        void wake(boolean catchUp);
     }
 
     public static final class Snapshot {
         public final PassportLink.Snapshot link;
         public final String firmware, latestText;
         public final int major, minor, battery, charging;
-        public final boolean compatible, preroll, waiting;
+        public final boolean compatible, preroll, waiting, busy;
         public final long lastPress;
 
         Snapshot(PassportCoordinator c) {
@@ -42,10 +43,11 @@ public final class PassportCoordinator {
             minor = c.minor;
             battery = c.battery;
             charging = c.charging;
-            compatible = c.major == 0 || c.major == 1;
+            compatible = !c.hasInfo || c.major == PocketProtocol.MAJOR;
             preroll = c.preroll;
-            latestText = c.reply.latestText;
+            latestText = Markdown.plain(c.reply.latestText);
             waiting = c.reply.waiting;
+            busy = waiting || c.results.size() > 0 || c.press.active() >= 0;
             lastPress = c.lastPress;
         }
     }
@@ -58,28 +60,19 @@ public final class PassportCoordinator {
     private final dev.openduo.pocket.diagnostics.AppLog log;
     private final PressAssembler press = new PressAssembler();
     private final ReplyTracker reply = new ReplyTracker();
-    private final Map<String, Wait> waits = new LinkedHashMap<>();
-    private boolean foreground, online, replaying;
-    private boolean linkWasReady;
-    private long roomEpoch;
-    private String roomIdentity = "", firmware = "", streamText = "", streamSpeech = "";
+    private final PassportResults results = new PassportResults();
+    private final List<JSONObject> replayRows = new ArrayList<>();
+    private boolean foreground,
+            online,
+            replaying,
+            replayHasCursor,
+            hasInfo,
+            linkWasReady,
+            suspended;
+    private long roomEpoch, lastPress;
+    private String roomIdentity = "", firmware = "";
     private int major, minor, battery = -1, charging = 255;
     private boolean preroll;
-    private long lastPress;
-    private JSONObject replayAnswer;
-
-    private static final class Wait {
-        String id, text = "";
-        int press;
-        long deadline;
-        boolean row;
-
-        Wait(String id, int press, long deadline) {
-            this.id = id;
-            this.press = press;
-            this.deadline = deadline;
-        }
-    }
 
     public PassportCoordinator(Context context, Executor state, Listener listener) {
         this.context = context.getApplicationContext();
@@ -87,39 +80,41 @@ public final class PassportCoordinator {
         this.state = state;
         log = dev.openduo.pocket.diagnostics.AppLog.get(context);
         prefs = context.getSharedPreferences("passport.memory", Context.MODE_PRIVATE);
-        try {
-            reply.serial =
-                    Math.max(
-                            prefs.getLong("replySerial", 0),
-                            new JSONObject(prefs.getString("reply", "{}")).optLong("serial"));
-        } catch (org.json.JSONException ignored) {
-        }
+        reply.serial = prefs.getLong("replySerial", 0);
         link =
                 new PassportLink(
                         context,
                         new PassportLink.Listener() {
-                            public void state(PassportLink.Snapshot s) {
+                            public void state(PassportLink.Snapshot snapshot) {
                                 state.execute(
                                         () -> {
-                                            log.event("passport.link", s.state + " mtu=" + s.mtu);
-                                            if (s.ready && !linkWasReady) {
+                                            log.event(
+                                                    "passport.link",
+                                                    snapshot.state + " mtu=" + snapshot.mtu);
+                                            if (snapshot.ready && !linkWasReady && !suspended) {
+                                                hasInfo = false;
                                                 appState();
                                                 forward(reply.linkReady(foreground));
+                                                listener.wake(true);
                                             }
-                                            linkWasReady = s.ready;
+                                            linkWasReady = snapshot.ready;
                                             listener.changed();
                                         });
                             }
 
                             public void message(PocketProtocol.Message message) {
-                                state.execute(() -> receive(message));
+                                state.execute(
+                                        () -> {
+                                            if (!suspended) receive(message);
+                                        });
                             }
 
                             public void disconnected() {
                                 state.execute(
                                         () -> {
-                                            for (PressAssembler.Press p : press.lost())
-                                                listener.press(p);
+                                            if (suspended) return;
+                                            for (PressAssembler.Press completed : press.lost())
+                                                listener.press(completed);
                                             listener.capturing(false);
                                             listener.changed();
                                         });
@@ -131,67 +126,83 @@ public final class PassportCoordinator {
         return new Snapshot(this);
     }
 
+    public boolean backgroundEnabled() {
+        return !suspended && link.snapshot().remembered && link.permitted();
+    }
+
     public void room(String identity) {
-        if (!roomIdentity.equals(identity)) {
-            forward(reply.stopWait());
-            waits.clear();
-            roomEpoch++;
-            reply.resetRoom();
-            roomIdentity = identity;
-            streamText = streamSpeech = "";
-            replayAnswer = null;
-            try {
-                reply.restore(new JSONObject(prefs.getString("reply:" + identity, "{}")));
-                JSONArray a = new JSONArray(prefs.getString("waits:" + identity, "[]"));
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.optJSONObject(i);
-                    Wait w = new Wait(o.optString("id"), o.optInt("press"), o.optLong("deadline"));
-                    w.row = o.optBoolean("row");
-                    w.text = o.optString("text");
-                    waits.put(w.id, w);
-                }
-            } catch (org.json.JSONException ignored) {
-            }
+        if (roomIdentity.equals(identity)) return;
+        forward(reply.connectionFailed());
+        results.clear();
+        roomEpoch++;
+        press.lost();
+        listener.capturing(false);
+        reply.resetRoom();
+        roomIdentity = identity;
+        replayRows.clear();
+        replaying = false;
+        try {
+            reply.restore(new JSONObject(prefs.getString("reply:" + identity, "{}")));
+        } catch (org.json.JSONException ignored) {
         }
+    }
+
+    public void suspended(boolean value) {
+        suspended = value;
+        if (value) {
+            forward(reply.connectionFailed());
+            results.clear();
+            press.lost();
+            listener.capturing(false);
+            link.pause();
+        } else if (foreground) link.resume();
     }
 
     public void foreground(boolean value) {
         foreground = value;
-        if (value) link.resume();
+        if (value && !suspended) link.resume();
     }
 
     public void online(boolean value) {
         if (online != value) {
             online = value;
             appState();
-            if (!value) forward(reply.stopWait());
         }
     }
 
+    public void connectionFailed() {
+        online(false);
+        forward(reply.connectionFailed());
+        listener.changed();
+    }
+
     public void scan() {
-        link.scan();
+        if (!suspended) link.scan();
     }
 
     public void resume() {
-        link.resume();
+        if (!suspended) link.resume();
     }
 
     public void connect(String address) {
-        link.connect(address);
+        if (!suspended) link.connect(address);
     }
 
     public void forget() {
         link.forget();
-        waits.clear();
+        results.clear();
         reply.newPress();
+        press.lost();
+        listener.capturing(false);
         persist();
+        listener.changed();
     }
 
     private void appState() {
         link.send(
                 PocketProtocol.APP_STATE,
                 PocketProtocol.appState(
-                        major > 1 ? 2 : online ? 0 : 1,
+                        hasInfo && major != PocketProtocol.MAJOR ? 2 : online ? 0 : 1,
                         dev.openduo.pocket.text.AppText.get(context).en));
     }
 
@@ -199,44 +210,62 @@ public final class PassportCoordinator {
         if (link.snapshot().ready) appState();
     }
 
+    private static int charging(int wire) {
+        return wire == 0 || wire == 1 ? wire : 255;
+    }
+
     private void receive(PocketProtocol.Message message) {
-        byte[] b = message.data;
+        byte[] data = message.data;
         if (message.type == PocketProtocol.INFO) {
-            int previousMajor = major;
-            major = b[0] & 255;
-            minor = b[1] & 255;
-            int size = b[2] & 255;
-            firmware = new String(b, 3, size, StandardCharsets.UTF_8);
-            battery = b[3 + size] & 255;
-            charging = b[4 + size] & 255;
-            preroll = b[5 + size] != 0;
-            if (major != 1 && previousMajor != major) appState();
+            boolean wasRefused = hasInfo && major != PocketProtocol.MAJOR;
+            int previous = major;
+            major = data[0] & 255;
+            minor = data[1] & 255;
+            hasInfo = true;
+            int size = data[2] & 255;
+            firmware = new String(data, 3, size, StandardCharsets.UTF_8);
+            battery = data[3 + size] & 255;
+            charging = charging(data[4 + size] & 255);
+            preroll = data[5 + size] != 0;
+            if (major != PocketProtocol.MAJOR && (!wasRefused || previous != major)) appState();
+            else if (wasRefused && major == PocketProtocol.MAJOR) appState();
         } else if (message.type == PocketProtocol.STATUS) {
-            battery = b[0] & 255;
-            charging = b[1] & 255;
-        } else if (major == 1) {
-            if (message.type == PocketProtocol.PRESS_START
-                    || message.type == PocketProtocol.AUDIO
-                            && press.active() != PocketProtocol.u16(b, 0)) {
+            battery = data[0] & 255;
+            charging = charging(data[1] & 255);
+        } else if (!hasInfo || major == PocketProtocol.MAJOR) {
+            boolean started =
+                    message.type == PocketProtocol.PRESS_START
+                            || message.type == PocketProtocol.AUDIO
+                                    && press.active() != PocketProtocol.u16(data, 0);
+            // The assembler emits completion before start on a superseding press.
+            List<PressAssembler.Press> completedPresses = press.handle(message);
+            for (PressAssembler.Press completed : completedPresses) listener.press(completed);
+            if (started) {
                 reply.newPress();
                 lastPress = System.currentTimeMillis();
                 listener.capturing(true);
+                listener.wake(false);
             }
-            for (PressAssembler.Press p : press.handle(message)) listener.press(p);
+            if (message.type == PocketProtocol.AUDIO && !started && completedPresses.isEmpty())
+                return;
             if (press.active() < 0) listener.capturing(false);
             if (message.type == PocketProtocol.KEEPALIVE) {
                 reply.adopt();
-                appState();
+                listener.wake(false);
             }
         }
+        persist();
         listener.changed();
     }
 
     public void expect(String id, int pressId) {
-        log.event("passport.press", "upload_wait");
-        waits.put(id, new Wait(id, pressId, System.currentTimeMillis() + 25_000));
-        reply.expect(id);
+        results.expect(id, pressId, SystemClock.elapsedRealtime());
         persist();
+        listener.changed();
+    }
+
+    public long remainingMs(String id) {
+        return results.remainingMs(id, SystemClock.elapsedRealtime());
     }
 
     public void rejected(int pressId, int code) {
@@ -244,175 +273,103 @@ public final class PassportCoordinator {
     }
 
     public void accepted(String id) {
-        Wait w = waits.get(id);
-        if (w != null && w.row) result(w, 0, w.text);
+        settle(results.accepted(id));
     }
 
     public void uploadFailed(String id, boolean transport) {
-        Wait w = waits.get(id);
-        if (w != null) result(w, transport ? 4 : 3, "");
+        settle(results.failed(id, transport));
     }
 
     public void tick() {
-        for (Wait w : new ArrayList<>(waits.values()))
-            if (System.currentTimeMillis() >= w.deadline) {
-                result(w, online ? 3 : 4, "");
-                listener.expired(w.id);
-            }
+        List<PassportResults.Settlement> expired =
+                results.expire(SystemClock.elapsedRealtime(), online);
+        settle(expired);
+        for (PassportResults.Settlement item : expired) listener.expired(item.messageId);
     }
 
-    private void result(Wait wait, int code, String text) {
-        log.event("passport.result", "code=" + code + " chars=" + text.length());
-        waits.remove(wait.id);
-        link.send(PocketProtocol.RESULT, PocketProtocol.result(wait.press, code, text));
-        if (code != 0 && reply.waitingMessage.equals(wait.id)) forward(reply.stopWait());
+    private void settle(List<PassportResults.Settlement> settlements) {
+        for (PassportResults.Settlement item : settlements) {
+            log.event(
+                    "passport.result",
+                    "code=" + item.result.code + " chars=" + item.result.text.length());
+            link.send(
+                    PocketProtocol.RESULT,
+                    PocketProtocol.result(item.pressId, item.result.code, item.result.text));
+            if (item.result.code == 0) {
+                reply.expect(item.messageId);
+                listener.wake(false);
+            }
+        }
+        if (!settlements.isEmpty()) {
+            persist();
+            listener.changed();
+        }
+    }
+
+    public void beginReplay(boolean hasCursor) {
+        results.beginConnection();
+        replaying = true;
+        replayHasCursor = hasCursor;
+        replayRows.clear();
+    }
+
+    public void frame(JSONObject frame) {
+        if (suspended) return;
+        String type = frame.optString("type");
+        settle(results.frame(frame));
+        if (type.equals("row")) {
+            JSONObject row = frame.optJSONObject("row");
+            if (row != null) {
+                if (replaying) replayRows.add(row);
+                else
+                    forward(
+                            reply.rows(
+                                    Collections.singletonList(row),
+                                    foreground,
+                                    System.currentTimeMillis()));
+            }
+        } else if (type.equals("ready")) {
+            forward(reply.restoreTurn(frame.optJSONObject("turn")));
+            if (!replayHasCursor) reply.forgetDelivered();
+            forward(reply.rows(replayRows, foreground, System.currentTimeMillis()));
+            replaying = false;
+            replayRows.clear();
+        } else {
+            if (type.equals("message")
+                    && frame.optString("state").equals("failed")
+                    && frame.optString("reason").equals("brain_unreachable"))
+                forward(reply.messageFailed(frame.optString("id")));
+            forward(reply.handle(frame, foreground, System.currentTimeMillis()));
+        }
         persist();
         listener.changed();
     }
 
-    public void beginReplay() {
-        replaying = true;
-        replayAnswer = null;
-    }
-
-    public void frame(JSONObject f) {
-        String type = f.optString("type");
-        String id = f.optString("id");
-        Wait w = waits.get(id);
-        if (type.equals("message") && w != null) {
-            if (f.optString("state").equals("cleaned")) result(w, 0, f.optString("text"));
-            else if (f.optString("state").equals("failed")) {
-                String reason = f.optString("reason");
-                result(
-                        w,
-                        reason.equals("empty_transcript") ? 1 : reason.equals("asr_failed") ? 2 : 3,
-                        "");
-            }
-        }
-        if (type.equals("message")
-                && f.optString("state").equals("failed")
-                && id.equals(reply.waitingMessage)
-                && f.optString("reason").equals("brain_unreachable")) forward(reply.stopWait());
-        if (type.equals("row")) {
-            JSONObject row = f.optJSONObject("row");
-            if (row == null) return;
-            Wait item = waits.get(row.optString("utt_id"));
-            if (item != null) {
-                item.row = true;
-                item.text = row.optString("text");
-                persist();
-            }
-            if ((row.optString("kind").equals("answer") || row.optString("speaker").equals("多多"))
-                    && row.optJSONArray("attachments") == null) {
-                JSONObject answer =
-                        Json.object(
-                                "type",
-                                "answer_final",
-                                "text",
-                                row.optString("full_text", row.optString("text")),
-                                "message_ids",
-                                row.optJSONArray("message_ids"));
-                if (replaying) {
-                    boolean matching =
-                            reply.waiting
-                                    && Json.strings(answer.optJSONArray("message_ids"))
-                                            .contains(reply.waitingMessage);
-                    if (replayAnswer == null
-                            || matching
-                            || !Json.strings(replayAnswer.optJSONArray("message_ids"))
-                                    .contains(reply.waitingMessage)) replayAnswer = answer;
-                } else answer(answer);
-            }
-        } else if (type.equals("answer_final")) answer(f);
-        else if (type.equals("turn"))
-            forward(reply.turn(f.optString("phase"), Json.strings(f.optJSONArray("message_ids"))));
-        else if (type.equals("duoduo_said") && !f.optString("kind").equals("reaction")) {
-            String speech = f.optString("speech_id");
-            if (!streamSpeech.equals(speech)) {
-                streamSpeech = speech;
-                streamText = "";
-            }
-            streamText += f.optString("text");
-            forward(
-                    reply.partial(
-                            speech,
-                            Markdown.spoken(streamText),
-                            foreground,
-                            System.currentTimeMillis()));
-        } else if (type.equals("ready")) {
-            replaying = false;
-            if (replayAnswer != null) answer(replayAnswer);
-            replayAnswer = null;
-            List<String> open = new ArrayList<>();
-            JSONArray a = f.optJSONArray("messages");
-            if (a != null)
-                for (int i = 0; i < a.length(); i++) {
-                    JSONObject o = a.optJSONObject(i);
-                    if (o != null) open.add(o.optString("id"));
-                }
-            for (Wait pending : new ArrayList<>(waits.values()))
-                if (!open.contains(pending.id))
-                    result(pending, pending.row ? 0 : 3, pending.row ? pending.text : "");
-        }
-    }
-
-    private void answer(JSONObject f) {
-        forward(
-                reply.answer(
-                        Json.strings(f.optJSONArray("message_ids")),
-                        Markdown.spoken(f.optString("text")),
-                        f.optString("speech_id"),
-                        foreground,
-                        System.currentTimeMillis()));
+    public void caughtUp(List<JSONObject> rows) {
+        if (suspended) return;
+        for (JSONObject row : rows)
+            settle(results.frame(dev.openduo.pocket.core.Json.object("type", "row", "row", row)));
+        forward(reply.rows(rows, foreground, System.currentTimeMillis()));
         listener.changed();
     }
 
     private void forward(List<ReplyTracker.Output> messages) {
         long ticket = roomEpoch;
         for (ReplyTracker.Output output : messages) {
-            if (output.type == PocketProtocol.REPLY || output.type == PocketProtocol.REPLY_DONE)
-                log.event(
-                        "passport.reply",
-                        "type="
-                                + output.type
-                                + " bytes="
-                                + output.payload.length
-                                + " quiet="
-                                + output.quiet);
-            link.send(
-                    output.type,
-                    output.payload,
-                    output.quiet,
-                    () ->
-                            state.execute(
-                                    () -> {
-                                        if (ticket != roomEpoch) return;
-                                        reply.handed(output);
-                                        persist();
-                                    }));
+            boolean quiet =
+                    output.type == PocketProtocol.REPLY
+                            && reply.quiet(PocketProtocol.u32(output.payload, 0), foreground);
+            boolean queued = link.send(output.type, output.payload, quiet);
+            // Match iOS's handoff boundary: write-without-response has no device acknowledgement.
+            if (queued && ticket == roomEpoch) reply.handed(output);
         }
         persist();
     }
 
     private void persist() {
-        JSONArray a = new JSONArray();
-        for (Wait w : waits.values())
-            a.put(
-                    Json.object(
-                            "id",
-                            w.id,
-                            "press",
-                            w.press,
-                            "deadline",
-                            w.deadline,
-                            "row",
-                            w.row,
-                            "text",
-                            w.text));
         prefs.edit()
                 .putLong("replySerial", reply.serial)
                 .putString("reply:" + roomIdentity, reply.json().toString())
-                .putString("waits:" + roomIdentity, a.toString())
                 .apply();
     }
 }

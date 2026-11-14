@@ -1,0 +1,1256 @@
+[
+  {
+    "kind": "wire",
+    "name": "result-code-0",
+    "message": {
+      "type": "result",
+      "id": 65535,
+      "code": 0,
+      "text": "识别 ✓"
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "result-code-1",
+    "message": {
+      "type": "result",
+      "id": 65535,
+      "code": 1,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "result-code-2",
+    "message": {
+      "type": "result",
+      "id": 65535,
+      "code": 2,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "result-code-3",
+    "message": {
+      "type": "result",
+      "id": 65535,
+      "code": 3,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "result-code-4",
+    "message": {
+      "type": "result",
+      "id": 65535,
+      "code": 4,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "fragment-mtu-23",
+    "message": {
+      "type": "reply",
+      "id": 3735928559,
+      "final": true,
+      "text": "中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply "
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "fragment-mtu-185",
+    "message": {
+      "type": "reply",
+      "id": 3735928559,
+      "final": true,
+      "text": "中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply "
+    },
+    "mtu": 185,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "fragment-mtu-517",
+    "message": {
+      "type": "reply",
+      "id": 3735928559,
+      "final": true,
+      "text": "中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply 中文 reply "
+    },
+    "mtu": 517,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-0-None",
+    "message": {
+      "type": "app",
+      "state": 0,
+      "language": null
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-0-0",
+    "message": {
+      "type": "app",
+      "state": 0,
+      "language": 0
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-0-1",
+    "message": {
+      "type": "app",
+      "state": 0,
+      "language": 1
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-1-None",
+    "message": {
+      "type": "app",
+      "state": 1,
+      "language": null
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-1-0",
+    "message": {
+      "type": "app",
+      "state": 1,
+      "language": 0
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-1-1",
+    "message": {
+      "type": "app",
+      "state": 1,
+      "language": 1
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-2-None",
+    "message": {
+      "type": "app",
+      "state": 2,
+      "language": null
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-2-0",
+    "message": {
+      "type": "app",
+      "state": 2,
+      "language": 0
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "app-state-2-1",
+    "message": {
+      "type": "app",
+      "state": 2,
+      "language": 1
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "work-0",
+    "message": {
+      "type": "work",
+      "phase": 0,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "work-1",
+    "message": {
+      "type": "work",
+      "phase": 1,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "work-2",
+    "message": {
+      "type": "work",
+      "phase": 2,
+      "text": ""
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "work-3",
+    "message": {
+      "type": "work",
+      "phase": 3,
+      "text": "tool ✓"
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "reply-done-zero",
+    "message": {
+      "type": "done",
+      "id": 0
+    },
+    "mtu": 23,
+    "quiet": true
+  },
+  {
+    "kind": "wire",
+    "name": "markdown-keeps-code-html-table",
+    "message": {
+      "type": "reply",
+      "id": 7,
+      "final": true,
+      "text": "# Title\n\n**Bold** [link](https://example.test) ![cat](https://example.test/cat)\n\n```sh\necho hi\n```\n\n<div>literal</div>\n\n| A | B |\n| - | - |\n| x | y |\n\n- [x] done\n- [ ] next\n\n---"
+    },
+    "mtu": 23,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "unicode-fit-cjk",
+    "message": {
+      "type": "reply",
+      "id": 1,
+      "final": true,
+      "text": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+    },
+    "mtu": 185,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "unicode-fit-emoji",
+    "message": {
+      "type": "reply",
+      "id": 1,
+      "final": true,
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦"
+    },
+    "mtu": 185,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "unicode-fit-regional",
+    "message": {
+      "type": "reply",
+      "id": 1,
+      "final": true,
+      "text": "🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳🇨🇳"
+    },
+    "mtu": 185,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "unicode-fit-combining",
+    "message": {
+      "type": "reply",
+      "id": 1,
+      "final": true,
+      "text": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+    },
+    "mtu": 185,
+    "quiet": false
+  },
+  {
+    "kind": "wire",
+    "name": "unicode-fit-indic",
+    "message": {
+      "type": "reply",
+      "id": 1,
+      "final": true,
+      "text": "क्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्षक्ष"
+    },
+    "mtu": 185,
+    "quiet": false
+  },
+  {
+    "kind": "receive",
+    "name": "device-all-messages",
+    "direction": "device",
+    "pdus": [
+      "01000900010303667731640101",
+      "02000200ffff",
+      "03000500ffff040078",
+      "04000400ffff0500",
+      "0500020063ff",
+      "060002000100"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "empty-audio-upstream-parser",
+    "direction": "device",
+    "pdus": [
+      "0300040001000000"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "unknown-flags-and-type",
+    "direction": "device",
+    "pdus": [
+      "028002000100",
+      "7f000000",
+      "020002000200"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "malformed-pdu-preserves-partial",
+    "direction": "device",
+    "pdus": [
+      "0201010001",
+      "0200",
+      "0200010000"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "interleaved-message-drops-partial",
+    "direction": "device",
+    "pdus": [
+      "0101010001",
+      "020002000700",
+      "0400040007000000"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "oversize-resets-immediately",
+    "direction": "device",
+    "pdus": [
+      "0301001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "0301010001",
+      "020002000500"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "quiet-on-completing-fragment",
+    "direction": "phone",
+    "pdus": [
+      "82010a00090000000168656c6c6f",
+      "8202060020776f726c64"
+    ]
+  },
+  {
+    "kind": "receive",
+    "name": "phone-invalid-enums-short-payloads",
+    "direction": "phone",
+    "pdus": [
+      "81000300010005",
+      "8400010003",
+      "8500010004",
+      "8300010000",
+      "820005000100000001"
+    ]
+  },
+  {
+    "kind": "press",
+    "name": "loss-duplicates-wrap",
+    "actions": [
+      {
+        "op": "message",
+        "type": 2,
+        "payload": "0900"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0900000061"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0900020062"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0900020062"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0900010063"
+      },
+      {
+        "op": "message",
+        "type": 4,
+        "payload": "09000300"
+      },
+      {
+        "op": "message",
+        "type": 4,
+        "payload": "09000300"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0a00ffff61"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0a00000062"
+      },
+      {
+        "op": "lost"
+      }
+    ]
+  },
+  {
+    "kind": "press",
+    "name": "orphan-end-keeps-active",
+    "actions": [
+      {
+        "op": "message",
+        "type": 2,
+        "payload": "0a00"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0a00000061"
+      },
+      {
+        "op": "message",
+        "type": 4,
+        "payload": "0b000100"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0a00010062"
+      },
+      {
+        "op": "message",
+        "type": 4,
+        "payload": "0a000200"
+      }
+    ]
+  },
+  {
+    "kind": "press",
+    "name": "superseded-explicit-and-implicit",
+    "actions": [
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0100050061"
+      },
+      {
+        "op": "message",
+        "type": 2,
+        "payload": "0200"
+      },
+      {
+        "op": "message",
+        "type": 3,
+        "payload": "0300000062"
+      },
+      {
+        "op": "lost"
+      },
+      {
+        "op": "message",
+        "type": 4,
+        "payload": "04000000"
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "work-after-received-no-message-ids",
+    "actions": [
+      {
+        "op": "expect",
+        "id": "a"
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "thinking"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "received",
+          "message_ids": [
+            "other"
+          ]
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "received",
+          "message_ids": [
+            "a"
+          ]
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "thinking"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "tool"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "idle",
+          "message_ids": [
+            "other"
+          ]
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "turn",
+          "phase": "idle",
+          "message_ids": [
+            "a"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "multiple-presses-failure-and-correlated-answer",
+    "actions": [
+      {
+        "op": "expect",
+        "id": "a"
+      },
+      {
+        "op": "expect",
+        "id": "b"
+      },
+      {
+        "op": "failed",
+        "id": "a"
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "message_ids": [
+            "other"
+          ],
+          "text": "proactive"
+        },
+        "foreground": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "message_ids": [
+            "b"
+          ],
+          "text": "reply"
+        },
+        "foreground": true
+      },
+      {
+        "op": "link",
+        "foreground": true
+      },
+      {
+        "op": "hand",
+        "id": 1001
+      },
+      {
+        "op": "link"
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "adopted-wait-partials-alert",
+    "actions": [
+      {
+        "op": "expect"
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "speech_id": "s",
+          "text": "你"
+        },
+        "foreground": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "speech_id": "s",
+          "text": "好"
+        },
+        "foreground": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "speech_id": "s",
+          "message_ids": [],
+          "text": "你好"
+        },
+        "foreground": true
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "partials-delta-reaction-and-pending-suppression",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "speech_id": "s",
+          "text": "a"
+        },
+        "foreground": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "speech_id": "s",
+          "text": "b"
+        },
+        "foreground": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "kind": "reaction",
+          "speech_id": "s",
+          "text": "skip"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "speech_id": "s",
+          "text": "ab"
+        },
+        "foreground": true
+      },
+      {
+        "op": "expect",
+        "id": "n"
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "speech_id": "t",
+          "text": "hidden"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "speech_id": "t",
+          "message_ids": [
+            "n"
+          ],
+          "text": "answer"
+        },
+        "foreground": true
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "live-row-dedup-persistence",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "message_ids": [
+            "b",
+            "a",
+            "a"
+          ],
+          "text": " same "
+        }
+      },
+      {
+        "op": "relaunch"
+      },
+      {
+        "op": "rows",
+        "rows": [
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "same",
+            "message_ids": [
+              "a",
+              "b"
+            ]
+          }
+        ]
+      },
+      {
+        "op": "link",
+        "foreground": true
+      },
+      {
+        "op": "hand",
+        "id": 1000
+      },
+      {
+        "op": "relaunch"
+      },
+      {
+        "op": "link"
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "batch-prefers-waited-else-newest",
+    "actions": [
+      {
+        "op": "expect",
+        "id": "n"
+      },
+      {
+        "op": "rows",
+        "rows": [
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "old",
+            "message_ids": [
+              "x"
+            ]
+          },
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "matched",
+            "message_ids": [
+              "n"
+            ]
+          },
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "new",
+            "message_ids": [
+              "z"
+            ]
+          }
+        ],
+        "foreground": true
+      },
+      {
+        "op": "rows",
+        "rows": [
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "one",
+            "message_ids": []
+          },
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "two",
+            "message_ids": []
+          },
+          {
+            "kind": "reaction",
+            "speaker": "多多",
+            "text": "skip",
+            "at": "2026-11-15T00:00:00Z"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "row-files-with-text-and-full-text",
+    "actions": [
+      {
+        "op": "rows",
+        "rows": [
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "short",
+            "message_ids": [],
+            "full_text": "**whole**",
+            "attachments": [
+              {
+                "url": "/file",
+                "mime": "text/plain",
+                "name": "a"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "op": "rows",
+        "rows": [
+          {
+            "kind": "answer",
+            "at": "2026-11-15T00:00:00Z",
+            "text": "",
+            "message_ids": [],
+            "attachments": [
+              {
+                "url": "/file",
+                "mime": "text/plain",
+                "name": "a"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "ready-restores-work-new-press-stops-wait",
+    "actions": [
+      {
+        "op": "expect",
+        "id": "n"
+      },
+      {
+        "op": "restore_turn",
+        "turn": {
+          "phase": "tool",
+          "message_ids": [
+            "n"
+          ]
+        }
+      },
+      {
+        "op": "restore_turn",
+        "turn": {
+          "phase": "thinking",
+          "message_ids": [
+            "n"
+          ]
+        }
+      },
+      {
+        "op": "new_press"
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "message_ids": [
+            "n"
+          ],
+          "text": "late"
+        },
+        "foreground": true
+      }
+    ]
+  },
+  {
+    "kind": "reply",
+    "name": "ids-clock-floor-wrap-and-no-speech-id",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "text": "no id"
+        },
+        "now": 1000
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "duoduo_said",
+          "text": "new text"
+        },
+        "now": 900
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "text": "final"
+        },
+        "now": 900
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "answer_final",
+          "text": "later"
+        },
+        "now": 2000
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "failure-empty_transcript",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "empty_transcript"
+        }
+      },
+      {
+        "op": "expire",
+        "connected": true
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "failure-asr_failed",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "asr_failed"
+        }
+      },
+      {
+        "op": "expire",
+        "connected": true
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "failure-perception_unavailable",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "perception_unavailable"
+        }
+      },
+      {
+        "op": "expire",
+        "connected": true
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "failure-other",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "other"
+        }
+      },
+      {
+        "op": "expire",
+        "connected": true
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "failure-brain_unreachable",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "brain_unreachable"
+        }
+      },
+      {
+        "op": "expire",
+        "connected": true
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "row-before-receipt-brain-failure",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "row",
+          "seq": 1,
+          "row": {
+            "kind": "typed",
+            "text": "recognized",
+            "utt_id": "note",
+            "at": "2026-11-15T00:00:00Z"
+          }
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "failed",
+          "reason": "brain_unreachable"
+        }
+      },
+      {
+        "op": "accepted"
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "cleaned-before-202-once",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "other",
+          "state": "cleaned",
+          "text": "wrong"
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "cleaned",
+          "text": "recognized"
+        }
+      },
+      {
+        "op": "accepted"
+      },
+      {
+        "op": "expire",
+        "connected": false
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "ready-open-then-logged",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "row",
+          "seq": 1,
+          "row": {
+            "kind": "typed",
+            "text": "recognized",
+            "utt_id": "note",
+            "at": "2026-11-15T00:00:00Z"
+          }
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "ready",
+          "seq": 1,
+          "messages": [
+            {
+              "id": "note",
+              "state": "cleaned"
+            }
+          ]
+        }
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "ready",
+          "seq": 1,
+          "messages": []
+        }
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "row-then-202",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "row",
+          "seq": 1,
+          "row": {
+            "kind": "typed",
+            "text": "recognized",
+            "utt_id": "note",
+            "at": "2026-11-15T00:00:00Z"
+          }
+        }
+      },
+      {
+        "op": "accepted"
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "ready-no-row-fails",
+    "actions": [
+      {
+        "op": "frame",
+        "frame": {
+          "type": "ready",
+          "seq": 0,
+          "messages": []
+        }
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "deadline-True",
+    "actions": [
+      {
+        "op": "accepted"
+      },
+      {
+        "op": "expire",
+        "connected": true
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "cleaned",
+          "text": "late"
+        }
+      }
+    ]
+  },
+  {
+    "kind": "result",
+    "name": "deadline-False",
+    "actions": [
+      {
+        "op": "accepted"
+      },
+      {
+        "op": "expire",
+        "connected": false
+      },
+      {
+        "op": "frame",
+        "frame": {
+          "type": "message",
+          "id": "note",
+          "state": "cleaned",
+          "text": "late"
+        }
+      }
+    ]
+  }
+]

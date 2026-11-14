@@ -898,8 +898,8 @@ public final class Probe extends Instrumentation {
                 Thread.getAllStackTraces().keySet().stream()
                         .anyMatch(thread -> "DuoDuo Pocket BLE".equals(thread.getName()));
         check(
-                !controller.snapshot().accessoryActive && !passportThread,
-                "standalone E2 keeps Passport routing and BLE work disabled");
+                !controller.snapshot().accessoryActive || passportThread,
+                "optional Passport BLE owner is available when an accessory is remembered");
         check(
                 context.getResources().getDisplayMetrics().widthPixels >= 240
                         && context.getResources().getDisplayMetrics().widthPixels <= 480,

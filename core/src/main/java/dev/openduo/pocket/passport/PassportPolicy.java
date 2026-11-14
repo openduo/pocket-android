@@ -3,10 +3,9 @@
 
 package dev.openduo.pocket.passport;
 
-/** Product scope for the external Passport accessory. The standalone E2 release keeps it off. */
+/** Product scope for the optional Passport accessory, independent of the Android device adapter. */
 public final class PassportPolicy {
-    /** Re-enable only when external Passport pairing is explicitly brought back into scope. */
-    public static final boolean ENABLED = false;
+    public static final boolean ENABLED = true;
 
     private PassportPolicy() {}
 }

@@ -78,8 +78,12 @@ public final class PressAssembler {
         } else {
             if (current == null || current.id != id) {
                 if (completed == id) return out;
-                finish("superseded", out);
-                current = new Building(id, false);
+                // An orphan end reports an empty press without ending another active press.
+                Building orphan = new Building(id, false);
+                orphan.declared = PocketProtocol.u16(message.data, 2);
+                completed = id;
+                out.add(new Press(orphan, "press_end"));
+                return out;
             }
             current.declared = PocketProtocol.u16(message.data, 2);
             finish("press_end", out);

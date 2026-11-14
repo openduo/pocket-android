@@ -66,6 +66,7 @@ tasks.register('prepareLegalAssets', Sync) {
     from(rootProject.file('THIRD_PARTY_NOTICES.md'))
     from(rootProject.file('third_party/POCKET-IOS-NOTICE.txt')) { rename { 'Upstream-NOTICE.txt' } }
     from(rootProject.file('third_party/opus-LICENSE.txt')) { rename { 'Opus-LICENSE.txt' } }
+    from(rootProject.file('third_party/Unicode-LICENSE.txt'))
     from('libs') { include '*LICENSE.txt' }
 }
 tasks.named('preBuild') {

@@ -9,20 +9,16 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-/** Correlation, de-duplication, quiet replies and monotone ids, independent of Android BLE. */
+/** Port of PocketCore ReplyTracker: live/log correlation, work, quiet replies and persisted ids. */
 public final class ReplyTracker {
     public static final class Output {
         public final int type;
         public final byte[] payload;
         public final boolean quiet;
 
-        Output(int type, byte[] payload, boolean quiet) {
+        public Output(int type, byte[] payload, boolean quiet) {
             this.type = type;
             this.payload = payload;
             this.quiet = quiet;
@@ -32,9 +28,12 @@ public final class ReplyTracker {
     public String latestText = "", waitingMessage = "";
     public boolean waiting;
     public long serial, latestId, deliveredId;
-    private String latestSignature = "", stream = "";
-    private long streamId;
-    private final Map<String, Long> seen = new LinkedHashMap<>();
+    private String latestAt = "", stream = "", streamText = "";
+    private List<String> latestMessages = Collections.emptyList();
+    private final List<String> waited = new ArrayList<>();
+    private final List<JSONObject> delivered = new ArrayList<>();
+    private long streamId, pressReplyId;
+    private boolean received;
 
     public void restore(JSONObject json) {
         resetRoom();
@@ -43,31 +42,30 @@ public final class ReplyTracker {
         latestId = json.optLong("latestId");
         deliveredId = json.optLong("deliveredId");
         latestText = json.optString("text");
-        latestSignature = json.optString("signature");
-        waiting = json.optBoolean("waiting");
-        waitingMessage = json.optString("waitingMessage");
-        JSONArray signatures = json.optJSONArray("seen");
-        if (signatures != null)
-            for (int i = Math.max(0, signatures.length() - 128); i < signatures.length(); i++) {
-                JSONObject entry = signatures.optJSONObject(i);
-                if (entry != null) seen.put(entry.optString("signature"), entry.optLong("id"));
+        latestAt = json.optString("at");
+        latestMessages = Json.strings(json.optJSONArray("messages"));
+        JSONArray entries = json.optJSONArray("delivered");
+        if (entries != null)
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject entry = entries.optJSONObject(i);
+                if (entry != null) delivered.add(entry);
             }
-        if (!latestSignature.isEmpty()) seen.put(latestSignature, latestId);
+        // Old Android memory used opaque SHA signatures. Preserve its counter/latest answer;
+        // incompatible fingerprints cannot be used as evidence that a log row was delivered.
     }
 
-    /** A new room keeps the accessory's monotone counter, and no previous conversation. */
     public void resetRoom() {
-        latestText = waitingMessage = latestSignature = stream = "";
-        latestId = deliveredId = streamId = 0;
-        waiting = false;
-        seen.clear();
+        latestText = latestAt = waitingMessage = stream = streamText = "";
+        latestId = deliveredId = streamId = pressReplyId = 0;
+        latestMessages = Collections.emptyList();
+        newPress();
+        delivered.clear();
     }
 
     public JSONObject json() {
-        JSONArray signatures = new JSONArray();
-        for (Map.Entry<String, Long> entry : seen.entrySet())
-            signatures.put(Json.object("signature", entry.getKey(), "id", entry.getValue()));
         return Json.object(
+                "version",
+                2,
                 "serial",
                 serial,
                 "latestId",
@@ -76,146 +74,250 @@ public final class ReplyTracker {
                 deliveredId,
                 "text",
                 latestText,
-                "signature",
-                latestSignature,
-                "waiting",
-                waiting,
-                "waitingMessage",
-                waitingMessage,
-                "seen",
-                signatures);
+                "at",
+                latestAt,
+                "messages",
+                new JSONArray(latestMessages),
+                "delivered",
+                new JSONArray(delivered));
     }
 
     public void expect(String message) {
         waiting = true;
-        waitingMessage = message;
+        if (message != null && !message.isEmpty()) waited.add(message);
+        waitingMessage = waited.isEmpty() ? "" : waited.get(0);
     }
 
     public void adopt() {
-        if (!waiting) {
-            waiting = true;
-            waitingMessage = "";
-        }
+        if (!waiting) expect(null);
     }
 
     public void newPress() {
-        waiting = false;
+        waiting = received = false;
+        waited.clear();
         waitingMessage = "";
     }
 
     public List<Output> stopWait() {
-        List<Output> out = new ArrayList<>();
-        if (waiting) {
-            waiting = false;
-            waitingMessage = "";
-            out.add(new Output(PocketProtocol.WORK, new byte[] {0}, false));
-            out.add(new Output(PocketProtocol.REPLY_DONE, PocketProtocol.u32(0), false));
-        }
-        return out;
+        if (!waiting) return Collections.emptyList();
+        newPress();
+        return Arrays.asList(work(0), done(0));
+    }
+
+    public List<Output> connectionFailed() {
+        if (!waiting) return Collections.emptyList();
+        newPress();
+        return Collections.singletonList(done(0));
+    }
+
+    private boolean names(List<String> ids) {
+        if (!waiting) return false;
+        if (waited.isEmpty()) return true;
+        for (String id : ids) if (waited.contains(id)) return true;
+        return false;
     }
 
     public List<Output> turn(String phase, List<String> ids) {
+        if (!waiting) return Collections.emptyList();
+        switch (phase) {
+            case "received":
+                if (waited.isEmpty() || !names(ids)) return Collections.emptyList();
+                received = true;
+                return Collections.singletonList(work(1));
+            case "thinking":
+            case "tool":
+                return received || waited.isEmpty()
+                        ? Collections.singletonList(work(phase.equals("thinking") ? 2 : 3))
+                        : Collections.emptyList();
+            case "idle":
+                return names(ids) ? stopWait() : Collections.emptyList();
+            default:
+                return Collections.emptyList();
+        }
+    }
+
+    public List<Output> restoreTurn(JSONObject turn) {
+        if (turn == null
+                || !waiting
+                || waited.isEmpty()
+                || received
+                || !names(Json.strings(turn.optJSONArray("message_ids"))))
+            return Collections.emptyList();
+        received = true;
         List<Output> out = new ArrayList<>();
-        if (!waiting || !waitingMessage.isEmpty() && !ids.contains(waitingMessage)) return out;
-        if (phase.equals("idle")) return stopWait();
-        int value =
-                phase.equals("received")
-                        ? 1
-                        : phase.equals("thinking") ? 2 : phase.equals("tool") ? 3 : 0;
-        if (value != 0) out.add(new Output(PocketProtocol.WORK, new byte[] {(byte) value}, false));
+        out.add(work(1));
+        if (turn.optString("phase").equals("thinking")) out.add(work(2));
+        if (turn.optString("phase").equals("tool")) out.add(work(3));
         return out;
+    }
+
+    public List<Output> messageFailed(String id) {
+        if (!waiting || !waited.removeIf(id::equals)) return Collections.emptyList();
+        waitingMessage = waited.isEmpty() ? "" : waited.get(0);
+        if (!waited.isEmpty()) return Collections.emptyList();
+        newPress();
+        return Collections.singletonList(done(0));
+    }
+
+    public boolean quiet(long id, boolean foreground) {
+        return id != pressReplyId && foreground;
     }
 
     private long next(long now) {
-        serial = Math.max(serial + 1, now / 1000) & 0xffffffffL;
-        if (serial == 0) serial = 1;
+        long next = (serial + 1) & 0xffffffffL;
+        if (next == 0) next = 1;
+        serial = Math.max(next, Math.min(0xffffffffL, Math.max(0, now / 1000)));
         return serial;
     }
 
-    public List<Output> partial(String speechId, String text, boolean foreground, long now) {
-        List<Output> out = new ArrayList<>();
-        if (waiting || text.isEmpty()) return out;
-        if (!stream.equals(speechId)) {
-            stream = speechId;
-            streamId = next(now);
+    public List<Output> handle(JSONObject frame, boolean foreground, long now) {
+        switch (frame.optString("type")) {
+            case "duoduo_said":
+                if (frame.optString("kind").equals("reaction") || waiting && !waited.isEmpty())
+                    return Collections.emptyList();
+                String speech = frame.optString("speech_id");
+                if (!speech.isEmpty() && stream.equals(speech))
+                    streamText += frame.optString("text");
+                else {
+                    stream = speech;
+                    streamText = frame.optString("text");
+                    streamId = 0;
+                }
+                if (streamText.isEmpty()) return Collections.emptyList();
+                if (streamId == 0) streamId = next(now);
+                if (waiting) pressReplyId = streamId;
+                return Collections.singletonList(reply(streamId, false, streamText, foreground));
+            case "answer_final":
+                return answer(
+                        Json.strings(frame.optJSONArray("message_ids")),
+                        frame.optString("text"),
+                        frame.has("speech_id") ? frame.optString("speech_id") : null,
+                        foreground,
+                        now);
+            case "turn":
+                return turn(
+                        frame.optString("phase"), Json.strings(frame.optJSONArray("message_ids")));
+            default:
+                return Collections.emptyList();
         }
-        out.add(
-                new Output(
-                        PocketProtocol.REPLY,
-                        PocketProtocol.reply(streamId, false, text),
-                        foreground));
-        return out;
     }
 
     public List<Output> answer(
             List<String> ids, String text, String speechId, boolean foreground, long now) {
-        List<Output> out = new ArrayList<>();
-        if (text.trim().isEmpty()) return out;
-        boolean ends = waiting && (waitingMessage.isEmpty() || ids.contains(waitingMessage));
-        String signature = signature(ids, text);
-        Long existing = seen.get(signature);
-        long id;
-        if (existing != null) id = existing;
-        else {
-            id = !speechId.isEmpty() && stream.equals(speechId) ? streamId : next(now);
-            seen.put(signature, id);
-            while (seen.size() > 128) seen.remove(seen.keySet().iterator().next());
-            latestText = text;
-            latestId = id;
-            latestSignature = signature;
-            out.add(
-                    new Output(
-                            PocketProtocol.REPLY,
-                            PocketProtocol.reply(id, true, text),
-                            foreground && !ends));
-            out.add(new Output(PocketProtocol.REPLY_DONE, PocketProtocol.u32(id), false));
-        }
-        if (ends) {
-            waiting = false;
-            waitingMessage = "";
-            if (out.isEmpty())
-                out.add(new Output(PocketProtocol.REPLY_DONE, PocketProtocol.u32(id), false));
-        }
-        if (stream.equals(speechId)) {
-            stream = "";
+        if (dev.openduo.pocket.text.Graphemes.trimmed(text).isEmpty())
+            return Collections.emptyList();
+        long id = 0;
+        if (speechId != null && stream.equals(speechId)) {
+            id = streamId;
+            stream = streamText = "";
             streamId = 0;
         }
-        return out;
+        if (id == 0) id = next(now);
+        delivered.add(
+                Json.object(
+                        "fingerprint",
+                        fingerprint(text),
+                        "messages",
+                        new JSONArray(ids),
+                        "id",
+                        id));
+        return accept(ids, text, "", id, names(ids), foreground);
+    }
+
+    public List<Output> rows(List<JSONObject> rows, boolean foreground, long now) {
+        List<JSONObject> fresh = new ArrayList<>();
+        for (JSONObject row : rows) {
+            String kind = row.optString("kind");
+            if (kind.equals("reaction")
+                    || !(kind.equals("answer") || row.optString("speaker").equals("多多"))) continue;
+            String text = row.optString("full_text", row.optString("text"));
+            if (dev.openduo.pocket.text.Graphemes.trimmed(text).isEmpty()) continue;
+            List<String> ids = Json.strings(row.optJSONArray("message_ids"));
+            long fingerprint = fingerprint(text);
+            int found = -1;
+            for (int i = 0; i < delivered.size(); i++) {
+                JSONObject entry = delivered.get(i);
+                if (entry.optLong("fingerprint") == fingerprint
+                        && new HashSet<>(Json.strings(entry.optJSONArray("messages")))
+                                .equals(new HashSet<>(ids))) {
+                    found = i;
+                    break;
+                }
+            }
+            if (found >= 0) delivered.remove(found);
+            else fresh.add(row);
+        }
+        JSONObject selected = null;
+        if (waiting && !waited.isEmpty())
+            for (JSONObject row : fresh)
+                if (names(Json.strings(row.optJSONArray("message_ids")))) {
+                    selected = row;
+                    break;
+                }
+        boolean ends = selected != null || waiting && waited.isEmpty();
+        if (selected == null && !fresh.isEmpty()) selected = fresh.get(fresh.size() - 1);
+        if (selected == null) return Collections.emptyList();
+        return accept(
+                Json.strings(selected.optJSONArray("message_ids")),
+                selected.optString("full_text", selected.optString("text")),
+                selected.optString("at"),
+                next(now),
+                ends,
+                foreground);
+    }
+
+    public void forgetDelivered() {
+        delivered.clear();
+    }
+
+    private List<Output> accept(
+            List<String> ids, String text, String at, long id, boolean ends, boolean foreground) {
+        if (id >= latestId) {
+            latestId = id;
+            latestText = text;
+            latestAt = at;
+            latestMessages = new ArrayList<>(ids);
+        }
+        if (ends) {
+            pressReplyId = id;
+            newPress();
+        }
+        return Arrays.asList(reply(id, true, text, foreground), done(id));
     }
 
     public List<Output> linkReady(boolean foreground) {
-        List<Output> out = new ArrayList<>();
-        if (latestId != 0 && latestId != deliveredId) {
-            out.add(
-                    new Output(
-                            PocketProtocol.REPLY,
-                            PocketProtocol.reply(latestId, true, latestText),
-                            foreground && !waiting));
-            out.add(new Output(PocketProtocol.REPLY_DONE, PocketProtocol.u32(latestId), false));
-        }
-        return out;
+        if (latestId == 0 || latestId <= deliveredId) return Collections.emptyList();
+        return Arrays.asList(reply(latestId, true, latestText, foreground), done(latestId));
     }
 
     public void handed(Output output) {
         if (output.type == PocketProtocol.REPLY && output.payload[4] != 0)
-            deliveredId = PocketProtocol.u32(output.payload, 0);
+            deliveredId = Math.max(deliveredId, PocketProtocol.u32(output.payload, 0));
     }
 
-    private static String signature(List<String> ids, String text) {
-        List<String> sorted = new ArrayList<>(ids);
-        java.util.Collections.sort(sorted);
-        try {
-            byte[] digest =
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(
-                                    (String.join(",", sorted) + "\n" + text.trim())
-                                            .getBytes(StandardCharsets.UTF_8));
-            StringBuilder out = new StringBuilder();
-            for (byte value : digest)
-                out.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
-            return out.toString();
-        } catch (java.security.NoSuchAlgorithmException impossible) {
-            throw new AssertionError(impossible);
-        }
+    public static long replyId(String key) {
+        long hash = 0x811c9dc5L;
+        for (byte b : key.getBytes(StandardCharsets.UTF_8))
+            hash = ((hash ^ (b & 255)) * 0x01000193) & 0xffffffffL;
+        return hash == 0 ? 1 : hash;
+    }
+
+    private static long fingerprint(String text) {
+        return replyId("text:" + dev.openduo.pocket.text.Graphemes.trimmed(text));
+    }
+
+    private Output reply(long id, boolean finalText, String text, boolean foreground) {
+        return new Output(
+                PocketProtocol.REPLY,
+                PocketProtocol.reply(id, finalText, text),
+                quiet(id, foreground));
+    }
+
+    private static Output work(int phase) {
+        return new Output(PocketProtocol.WORK, new byte[] {(byte) phase}, false);
+    }
+
+    private static Output done(long id) {
+        return new Output(PocketProtocol.REPLY_DONE, PocketProtocol.u32(id), false);
     }
 }

@@ -183,8 +183,7 @@ public final class PocketController {
             olderLoading = c.olderRequestEpoch == c.connectionEpoch;
             uploadingVoice = c.uploadForeground;
             ambientActive = c.ambientWanted;
-            accessoryActive =
-                    PassportPolicy.ENABLED && !c.trying && c.passport.snapshot().link.remembered;
+            accessoryActive = PassportPolicy.ENABLED && !c.trying && c.passport.backgroundEnabled();
             pressMuted = c.ambientInput.pressMuted();
             echoCancellation = c.capture != null && c.capture.echoCancellation();
             latencyMs = c.latencyMs;
@@ -356,7 +355,14 @@ public final class PocketController {
         final dev.openduo.pocket.net.RequestScope requests;
         final VoiceRetry retry = new VoiceRetry();
         byte[] body;
+        long passportDeadline = Long.MAX_VALUE;
         ChannelClient.Failure error;
+
+        long remainingMs() {
+            return Math.min(
+                    retry.remainingMs(),
+                    Math.max(0, passportDeadline - android.os.SystemClock.elapsedRealtime()));
+        }
 
         SendOperation(
                 Outbox.Item item,
@@ -493,7 +499,18 @@ public final class PocketController {
                         new dev.openduo.pocket.passport.PassportCoordinator.Listener() {
                             public void changed() {
                                 refreshService();
+                                surface();
                                 publish();
+                            }
+
+                            public void wake(boolean catchUp) {
+                                if (trying || !accessAllowed()) return;
+                                if (catchUp) backgroundFetch(() -> {});
+                                if (accessoryWaiting()) {
+                                    resetRedial("passport");
+                                    startNetwork();
+                                    verifyLiveOnState();
+                                }
                             }
 
                             public void press(
@@ -512,6 +529,7 @@ public final class PocketController {
                                 Outbox.Item item = repo.findPending(id);
                                 if (item != null && item.state != Message.FAILED) {
                                     repo.transition(item.state(Message.FAILED, "识别未完成 · 轻点重试"));
+                                    settleSend();
                                     reload();
                                     publish();
                                 }
@@ -595,7 +613,7 @@ public final class PocketController {
     }
 
     private boolean accessoryWaiting() {
-        return PassportPolicy.ENABLED && !trying && passport.snapshot().waiting;
+        return PassportPolicy.ENABLED && !trying && passport.snapshot().busy;
     }
 
     public void start() {
@@ -860,6 +878,7 @@ public final class PocketController {
                                     if (interactive && action != tailnetActionEpoch) return;
                                     tailnetState = "Failed";
                                     lastError = "无法启动 Tailscale 网络节点";
+                                    if (PassportPolicy.ENABLED) passport.connectionFailed();
                                     publish();
                                 });
                     }
@@ -1025,7 +1044,7 @@ public final class PocketController {
         opening = true;
         ambientInput.socketOpened();
         sightSession.connectionReset();
-        if (PassportPolicy.ENABLED && !trying) passport.beginReplay();
+        if (PassportPolicy.ENABLED && !trying) passport.beginReplay(repo.hasCursor());
         int epoch = ++connectionEpoch;
         connection = Connection.CONNECTING;
         ChannelConnection target = channel;
@@ -1242,7 +1261,10 @@ public final class PocketController {
         socketWriter.getQueue().clear();
         channel.closeLive();
         sightSession.connectionReset();
-        if (PassportPolicy.ENABLED) passport.online(false);
+        if (PassportPolicy.ENABLED) {
+            if (connection == Connection.CONNECTING) passport.connectionFailed();
+            else passport.online(false);
+        }
         viewer.dropPending();
         connection = Connection.OFFLINE;
         opening = false;
@@ -1285,6 +1307,7 @@ public final class PocketController {
 
     private void pauseRoomAccess(Connection next) {
         retireRoomAccess();
+        if (PassportPolicy.ENABLED) passport.connectionFailed();
         connection = next;
         opening = false;
         connectionEpoch++;
@@ -1726,7 +1749,13 @@ public final class PocketController {
         if (next.display.isEmpty())
             next =
                     next.surface(
-                            foreground ? settings.keepAwake() ? "phone_awake" : "phone" : "later",
+                            foreground
+                                    ? settings.keepAwake() ? "phone_awake" : "phone"
+                                    : PassportPolicy.ENABLED
+                                                    && !trying
+                                                    && passport.snapshot().link.ready
+                                            ? "passport"
+                                            : "later",
                             ambientWanted || foreground && settings.ambientOutput(),
                             trying ? "" : arrivals.pending());
         final Outbox.Item item = next;
@@ -1759,6 +1788,11 @@ public final class PocketController {
         SendOperation operation =
                 new SendOperation(
                         item, access.client(requests), repo.roomIdentity(), ++sendEpoch, requests);
+        if (PassportPolicy.ENABLED && item.source.equals("passport")) {
+            long remaining = passport.remainingMs(item.id);
+            if (remaining != Long.MAX_VALUE)
+                operation.passportDeadline = android.os.SystemClock.elapsedRealtime() + remaining;
+        }
         sending = operation;
         try {
             repo.transition(item.state(Message.SENDING, ""));
@@ -1853,7 +1887,7 @@ public final class PocketController {
             settleSend();
             return;
         }
-        if (operation.item.voice && operation.retry.remainingMs() == 0) {
+        if (operation.item.voice && operation.remainingMs() == 0) {
             completeSend(
                     operation,
                     operation.error == null
@@ -1871,7 +1905,7 @@ public final class PocketController {
                     ChannelClient.Failure problem = null;
                     try {
                         if (item.voice) {
-                            long remaining = operation.retry.remainingMs();
+                            long remaining = operation.remainingMs();
                             if (remaining == 0)
                                 throw previousError == null
                                         ? new ChannelClient.Failure("暂时无法连接房间", 0, true)
@@ -2519,7 +2553,7 @@ public final class PocketController {
     }
 
     private void refreshService() {
-        boolean bluetooth = PassportPolicy.ENABLED && passport.snapshot().link.remembered;
+        boolean bluetooth = PassportPolicy.ENABLED && passport.backgroundEnabled();
         boolean needed = !trying && (ambientWanted || uploadForeground || bluetooth);
         if (needed) {
             // The service may receive an older queued notification before this call returns.
@@ -2557,7 +2591,13 @@ public final class PocketController {
                             "type",
                             "surface",
                             "display",
-                            foreground ? settings.keepAwake() ? "phone_awake" : "phone" : "later",
+                            foreground
+                                    ? settings.keepAwake() ? "phone_awake" : "phone"
+                                    : PassportPolicy.ENABLED
+                                                    && !trying
+                                                    && passport.snapshot().link.ready
+                                            ? "passport"
+                                            : "later",
                             "spoken",
                             (ambientWanted || settings.ambientOutput() && foreground)
                                     && !ambientMuted
@@ -2906,7 +2946,7 @@ public final class PocketController {
                     channel.closeLive();
                     opening = false;
                     releaseOnState(true);
-                    if (PassportPolicy.ENABLED) passport.online(false);
+                    if (PassportPolicy.ENABLED) passport.connectionFailed();
                     stopCapture();
                     ambientWanted = false;
                     ambient = Ambient.OFF;
@@ -2940,6 +2980,7 @@ public final class PocketController {
                                                             value.optString("scope"),
                                                             value.optString("token"));
                                                     trying = false;
+                                                    passport.suspended(false);
                                                     retireSend();
                                                     viewer.reset();
                                                     turn.reset();
@@ -3018,7 +3059,7 @@ public final class PocketController {
                         return;
                     }
                     repo.clear();
-                    if (PassportPolicy.ENABLED) passport.online(false);
+                    if (PassportPolicy.ENABLED) passport.connectionFailed();
                     settings.clearConnection();
                     resetRoomTransient();
                     dev.openduo.pocket.app.BackgroundSync.schedule(context);
@@ -3066,9 +3107,10 @@ public final class PocketController {
         ambientWanted = false;
         ambient = Ambient.OFF;
         sightSession.clear();
-        if (PassportPolicy.ENABLED) passport.online(false);
+        if (PassportPolicy.ENABLED) passport.connectionFailed();
         realRepo.select(realRepo.roomIdentity());
         trying = true;
+        passport.suspended(true);
         channel = tryChannel = local;
         repo = new RoomRepository(context, null);
         repo.select("try:" + UUID.randomUUID());
@@ -3103,6 +3145,7 @@ public final class PocketController {
         ambient = Ambient.OFF;
         cleanupTry();
         trying = false;
+        passport.suspended(false);
         resetRoomTransient();
         viewer.reset();
         chips.clear();
@@ -3193,6 +3236,36 @@ public final class PocketController {
                                         () -> {
                                             try {
                                                 if (fetched != null && currentAccess(access)) {
+                                                    if (PassportPolicy.ENABLED && bootstrapped) {
+                                                        List<JSONObject> fresh = new ArrayList<>();
+                                                        for (Message row : fetched.messages)
+                                                            if (row.seq > repo.cursor())
+                                                                fresh.add(
+                                                                        Json.object(
+                                                                                "kind",
+                                                                                row.kind
+                                                                                                == Message
+                                                                                                        .MINE
+                                                                                        ? "typed"
+                                                                                        : row.kind
+                                                                                                        == Message
+                                                                                                                .DUODUO
+                                                                                                ? "answer"
+                                                                                                : "heard",
+                                                                                "text",
+                                                                                row.text,
+                                                                                "utt_id",
+                                                                                row.id,
+                                                                                "at",
+                                                                                java.time.Instant
+                                                                                        .ofEpochMilli(
+                                                                                                row.at)
+                                                                                        .toString(),
+                                                                                "message_ids",
+                                                                                new JSONArray(
+                                                                                        row.messageIds)));
+                                                        passport.caughtUp(fresh);
+                                                    }
                                                     admitRows(fetched.messages, fetched.cursor);
                                                     for (Message row : fetched.messages)
                                                         if (row.kind == Message.DUODUO) {
@@ -3302,10 +3375,11 @@ public final class PocketController {
             notice("Passport 语音超过本机大小上限");
             return;
         }
+        String id = UUID.randomUUID().toString();
+        passport.expect(id, press.id);
         try {
             File dir = new File(context.getFilesDir(), "voice");
             if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException();
-            String id = UUID.randomUUID().toString();
             File file = new File(dir, id + ".packets");
             try (FileOutputStream out = new FileOutputStream(file)) {
                 for (byte[] packet : press.packets) {
@@ -3315,7 +3389,6 @@ public final class PocketController {
                 }
                 out.getFD().sync();
             }
-            passport.expect(id, press.id);
             Outbox.Item item =
                     new Outbox.Item(
                             id,
@@ -3342,7 +3415,7 @@ public final class PocketController {
                 connect();
             }
         } catch (Exception failure) {
-            passport.rejected(press.id, 3);
+            passport.uploadFailed(id, false);
             notice("Passport 语音未能保存");
         }
     }

@@ -30,7 +30,8 @@ public final class SettingsPage implements PocketController.Listener {
             notificationStatus,
             arrivalStatus,
             audioRoute,
-            configIssues;
+            configIssues,
+            passportStatus;
     private TextView exitTrial;
     private Switch arrivalControl;
 
@@ -68,6 +69,14 @@ public final class SettingsPage implements PocketController.Listener {
                                 ui.t("当前房间会断开连接，配对凭据仍保存在本机。"),
                                 ui.t("退出登录"),
                                 controller::logoutTailnet));
+        if (dev.openduo.pocket.passport.PassportPolicy.ENABLED)
+            passportStatus =
+                    row(
+                            body,
+                            "bluetooth",
+                            "Passport",
+                            ui.t("扫描与配对"),
+                            () -> host.navigate("passport"));
         section(body, ui.t("声音与屏幕"));
         audioRoute = row(body, "info", ui.t("音频路径"), "", null);
         toggle(
@@ -429,6 +438,8 @@ public final class SettingsPage implements PocketController.Listener {
         PocketController.Snapshot s = controller.snapshot();
         if (s == null) return;
         exitTrial.setVisibility(s.trying ? View.VISIBLE : View.GONE);
+        if (passportStatus != null)
+            Ui.updateText(passportStatus, s.passport.link.ready ? ui.t("已连接") : ui.t("扫描与配对"));
         arrivalControl.setEnabled(!s.trying);
         Ui.updateText(
                 connection,

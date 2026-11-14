@@ -11,7 +11,6 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.os.ParcelUuid;
 
 import java.util.*;
@@ -62,25 +61,18 @@ public final class PassportLink implements AutoCloseable {
     private final HandlerThread thread = new HandlerThread("DuoDuo Pocket BLE");
     private final Handler handler;
     private final Map<String, Device> found = new LinkedHashMap<>();
-    private final ArrayDeque<Write> writes = new ArrayDeque<>();
-
-    private static final class Write {
-        final byte[] data;
-        final Runnable handed;
-
-        Write(byte[] data, Runnable handed) {
-            this.data = data;
-            this.handed = handed;
-        }
-    }
-
+    private final PassportOutbox writes = new PassportOutbox();
     private final PocketProtocol.Receiver receiver =
             new PocketProtocol.Receiver(PocketProtocol.Direction.DEVICE_TO_PHONE);
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic rx;
     private BluetoothLeScanner scanner;
-    private int mtu = 23, generation, attempts, writeSerial;
-    private boolean busy, closed, subscribing;
+    private int mtu = 23, attempts, writeSerial;
+    private volatile int generation;
+    private boolean writeStarted;
+    private boolean busy, subscribing, paused;
+    private volatile boolean closed;
+    private String staleBond = "";
     private String state = "off", name = "", detail = "", address = "";
     private volatile Snapshot snapshot;
 
@@ -88,20 +80,14 @@ public final class PassportLink implements AutoCloseable {
         this.context = context.getApplicationContext();
         this.listener = listener;
         prefs = context.getSharedPreferences("passport.link", Context.MODE_PRIVATE);
-        if (!PassportPolicy.ENABLED) {
-            // The protocol remains compiled for a future release, but standalone E2 must not
-            // start a BLE thread or register a Bluetooth receiver just because the controller was
-            // created.
-            handler = new Handler(Looper.getMainLooper());
-            snapshot = new Snapshot(this);
-            return;
-        }
         thread.start();
         handler = new Handler(thread.getLooper());
         snapshot = new Snapshot(this);
         IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
-        context.registerReceiver(changes, filter);
+        if (Build.VERSION.SDK_INT >= 33)
+            context.registerReceiver(changes, filter, Context.RECEIVER_EXPORTED);
+        else context.registerReceiver(changes, filter);
     }
 
     public Snapshot snapshot() {
@@ -133,25 +119,63 @@ public final class PassportLink implements AutoCloseable {
         listener.state(snapshot);
     }
 
-    public void resume() {
+    /** Bluetooth permission can be revoked between any two platform calls. */
+    private void dispatch(Runnable work) {
         handler.post(
                 () -> {
+                    if (closed) return;
+                    try {
+                        work.run();
+                    } catch (SecurityException revoked) {
+                        fail("蓝牙未开启或未获允许", false);
+                    }
+                });
+    }
+
+    public void pause() {
+        dispatch(
+                () -> {
+                    paused = true;
+                    stopScan();
+                    disconnect();
+                    set("idle", "");
+                    listener.disconnected();
+                });
+    }
+
+    public void resume() {
+        dispatch(
+                () -> {
+                    paused = false;
                     if (closed || !available()) {
+                        if (!closed) {
+                            stopScan();
+                            disconnect();
+                            listener.disconnected();
+                        }
                         set("off", "蓝牙未开启或未获允许");
                         return;
                     }
                     if (gatt == null) {
                         String saved = prefs.getString("address", "");
-                        if (!saved.isEmpty()) connectOnThread(saved);
+                        if (!saved.isEmpty()) {
+                            // One explicit foreground attempt can discover a repaired bond.
+                            staleBond = "";
+                            connectOnThread(saved);
+                        }
                     }
                 });
     }
 
     public void scan() {
-        handler.post(
+        dispatch(
                 () -> {
-                    if (closed) return;
-                    if (!available()) {
+                    if (paused) return;
+                    if (!available()
+                            || Build.VERSION.SDK_INT >= 31
+                                    && context.checkSelfPermission(
+                                                    Manifest.permission.BLUETOOTH_SCAN)
+                                            != PackageManager.PERMISSION_GRANTED) {
                         set("off", "请开启蓝牙并允许附近设备权限");
                         return;
                     }
@@ -162,6 +186,10 @@ public final class PassportLink implements AutoCloseable {
                         return;
                     }
                     stopScan();
+                    if (gatt != null) {
+                        disconnect();
+                        listener.disconnected();
+                    }
                     found.clear();
                     scanner = adapter().getBluetoothLeScanner();
                     if (scanner == null) {
@@ -214,7 +242,7 @@ public final class PassportLink implements AutoCloseable {
             new ScanCallback() {
                 @Override
                 public void onScanResult(int type, ScanResult result) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (scanner == null) return;
                                 Device d = new Device(result.getDevice(), result.getRssi());
@@ -225,7 +253,7 @@ public final class PassportLink implements AutoCloseable {
 
                 @Override
                 public void onScanFailed(int error) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 stopScan();
                                 set("failed", "扫描未成功（" + error + "）");
@@ -234,19 +262,23 @@ public final class PassportLink implements AutoCloseable {
             };
 
     public void connect(String address) {
-        handler.post(
+        dispatch(
                 () -> {
                     attempts = 0;
+                    staleBond = "";
                     connectOnThread(address);
                 });
     }
 
     private void connectOnThread(String value) {
+        if (paused || value.equals(staleBond)) return;
         if (!available() || closed) {
             set("off", "蓝牙未开启或未获允许");
             return;
         }
+        boolean replacing = gatt != null;
         disconnect();
+        if (replacing) listener.disconnected();
         stopScan();
         address = value;
         mtu = 23;
@@ -258,8 +290,9 @@ public final class PassportLink implements AutoCloseable {
             gatt = d.connectGatt(context, false, callbacks, BluetoothDevice.TRANSPORT_LE);
             handler.postDelayed(
                     () -> {
-                        if (epoch == generation && !state.equals("ready"))
-                            fail("连接超时，请靠近 Passport 后重试", true);
+                        if (epoch == generation
+                                && !state.equals("ready")
+                                && !state.equals("pairing")) fail("连接超时，请靠近 Passport 后重试", true);
                     },
                     20_000);
         } catch (RuntimeException failure) {
@@ -271,7 +304,7 @@ public final class PassportLink implements AutoCloseable {
             new BluetoothGattCallback() {
                 @Override
                 public void onConnectionStateChange(BluetoothGatt g, int status, int connected) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (g != gatt) {
                                     g.close();
@@ -279,21 +312,22 @@ public final class PassportLink implements AutoCloseable {
                                 }
                                 if (status == BluetoothGatt.GATT_SUCCESS
                                         && connected == BluetoothProfile.STATE_CONNECTED) {
-                                    attempts = 0;
                                     set("connected", "正在读取服务");
                                     if (!g.requestMtu(185)) discover(g);
                                 } else
                                     fail(
-                                            status == 5 || status == 8
+                                            status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION
                                                     ? "设备不再认可本设备，请在系统蓝牙设置中忘记后重新配对"
                                                     : "连接断开，靠近后自动重连",
-                                            status != 5 && status != 8);
+                                            status
+                                                    != BluetoothGatt
+                                                            .GATT_INSUFFICIENT_AUTHENTICATION);
                             });
                 }
 
                 @Override
                 public void onMtuChanged(BluetoothGatt g, int value, int status) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (g != gatt) return;
                                 mtu =
@@ -306,7 +340,7 @@ public final class PassportLink implements AutoCloseable {
 
                 @Override
                 public void onServicesDiscovered(BluetoothGatt g, int status) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (g != gatt) return;
                                 BluetoothGattService service =
@@ -339,7 +373,7 @@ public final class PassportLink implements AutoCloseable {
                 @Override
                 public void onDescriptorWrite(
                         BluetoothGatt g, BluetoothGattDescriptor descriptor, int status) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (g != gatt || !CCCD.equals(descriptor.getUuid())) return;
                                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -347,13 +381,25 @@ public final class PassportLink implements AutoCloseable {
                                             && g.getDevice().getBondState()
                                                     != BluetoothDevice.BOND_BONDED) {
                                         set("pairing", "请核对数字并确认系统蓝牙配对");
-                                        g.getDevice().createBond();
+                                        if (!g.getDevice().createBond()) {
+                                            fail("无法订阅 Passport 音频", false);
+                                            return;
+                                        }
+                                        int epoch = generation;
+                                        handler.postDelayed(
+                                                () -> {
+                                                    if (epoch == generation
+                                                            && state.equals("pairing"))
+                                                        fail("连接超时，请靠近 Passport 后重试", false);
+                                                },
+                                                60_000);
                                         return;
                                     }
                                     fail("通知订阅失败（" + status + "）", false);
                                     return;
                                 }
                                 subscribing = false;
+                                attempts = 0;
                                 prefs.edit().putString("address", address).apply();
                                 set("ready", "已连接");
                                 flush();
@@ -363,20 +409,18 @@ public final class PassportLink implements AutoCloseable {
                 @Override
                 public void onCharacteristicWrite(
                         BluetoothGatt g, BluetoothGattCharacteristic characteristic, int status) {
-                    handler.post(
+                    dispatch(
                             () -> {
                                 if (g != gatt
                                         || rx == null
                                         || !rx.getUuid().equals(characteristic.getUuid())) return;
                                 busy = false;
+                                writeStarted = false;
                                 if (status != BluetoothGatt.GATT_SUCCESS) {
                                     fail("蓝牙发送失败（" + status + "）", true);
                                     return;
                                 }
-                                if (!writes.isEmpty()) {
-                                    Write sent = writes.removeFirst();
-                                    if (sent.handed != null) sent.handed.run();
-                                }
+                                writes.acknowledge();
                                 flush();
                             });
                 }
@@ -384,10 +428,20 @@ public final class PassportLink implements AutoCloseable {
                 @Override
                 public void onCharacteristicChanged(
                         BluetoothGatt g, BluetoothGattCharacteristic characteristic) {
-                    byte[] data = characteristic.getValue();
-                    if (data == null) return;
-                    byte[] copy = data.clone();
-                    handler.post(
+                    receive(g, characteristic, characteristic.getValue());
+                }
+
+                @Override
+                public void onCharacteristicChanged(
+                        BluetoothGatt g, BluetoothGattCharacteristic characteristic, byte[] value) {
+                    receive(g, characteristic, value);
+                }
+
+                private void receive(
+                        BluetoothGatt g, BluetoothGattCharacteristic characteristic, byte[] value) {
+                    if (value == null) return;
+                    byte[] copy = value.clone();
+                    dispatch(
                             () -> {
                                 if (g != gatt
                                         || !characteristic
@@ -405,7 +459,7 @@ public final class PassportLink implements AutoCloseable {
 
     private void disconnect() {
         generation++;
-        busy = false;
+        busy = writeStarted = false;
         subscribing = false;
         writes.clear();
         receiver.reset();
@@ -423,6 +477,7 @@ public final class PassportLink implements AutoCloseable {
 
     private void fail(String reason, boolean retry) {
         String saved = address;
+        if (!retry && !saved.isEmpty()) staleBond = saved;
         disconnect();
         listener.disconnected();
         set("failed", reason);
@@ -447,51 +502,57 @@ public final class PassportLink implements AutoCloseable {
     public boolean send(int type, byte[] payload, boolean quiet, Runnable handed) {
         Snapshot current = snapshot;
         if (closed || !current.ready) return false;
-        byte[][] fragments;
-        try {
-            fragments = PocketProtocol.fragments(type, payload, current.mtu, quiet);
-        } catch (IllegalArgumentException failure) {
-            return false;
-        }
-        handler.post(
+        byte[] copy = payload == null ? null : payload.clone();
+        if (copy == null || copy.length > PocketProtocol.MAX_MESSAGE) return false;
+        int epoch = generation;
+        dispatch(
                 () -> {
-                    if (!state.equals("ready")) return;
-                    if (writes.size() + fragments.length > 512) {
+                    if (epoch != generation || !state.equals("ready")) return;
+                    if (!writes.offer(type, copy, quiet, handed)) {
                         fail("蓝牙发送队列已满", true);
                         return;
                     }
-                    for (int i = 0; i < fragments.length; i++)
-                        writes.addLast(
-                                new Write(fragments[i], i == fragments.length - 1 ? handed : null));
                     flush();
                 });
         return true;
     }
 
     private void flush() {
-        if (busy || gatt == null || rx == null || writes.isEmpty() || !state.equals("ready"))
-            return;
-        rx.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
-        rx.setValue(writes.peekFirst().data);
-        busy = true;
-        int serial = ++writeSerial;
-        if (!gatt.writeCharacteristic(rx)) {
-            busy = false;
-            handler.postDelayed(this::flush, 30);
-            return;
-        }
+        if (busy || gatt == null || rx == null || !state.equals("ready")) return;
+        byte[] next = writes.next(mtu);
+        if (next == null) return;
         int epoch = generation;
-        handler.postDelayed(
-                () -> {
-                    if (epoch == generation && busy && serial == writeSerial) fail("蓝牙发送超时", true);
-                },
-                5000);
+        if (!writeStarted) {
+            writeStarted = true;
+            int serial = ++writeSerial;
+            handler.postDelayed(
+                    () -> {
+                        if (epoch == generation && writeStarted && serial == writeSerial)
+                            fail("蓝牙发送超时", true);
+                    },
+                    5000);
+        }
+        try {
+            rx.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+            rx.setValue(next);
+            busy = true;
+            if (!gatt.writeCharacteristic(rx)) {
+                busy = false;
+                handler.postDelayed(
+                        () -> {
+                            if (epoch == generation) flush();
+                        },
+                        30);
+            }
+        } catch (SecurityException revoked) {
+            fail("蓝牙未开启或未获允许", false);
+        }
     }
 
     public void forget() {
-        handler.post(
+        dispatch(
                 () -> {
-                    address = "";
+                    address = staleBond = "";
                     prefs.edit().remove("address").apply();
                     stopScan();
                     disconnect();
@@ -504,8 +565,9 @@ public final class PassportLink implements AutoCloseable {
             new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context c, Intent intent) {
-                    handler.post(
+                    dispatch(
                             () -> {
+                                if (paused) return;
                                 if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(
                                         intent.getAction())) {
                                     if (available()) resume();
@@ -531,7 +593,6 @@ public final class PassportLink implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!PassportPolicy.ENABLED) return;
         closed = true;
         try {
             context.unregisterReceiver(changes);

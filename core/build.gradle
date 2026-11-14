@@ -12,6 +12,7 @@ tasks.withType(JavaCompile).configureEach {
 dependencies {
     compileOnly 'org.json:json:20250517'
     implementation files('../android/libs/zxing-core-3.5.3.jar')
+    implementation fileTree(dir: '../android/libs', include: ['commonmark*.jar'])
     testImplementation 'org.json:json:20250517'
     testImplementation project(':ui-policy')
 }

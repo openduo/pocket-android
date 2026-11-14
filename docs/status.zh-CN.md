@@ -69,6 +69,19 @@
 不代表逐字识别准确、完整免按键 ambient 对话或公开包标准音频路径已经验收。
 记录结果时没有再次录音或重播。
 
+## 尚未发布的 Passport 协议迁移
+
+2026-11-15 恢复 Passport 范围。当前源码对照 iOS `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`，
+实现 1.3 字节协议、按压组装、RESULT/重连时限、回答/WORK/quiet/重放规则和持久化回答记忆。
+纯 reducer 和有界发送队列在 `:core`，Android BLE 与 controller 接入在 `:app`；设置恢复可选配对入口。
+Try 模式暂停 BLE，预设回复不会转发给外设。
+
+未修改的上游 Swift 源码生成的 60 个场景在 JVM 与 E2 ART 均通过（1,050 个比较），另有 1,093 个官方
+Unicode 字素边界用例通过，修复了旧 Android 上家庭 emoji 截断差异。host 总计 2,484 项通过，Release 构建
+与 618 条文案/123 个生产源码的国际化边界检查通过。纯协议检查没有连接真实 Passport、发送房间内容或
+安装 APK；实际配对/CCCD、实体按压/回答/提醒及后台 KEEPALIVE 唤醒仍未验收。公开 Preview 2 保持原样。
+详见 [Passport 协议指南](passport.zh-CN.md)。
+
 ## 尚未完成与优先级
 
 | 优先级 | 未完成/未验收 | 下一步需要什么 |
@@ -79,7 +92,8 @@
 | 后续设备接入 | 目标带屏智能音箱尚未到位；厂商阵列/AEC/后台限制、遥控或无触摸体验未实现或未验证 | 确定 Android/API/ABI/输入能力；标准路径先验证，有差异再增加 adapter，不修改业务页面 |
 | 后续兼容 | 不含 ARMv7/32 位；并非全部 OEM、外接屏/折叠屏和权限/生命周期组合都已验证 | 有实际需求再增加 ABI/窗口或硬件验证 |
 | 后续维护 | Android controller 仍较大，存储与系统服务仍在 app 模块 | 按业务 owner 渐进拆分；协议与尺寸/硬件边界已建立，不为抽象新增空模块 |
-| 暂缓 | Android Push 注册/relay/receiver，以及 AES-GCM/HMAC/ledger 与上游向量；外接 Passport 蓝牙 | 用户后续明确恢复该范围 |
+| Passport 真机验收 | 1.3 固定协议向量与 E2 ART 通过；实际 BLE 配对/CCCD、实体按压/回答/提醒、后台唤醒未验收 | 使用明确可供本应用连接的外设，不接管 E2Studio 连接；见[协议证据](passport.zh-CN.md) |
+| 暂缓 | Android Push 注册/relay/receiver，以及 AES-GCM/HMAC/ledger 与上游向量 | 用户后续明确恢复该范围 |
 | 旧版迁移限制 | 旧包与公开包不能共享私有数据库/AndroidKeyStore；没有跨包数据迁移器 | 显式同包名/同签名构建保留原节点与数据；独立安装公开包时才需要自己的登录与配对 |
 
 智能音箱支持目前是可复用架构与标准 Android 路径，不是目标硬件已经验收。远场唤醒词、kiosk/常驻 launcher、系统级后台和厂商私有播放引擎也不在本次实现中。完整 1:1 差异继续保存在 [migration.md](migration.md)，不以预览版版本号暗示功能等同 iOS。

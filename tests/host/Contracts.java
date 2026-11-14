@@ -30,9 +30,12 @@ public final class Contracts {
     }
 
     public static void main(String[] args) throws Exception {
+        checked +=
+                PassportContracts.run(
+                        java.nio.file.Paths.get(System.getProperty("pocket.android.root", ".")));
         check(
-                !dev.openduo.pocket.passport.PassportPolicy.ENABLED,
-                "standalone E2 keeps deferred Passport integration disabled");
+                dev.openduo.pocket.passport.PassportPolicy.ENABLED,
+                "Passport protocol integration is enabled independently of the E2 adapter");
         Endpoint.PairingLink p =
                 Endpoint.PairingLink.parse(
                         "请用 duoduopocket://pair?host=example.test&port=8443&tls=0&code=a%2Bb-opaque"
@@ -549,12 +552,34 @@ public final class Contracts {
         tracker.handed(matched.get(0));
         check(tracker.linkReady(true).isEmpty(), "ready reconnect does not repeat handed answer");
         check(
-                tracker.answer(Arrays.asList("press-1"), "matched", "", false, 1000100).isEmpty(),
+                tracker.rows(
+                                Collections.singletonList(
+                                        Json.object(
+                                                "kind",
+                                                "answer",
+                                                "text",
+                                                "matched",
+                                                "message_ids",
+                                                new JSONArray().put("press-1"))),
+                                false,
+                                1000100)
+                        .isEmpty(),
                 "log row settles live final without duplicate reply");
         ReplyTracker restored = new ReplyTracker();
         restored.restore(tracker.json());
         check(
-                restored.answer(Arrays.asList("other"), "unrelated", "", false, 1000100).isEmpty(),
+                restored.rows(
+                                Collections.singletonList(
+                                        Json.object(
+                                                "kind",
+                                                "answer",
+                                                "text",
+                                                "unrelated",
+                                                "message_ids",
+                                                new JSONArray().put("other"))),
+                                false,
+                                1000100)
+                        .isEmpty(),
                 "restart retains earlier reply dedup signatures");
         long priorSerial = restored.serial;
         restored.resetRoom();

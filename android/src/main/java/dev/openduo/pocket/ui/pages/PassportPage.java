@@ -20,7 +20,7 @@ public final class PassportPage implements PocketController.Listener {
     private final PocketController controller;
     private final Ui ui;
     private LinearLayout root, devices;
-    private TextView state, detail, info, latest;
+    private TextView state, detail, info, latest, scan, forget;
     private String deviceKey = "";
 
     public PassportPage(PageHost host, PocketController controller) {
@@ -69,8 +69,7 @@ public final class PassportPage implements PocketController.Listener {
                             }
                         }),
                 14);
-        ui.add(
-                body,
+        forget =
                 ui.button(
                         ui.t("忘记此设备"),
                         ui.palette.danger,
@@ -81,10 +80,10 @@ public final class PassportPage implements PocketController.Listener {
                                         ui.t("忘记 Passport"),
                                         ui.t("App 会停止重连。需要重新绑定时，也请在系统蓝牙设置中移除旧配对。"),
                                         ui.t("忘记设备"),
-                                        controller::forgetPassport)),
-                8);
+                                        controller::forgetPassport));
+        ui.add(body, forget, 8);
         root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
-        TextView scan =
+        scan =
                 ui.button(
                         ui.t("扫描与配对"),
                         ui.palette.onAccent,
@@ -112,6 +111,9 @@ public final class PassportPage implements PocketController.Listener {
     public void changed() {
         if (root == null || controller.snapshot() == null) return;
         PassportCoordinator.Snapshot s = controller.snapshot().passport;
+        boolean trying = controller.snapshot().trying;
+        scan.setEnabled(!trying);
+        forget.setEnabled(!trying);
         String phase =
                 !s.compatible
                         ? ui.t("协议版本不匹配")
@@ -166,6 +168,7 @@ public final class PassportPage implements PocketController.Listener {
                                 () -> controller.connectPassport(d.address)),
                         6);
         }
+        for (int i = 0; i < devices.getChildCount(); i++) devices.getChildAt(i).setEnabled(!trying);
     }
 
     public void close() {
