@@ -41,6 +41,12 @@ final class ServiceReadinessProbe {
                                 .setClassName(
                                         context.getPackageName(), MainActivity.class.getName())
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        probe.runOnMainSync(
+                () ->
+                        screen.getWindow()
+                                .addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                                .FLAG_KEEP_SCREEN_ON));
         PocketController controller = PocketController.get(context);
         await(
                 () ->
@@ -53,7 +59,13 @@ final class ServiceReadinessProbe {
                 || !controller.configured()
                 || initial.trying
                 || initial.connection != PocketController.Connection.ONLINE)
-            throw new AssertionError("The installed package must retain pairing and reach Online");
+            throw new AssertionError(
+                    "The installed package must retain pairing and reach Online; configured="
+                            + controller.configured()
+                            + "; state="
+                            + (initial == null ? "missing" : initial.connection)
+                            + "; tailnet="
+                            + (initial == null ? "missing" : initial.tailnetState));
         if (initial.ambientActive
                 || initial.holdRecording
                 || initial.cameraOn
@@ -73,6 +85,11 @@ final class ServiceReadinessProbe {
                         .put("scope", controller.settings.scope())
                         .put("cursor", initial.cursor)
                         .put("cached_rows", initial.rows.size())
+                        .put("draft_empty", initial.draft.isEmpty())
+                        .put("quote_empty", initial.quote.isEmpty())
+                        .put("chip_count", initial.chips.size())
+                        .put("voice_input_mode", initial.voiceInput)
+                        .put("reply_audio_enabled", controller.settings.ambientOutput())
                         .put("voice_available", initial.voiceAvailable)
                         .put("can_view_sessions", initial.sessionsAccess.canView)
                         .put("can_notify_sessions", initial.sessionsAccess.canNotify);

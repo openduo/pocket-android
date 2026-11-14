@@ -89,6 +89,12 @@ final class SessionNotifyRoomProbe {
                                 .setClassName(
                                         context.getPackageName(), MainActivity.class.getName())
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        probe.runOnMainSync(
+                () ->
+                        screen.getWindow()
+                                .addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                                .FLAG_KEEP_SCREEN_ON));
         controller = PocketController.get(context);
         await(
                 () ->

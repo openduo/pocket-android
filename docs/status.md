@@ -45,9 +45,9 @@ ambient/keepalive recipient and preserves a unique, once-only delivery journal.
 The local signed Release build, 331 JVM contracts and 618-entry localization/source checks pass.
 One API 35 prepared-camera UI run passes 14 targeted assertions with capture disabled, including
 the no-camera-frame warning and its removal when media support is declared.
-These changes are not included in the published Preview 2. The three actual-service paths remain
-pending; [short service checks](service-acceptance.md) describe their prerequisites and bounded
-acceptance steps.
+These changes are not included in the published Preview 2. Natural speech/audible output and
+Sight remain pending; actual notification receipt now passes on the local original-package E2
+build. [Short service checks](service-acceptance.md) record the prerequisites and bounded results.
 
 On 2026-11-15 the user confirmed there is no new room-service release to install. Sight is
 waiting for a released service with media support. Speech/audible replies and scoped notification
@@ -65,17 +65,26 @@ that identity and public-only native payload after switching back from the opt-i
 Both signed builds pass. Node-name UI now follows the selected build identity. See
 [same-package testing](devices.md#same-package-testing).
 
-The prerequisite check was read-only: no audio recording/playback, camera capture, room message
-or notification. No dedicated ambient/keepalive recipient accepting notifications is currently
-listed. The computer's local daemon is stopped and cannot administer the remote room. Natural
-speech/audible output and notification receipt remain unaccepted.
+The initial prerequisite check was read-only. The subsequent actual notification run used a new
+isolated keepalive recipient provisioned through the already paired room, with no outgoing
+notification route. Ten actual-service assertions pass: the shipping controller receives the
+correlated server success, the recipient contains exactly one uniquely marked notification,
+and the original room composer/outbox are preserved. The dedicated test job was then archived.
+The short probes keep only their own window awake after one prerequisite attempt was interrupted
+by the existing system screen timeout. No system setting, microphone, camera or playback changed.
+Natural speech/audible output remains unaccepted; Sight remains release-dependent. No public
+APK rebuild or broader regression was needed for this QA/documentation follow-up.
+
+The retained E2 **Play spoken replies** preference was off. It is now enabled through the app
+and the original hold-to-talk composer is restored, ready for one actual human turn. This setup
+does not itself establish recording, recognition or audible output.
 
 ## Remaining work and priorities
 
 | Priority | Remaining or unverified | What a next milestone needs |
 | --- | --- | --- |
 | P0 actual use | Natural speech with audible replies/full ambient conversation and long-term background recovery are not fully accepted | The original package is Online with retained credentials; next confirm one actual microphone/recognition/audible-reply turn |
-| P1 actual services | Sight awaits a released media-capable room service; notification receipt and physical visits remain unverified | Resume Sight after the required service release; existing E2 credentials already have notify scope, but a dedicated recipient is still needed; visits need a device with location/geocoder |
+| P1 actual services | Sight awaits a released media-capable room service; physical visits remain unverified; selected-session notification receipt now passes on the local original-package E2 build | Resume Sight after the required service release; visits need a device with location/geocoder; notification disconnect uncertainty and broader target/platform coverage remain future work |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |

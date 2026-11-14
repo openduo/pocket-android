@@ -2,25 +2,42 @@
 
 English · [简体中文](service-acceptance.zh-CN.md)
 
-The pending milestone covers natural microphone input with audible replies, actual Sight
-negotiation/uplink and receipt of a session notification. The client follow-up fixes permission
-handling and missing-capability feedback; it does not complete these three actual-service checks.
+The milestone covers natural microphone input with audible replies, actual Sight
+negotiation/uplink and receipt of a session notification. Notification receipt now has actual
+original-package E2 evidence; natural speech/audible output and Sight remain pending.
 Use one short check per path and fix observed failures. The earlier window matrices and overnight
 background task are outside this milestone.
+
+| Path | Actual result |
+| --- | --- |
+| 1. Microphone and audible reply | Pending one on-device human utterance, actual recognition and confirmation of audible output |
+| 2. Sight | Waiting for a released media-capable room service and its actual negotiation/uplink |
+| 3. Session notification | Passed on the original-package E2: correlated server success and exactly one marked notification row in the selected dedicated recipient |
 
 On 2026-11-15 the user confirmed that no new room-service release is available. Actual Sight is
 waiting for a released service that offers the required media capability. This is a release
 dependency, not evidence that the user missed an available update. Existing speech/reply and
 session-reading evidence predates Sight support; microphone/audible-reply and scoped notification
-checks can proceed independently. Notification delivery itself remains unverified.
+checks are independent of that release. Notification delivery passed without a service upgrade.
 
 At the user's request, physical E2 checks now use a same-signature update of the original
 `top.kuaner.pockete2` package. The update retained the existing pairing, `pocket-e2` tailnet node
 and 23 cached rows, and reached actual Online state with `notify` scope. No extra node or new
-pairing is required. This was a read-only prerequisite check, without recording, playback,
-camera capture or notification delivery. The current list has no dedicated ambient/keepalive
-recipient accepting notifications. The computer's local daemon is stopped; it does not provide
-administrative access to the room host.
+pairing is required. That initial check was read-only, without recording, playback, camera capture
+or notification delivery.
+
+For actual notification acceptance, the already paired room provisioned one isolated keepalive
+job with no outgoing notification route. The app selected its exact live key and sent one unique
+marker through the shipping controller. The actual-service probe passed ten assertions, including
+the matching successful delivery result, exactly one notification row in the recipient, and
+preserved composer/outbox state. The room subsequently confirmed archiving that dedicated job.
+No local computer daemon, SSH access, new node or new pairing was needed. This verifies the local
+original-package build; the public Preview 2 APK was not rerun or changed.
+
+An earlier prerequisite attempt was interrupted by the device's existing screen timeout. System
+logs confirmed sleep during the Online wait. The short readiness/notification probes now keep
+only their activity window awake for the check; the readiness retry and actual notification pass.
+The system timeout is unchanged. No microphone, camera or playback was used in these checks.
 
 ## Prerequisites
 
@@ -51,6 +68,11 @@ identities belong only in private local evidence.
 
 ## Microphone and audible reply
 
+The retained E2 preference had spoken replies disabled. It was enabled through the app's existing
+**Play spoken replies** control, then the original hold-to-talk composer was restored. No recording
+or playback was started by that setup. The next actual human turn can use automatic foreground
+reply audio instead of requiring manual read-aloud.
+
 Speak one short sentence through the device's actual microphone. Confirm recognition from the
 real service and hear the reply from the intended output. Record the result and any failed step.
 Injected synthetic samples, silent input and zero-volume AudioTrack progress remain separate
@@ -68,6 +90,11 @@ connection and does not enable the camera. A prepared control frame only verifie
 behavior; it cannot satisfy actual negotiation.
 
 ## Session notification
+
+When the paired room exposes host job management, an isolated `cron: keepalive` job with no
+outgoing notification route can provide the dedicated recipient. Its incoming-notification
+capability is separate from its outgoing `notify` route. Confirm the actual live summary permits
+receipt, then archive only that dedicated job after validation. Do not modify existing user jobs.
 
 Choose the exact wire key of a dedicated recipient whose live session summary permits
 notifications. The opt-in probe accepts `ambient:` or `job:` keys; it does not choose a recipient
@@ -97,4 +124,5 @@ remove journals to obtain another passing run.
 
 Record the APK identity, service capability, selected path and actual outcome in private ignored
 `.build/` evidence. Publish only a sanitized result and update [status](status.md) and the
-[migration gaps](migration.md). Keep the three paths pending until each has its own actual result.
+[migration gaps](migration.md). Track each path independently: notification receipt is accepted
+for the recorded local build; microphone/audible output and Sight still need their actual results.

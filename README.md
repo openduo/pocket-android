@@ -26,7 +26,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
 - Compact/medium/expanded window policy, bounded reading columns, system-bar/IME insets, scrollable short-window controls and page-state restoration.
 
-Implementation and real-service acceptance are tracked separately. Natural speech with audible replies, actual Sight negotiation, session-notification receipt, physical arrivals and long-term background behavior remain incompletely verified. Android push and external Passport integration are deferred. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
+Implementation and real-service acceptance are tracked separately. Session-notification receipt is verified on the local original-package E2 build, using a dedicated recipient and one correlated, uniquely marked delivery. Natural speech with audible replies, actual Sight negotiation, physical arrivals and long-term background behavior remain incompletely verified. This local result does not accept the public Preview 2 APK. Android push and external Passport integration are deferred. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
 
 ## Install and connect
 
