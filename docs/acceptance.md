@@ -40,3 +40,9 @@ One targeted API 35 run passes 14 Sight UI assertions with microphone/camera cap
 Prepared metadata covers a master seat without any camera frame, clearing the warning after media
 support is declared, and the existing refusal/reset states. The notification probe compiles; it
 has not sent to an actual recipient.
+
+On 2026-11-15 the user confirmed that the required new room-service release is not available.
+Actual Sight therefore remains a release dependency; this does not prevent independent speech
+or scoped-notification work. The client wording was corrected to report missing video capability
+without claiming an update exists. Only source/localization checks were run for this copy change;
+the preceding build and prepared UI evidence were not repeated.

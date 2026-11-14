@@ -106,7 +106,7 @@ final class SightUiProbe {
             probe.runOnMainSync(() -> ((MainActivity) screen).navigate("ambient"));
             probe.waitForIdleSync();
             check(
-                    visible(screen, words.t("房间不支持视频，请更新 ambient"))
+                    visible(screen, words.t("当前房间服务未提供视频能力"))
                             && !controller.snapshot().cameraOffered
                             && !controller.snapshot().cameraOn
                             && !controller.snapshot().cameraRequested,
@@ -186,7 +186,7 @@ final class SightUiProbe {
                         return null;
                     });
             check(
-                    visible(screen, words.t("房间不支持视频，请更新 ambient")),
+                    visible(screen, words.t("当前房间服务未提供视频能力")),
                     "an obsolete channel gets an actionable camera explanation");
             onState(
                     () -> {

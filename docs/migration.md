@@ -53,6 +53,11 @@ final Online check was reached. This is not an eight-hour pass, and the cause of
 is unknown. The run is not being restarted. See [acceptance](acceptance.md) for evidence and the
 exact conditions required to continue.
 
+On 2026-11-15 the user confirmed that no new room-service release is available. Actual Sight
+is recorded as waiting for a released media-capable service, rather than an update the user
+failed to install. Existing audio and session access are separate capabilities; their pending
+natural-speech/audible-reply and notify-receipt checks do not depend on the Sight release.
+
 The user subsequently found a basic recovery defect: Wi-Fi was restored, but embedded Tailscale
 kept reporting `magicsock: network down`, the room retried and the computer saw the E2 offline.
 The room host remained healthy. `Rebind` now resamples netmon before socket rebind/restun instead

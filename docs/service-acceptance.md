@@ -8,6 +8,12 @@ handling and missing-capability feedback; it does not complete these three actua
 Use one short check per path and fix observed failures. The earlier window matrices and overnight
 background task are outside this milestone.
 
+On 2026-11-15 the user confirmed that no new room-service release is available. Actual Sight is
+waiting for a released service that offers the required media capability. This is a release
+dependency, not evidence that the user missed an available update. Existing speech/reply and
+session-reading evidence predates Sight support; microphone/audible-reply and scoped notification
+checks can proceed independently when resumed. Notification delivery itself remains unverified.
+
 ## Prerequisites
 
 - Sign in and pair `dev.openduo.pocket` itself. The older `top.kuaner.pockete2` retains its data;
@@ -15,9 +21,10 @@ background task are outside this milestone.
 - For notification acceptance, the device credential needs the `notify` scope. A `sessions`
   credential allows reading; the recipient's `notify: true` flag cannot grant device permission.
   The UI and controller share the Android-independent `SessionViewer.Access` policy.
-- Update the running ambient room service to a Sight-capable deployment. An installed package
-  version alone does not establish which process is serving the room. An actual `/live` connection
-  must confirm `media=1`; its master seat must receive a real camera capture offer.
+- Sight alone requires a released room service with media support, which is currently pending.
+  When available and deployed, an actual `/live` connection must confirm `media=1`; its master
+  seat must receive a real camera capture offer. Package version alone does not establish the
+  running process's capability. This is not a prerequisite for speech or session notifications.
 - Select a dedicated test ambient room or keepalive job, separate from the paired room. The host
   deliberately hides the connection's own `ambient:<room>` from its session list. The earlier
   own-room probe's `NOT_RUN` result did not diagnose notification delivery.
@@ -44,8 +51,9 @@ hardware path.
 
 Confirm `media=1` and the actual host's capture parameters, explicitly enable the camera, then
 confirm a real first key frame and subsequent uplink frames. Keep a brief viewfinder/scene check.
-When a master connection omits media support, the client now explains that the room needs an
-ambient update even if it never sends a camera frame. This explanation clears on a capable
+When a master connection omits media support, the client reports that the room service does not
+offer video support, even if it never sends a camera frame. It makes no claim that an update is
+available. This explanation clears on a capable
 connection and does not enable the camera. A prepared control frame only verifies that client
 behavior; it cannot satisfy actual negotiation.
 

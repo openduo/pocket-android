@@ -46,7 +46,7 @@ public final class SightSession {
             retry = session.recovery.exhausted();
             front = session.front;
             canFlip = session.frontAvailable && session.rearAvailable;
-            status = unsupported ? "房间不支持视频，请更新 ambient" : session.status;
+            status = unsupported ? "当前房间服务未提供视频能力" : session.status;
             refusal = session.refusal;
             rotation = session.deviceOrientation;
         }
@@ -205,7 +205,7 @@ public final class SightSession {
             listener.text(Json.object("type", "camera_declined", "reason", "unframed_channel"));
             refusal = "";
             notice = true;
-            status = "房间不支持视频，请更新 ambient";
+            status = "当前房间服务未提供视频能力";
         } else {
             int bound = frame.optInt("max_frame_bytes", 0);
             if (bound <= 0) return;

@@ -2,7 +2,7 @@
 
 English · [简体中文](status.zh-CN.md)
 
-Updated 2026-11-14. The milestone delivers a maintainable `openduo/pocket-android` project and Android preview, with E2 as an adapter example. Full 1:1 parity remains a future comparison. Testing is deliberately limited to relevant checks, with older expanded evidence retained separately.
+Updated 2026-11-15. The milestone delivers a maintainable `openduo/pocket-android` project and Android preview, with E2 as an adapter example. Full 1:1 parity remains a future comparison. Testing is deliberately limited to relevant checks, with older expanded evidence retained separately.
 
 Published: [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)
 ([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk),
@@ -37,8 +37,8 @@ Earlier actual text/history/files/session reading, E2 array/camera and synthetic
 
 The client now shares a pure credential-scope policy across session controls and controller
 actions. Read-only pairings explain why notifications require `notify` scope; a recipient's
-capability cannot override that scope. A master connection without media support shows the
-ambient-update explanation even without a camera frame, and a new connection clears the old
+capability cannot override that scope. A master connection without media support shows a
+missing-video-capability explanation even without a camera frame, and a new connection clears the old
 negotiation state. The notification probe now requires an explicitly selected dedicated
 ambient/keepalive recipient and preserves a unique, once-only delivery journal.
 
@@ -49,12 +49,19 @@ These changes are not included in the published Preview 2. The three actual-serv
 pending; [short service checks](service-acceptance.md) describe their prerequisites and bounded
 acceptance steps.
 
+On 2026-11-15 the user confirmed there is no new room-service release to install. Sight is
+waiting for a released service with media support. Speech/audible replies and scoped notification
+delivery can proceed independently when work resumes; the new Android package still needs its
+own login/pairing. The video message now describes missing capability rather than asking for an
+available update. This wording-only correction is source/localization-checked; build and UI
+evidence above belongs to the preceding candidate.
+
 ## Remaining work and priorities
 
 | Priority | Remaining or unverified | What a next milestone needs |
 | --- | --- | --- |
 | P0 actual use | Natural speech with audible replies/full ambient conversation and long-term background recovery are not fully accepted | Short target-device login/online/voice/reply checks first, then fix actual failures |
-| P1 actual services | Sight host did not confirm media=1; the old notification probe selected the host-hidden own room, so no notification was sent; physical visits unverified | Capable host, notify-scoped pairing with an explicit dedicated recipient, and a device with location/geocoder |
+| P1 actual services | Sight awaits a released media-capable room service; the old notification probe selected the host-hidden own room, so no notification was sent; physical visits unverified | Resume Sight after the required service release; independently complete notify-scoped pairing with an explicit dedicated recipient; visits need a device with location/geocoder |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |

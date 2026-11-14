@@ -8,6 +8,10 @@ accessibility or overnight matrices. Earlier acceptance plans are historical evi
 to keep testing. Complete 1:1 parity is a future comparison against iOS
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`, not the release gate.
 
+The user confirmed on 2026-11-15 that no new room-service release is available. Actual Sight
+awaits a released media-capable service; do not assume the user missed an available update.
+Speech/audible replies and scoped session notifications are independent of that Sight release.
+
 Support general Android hardware, including future display-equipped smart speakers. E2 ships as an
 adapter example. Keep device/OEM decisions in `:device-e2` or future adapter modules, window policy
 in `:ui-policy` and `app/ui`, and Android-independent business/protocol in `:core`. The default

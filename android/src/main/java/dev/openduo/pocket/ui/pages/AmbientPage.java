@@ -244,7 +244,7 @@ public final class AmbientPage implements PocketController.Listener {
                 s.sightRefusal.equals("nonconforming")
                         ? ui.t("房间未接收这台设备的画面，相机已关闭")
                         : s.sightRefusal.equals("unframed_channel")
-                                ? ui.t("房间不支持视频，请更新 ambient")
+                                ? ui.t("当前房间服务未提供视频能力")
                                 : s.sightRefusal.isEmpty()
                                         ? ui.explain(s.sight)
                                         : ui.format("房间关闭了这台设备的相机：%s", s.sightRefusal);

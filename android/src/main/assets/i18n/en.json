@@ -207,7 +207,7 @@
   "我": "Me",
   "我在，随时说": "I'm here. Talk anytime",
   "房间": "Room",
-  "房间不支持视频，请更新 ambient": "This room does not support video. Update ambient.",
+  "当前房间服务未提供视频能力": "The room service does not offer video support.",
   "房间与主机": "Room and host",
   "房间二维码相机画面": "Room pairing QR camera view",
   "房间关闭了这台设备的相机：%s": "The room stopped this camera: %s",
