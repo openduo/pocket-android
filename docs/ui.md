@@ -38,6 +38,22 @@ API 30+ 使用 `WindowInsets` 的 systemBars/displayCutout/ime 和 `isVisible(im
 高度。按钮和行高允许随文字增长；单行 EditText 使用 View 的 minimumHeight，避免原生 `setSingleLine()`
 覆盖 TextView 的最小高度。
 
+## 后续修改方式
+
+1. 新增尺寸或字体规则时，在 `AdaptiveMetrics` 定义有用途的 token，通过 `Ui` 提供给页面。使用当前窗口
+   的测量和配置；不加入设备型号、物理分辨率或业务 snapshot 的尺寸分支。
+2. 新页面先组合公共列宽、短窗口容器和滚动内容。需要随 IME 移动的编辑器交给公共容器，避免在页面里再
+   监听全屏高度。表单保持自然高度，重要操作可滚动到达；宽窗口的正文与导航使用相同列宽。
+3. 需要重建后恢复的表单、滚动容器和编辑器使用稳定且唯一的资源 ID，由 `PageStates` 保存原生状态。
+   发送内容、待发队列和业务草稿继续由 controller/持久层拥有，不能从旧 View 恢复并覆盖更新的业务值。
+4. 页面只渲染 snapshot、转发操作并保存短期 UI 状态。公共控件提供标签、角色、选中状态和键盘/无障碍
+   action；需要拖动的自定义 View 同时提供非手势操作。不要把网络、数据库或采集资源交给页面管理。
+5. 公共布局策略修改后运行窗口/字体及旋转/多窗口 runner；语义和焦点修改后运行实际无障碍服务专项。
+   真实 E2 的输入、相机或生命周期变化另做对应专项，保留各份报告的 APK 摘要与真实/准备响应边界。
+
+这是在现有原生 View 技术栈内使用 Android 窗口和状态机制的分层方案。未来更换 UI 技术时，纯业务 reducer、
+transport 和持久层不需要依赖新的窗口组件；验收脚本和差距文档可以继续作为迁移依据。
+
 ## 验证结果
 
 - API 35 arm64：22 组真实 Activity 截图和 IME 验收，9,616 项几何检查通过。手机 360×740dp 与平板
@@ -49,10 +65,12 @@ API 30+ 使用 `WindowInsets` 的 systemBars/displayCutout/ime 和 `isVisible(im
 - 真正的自由窗口调整的 8 项检查通过：600×600、920×700、360×660dp，`isInMultiWindowMode=true`，
   草稿保留。系统 Recents 的真实双应用分屏的 12 项检查通过：早期 635×800dp、最终 runner 800×635dp，
   均留八个页面的实际 pane 配置和截图。
-- 实际 TalkBack 15.0 最终复现的 241 项检查通过；实际 Google 开源 Switch Access 6.1.1 的页面扫描与 sheet 激活
-  通过。后者不是当前 Google Play 版本。服务、原始输入、焦点轨迹与限制见 [`accessibility.md`](accessibility.md)。
-- 325 项 host contracts、架构/本地化、Go vet/test 和 Android 构建通过。最终 E2 的完整采集/相机/Try 回归
-  342 项通过，E2 无障碍专项 27 项通过。真实 E2 的显示密度、overscan、launcher 和 E2Studio 配置保持原状。
+- 实际 TalkBack 15.0 扩展运行的 404 项检查通过，包含 12 个场景及原始触屏双击/长按；实际 Google 开源
+  Switch Access 6.1.1 的 113 项页面扫描/顺序、长内容、服务滚动及详情/弹层激活通过。后者不是当前
+  Google Play 版本。服务、原始输入、焦点轨迹与限制见 [`accessibility.md`](accessibility.md)。
+- 325 项 host contracts、架构/本地化、Go vet/test 和 Android 构建通过。上一 APK 检查点的 E2 完整采集/相机/Try
+  回归 342 项通过；移除重复 feed 朗读节点后，当前 APK 无障碍专项重新通过 27 项。真实 E2 的显示密度、
+  overscan、launcher 和 E2Studio 配置保持原状。
 
 这轮验收实际修复了强制竖屏、宽屏导航被拉满、短横屏大字按钮裁字、IME 遮住编辑器、地图高度被挤成零、
 配对固定底栏挤掉表单，以及旋转丢失 UI 状态的问题。首次完整 E2 回归遇到音频 probe 先检查 Listening、

@@ -26,7 +26,7 @@ int main(int count, char **args) {
         int keyboard = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
         if (keyboard < 0) { perror("uinput"); return 1; }
         ioctl(keyboard, UI_SET_EVBIT, EV_KEY);
-        int codes[] = {KEY_A, KEY_B, KEY_ENTER, KEY_LEFTALT, KEY_RIGHT};
+        int codes[] = {KEY_A, KEY_B, KEY_C, KEY_D, KEY_ENTER, KEY_LEFTALT, KEY_RIGHT};
         for (unsigned int i = 0; i < sizeof(codes) / sizeof(codes[0]); i++)
             ioctl(keyboard, UI_SET_KEYBIT, codes[i]);
         struct uinput_user_dev device = {0};
@@ -57,6 +57,22 @@ int main(int count, char **args) {
         }
         event(fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
         event(fd, EV_SYN, SYN_REPORT, 0);
+    } else if (strcmp(args[2], "activate") == 0 || strcmp(args[2], "longpress") == 0) {
+        int x = count >= 5 ? atoi(args[3]) : 16383;
+        int y = count >= 5 ? atoi(args[4]) : 16383;
+        if (x < 0 || x > 32767 || y < 0 || y > 32767) return 2;
+        for (int tap = 0; tap < 2; tap++) {
+            event(fd, EV_ABS, ABS_MT_SLOT, 0);
+            event(fd, EV_ABS, ABS_MT_TRACKING_ID, (getpid() + tap) & 65535);
+            event(fd, EV_ABS, ABS_MT_POSITION_X, x);
+            event(fd, EV_ABS, ABS_MT_POSITION_Y, y);
+            event(fd, EV_ABS, ABS_MT_PRESSURE, 100);
+            event(fd, EV_SYN, SYN_REPORT, 0);
+            usleep(tap == 1 && strcmp(args[2], "longpress") == 0 ? 1200000 : 50000);
+            event(fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
+            event(fd, EV_SYN, SYN_REPORT, 0);
+            usleep(80000);
+        }
     } else if (strcmp(args[2], "key") == 0 && count == 4) {
         event(fd, EV_KEY, atoi(args[3]), 1);
         event(fd, EV_SYN, SYN_REPORT, 0);

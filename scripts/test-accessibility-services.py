@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 
@@ -22,6 +23,7 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--service', choices=['talkback', 'switch'], required=True)
     parser.add_argument('--installed', action='store_true')
+    parser.add_argument('--scene', choices=['full', 'message-actions'], default='full')
     args = parser.parse_args()
 
     def adb(*command, timeout=30, check=True):
@@ -34,7 +36,10 @@ def main():
         raise SystemExit('Use a root-capable Google APIs emulator; a production device is not supported.')
     if int(adb('shell', 'getprop', 'ro.build.version.sdk')) < 35:
         raise SystemExit('This service acceptance harness requires API 35 or later.')
-    directory = ROOT / '.build/acceptance/accessibility' / args.service
+    if args.scene != 'full' and args.service != 'talkback':
+        raise SystemExit('The focused message-action scene currently uses TalkBack.')
+    directory = ROOT / '.build/acceptance/accessibility' / (
+        args.service if args.scene == 'full' else args.service + '-' + args.scene)
     directory.mkdir(parents=True, exist_ok=True)
     lock = (ROOT / '.build' / f'ui-{args.serial}.lock').open('w')
     try:
@@ -63,9 +68,11 @@ def main():
         r'android.permission.POST_NOTIFICATIONS: granted=true', talkback_permissions))
     keyboard = None
     report = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
-              'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk')}
+              'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk'),
+              'passed': False}
+    (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
     try:
-        options = []
+        options = ['-e', 'screenReaderScene', args.scene]
         if args.service == 'talkback':
             component = 'com.google.android.marvin.talkback/.TalkBackService'
             report['version'] = next((line.strip() for line in adb('shell', 'dumpsys', 'package',
@@ -83,7 +90,7 @@ def main():
                                          '/dev/uinput', 'keyboard'], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if not keyboard.stdout.readline().startswith('READY '):
-                raise RuntimeError('The QA two-switch keyboard did not register.')
+                raise RuntimeError('The QA switch keyboard did not register.')
             deadline = time.monotonic() + 5
             device = None
             while time.monotonic() < deadline and device is None:
@@ -99,6 +106,8 @@ def main():
             preferences.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <map><set name="pref_key_mapped_to_next"><string>29</string></set>
 <set name="pref_key_mapped_to_click"><string>30</string></set>
+<set name="pref_key_mapped_to_scroll_forward"><string>31</string></set>
+<set name="pref_key_mapped_to_scroll_backward"><string>32</string></set>
 <string name="pref_scanning_methods_key">views_linear_ime_row_col_key</string>
 <boolean name="pref_key_auto_scan_enabled" value="false"/></map>
 ''')
@@ -115,18 +124,36 @@ def main():
         time.sleep(1)
         adb('shell', 'am', 'force-stop', PACKAGE)
         adb('shell', 'rm', '-rf', f'/sdcard/Android/data/{PACKAGE}/cache/{cache}')
-        run = subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'instrument', '-w', '-r',
-                              '-e', mode, '1', *options, PACKAGE + '.qa/' + PACKAGE + '.qa.Probe'],
-                             capture_output=True, text=True, timeout=420)
+        shutil.rmtree(directory / cache, ignore_errors=True)
+        try:
+            run = subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'instrument', '-w', '-r',
+                                  '-e', mode, '1', *options, PACKAGE + '.qa/' + PACKAGE + '.qa.Probe'],
+                                 capture_output=True, text=True, timeout=900)
+        except subprocess.TimeoutExpired as failure:
+            adb('shell', 'am', 'force-stop', PACKAGE)
+            def decoded(value):
+                return value.decode(errors='replace') if isinstance(value, bytes) else value or ''
+            run = subprocess.CompletedProcess(failure.cmd, 1, decoded(failure.stdout),
+                                              decoded(failure.stderr) + '\nInstrumentation timed out.\n')
+            report['timedOut'] = True
         (directory / 'instrumentation.txt').write_text(run.stdout + run.stderr)
-        adb('pull', f'/sdcard/Android/data/{PACKAGE}/cache/{cache}', directory, timeout=60)
-        report['passed'] = run.returncode == 0 and 'result=PASS' in run.stdout
-        report['result'] = json.loads((directory / cache / 'result.json').read_text())
+        adb('pull', f'/sdcard/Android/data/{PACKAGE}/cache/{cache}', directory, timeout=60, check=False)
+        result_path = directory / cache / 'result.json'
+        result = json.loads(result_path.read_text()) if result_path.exists() else {}
+        report['result'] = result
+        report['passed'] = (run.returncode == 0 and 'result=PASS' in run.stdout
+                            and result.get('schema') == 2 and result.get('complete', True)
+                            and result.get('assertions', 0) > 0 and not result.get('failures'))
         (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
         print(('PASS' if report['passed'] else 'FAIL') + ' actual ' + args.service + ' service acceptance')
         if not report['passed']:
             raise SystemExit('Inspect the retained accessibility trace and screenshots.')
+    except BaseException as failure:
+        report['error'] = type(failure).__name__
+        (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
+        raise
     finally:
+        adb('shell', 'am', 'force-stop', PACKAGE, check=False)
         for key, value in original.items():
             adb('shell', 'settings', 'delete' if value == 'null' else 'put', 'secure', key,
                 *([] if value == 'null' else [value]))

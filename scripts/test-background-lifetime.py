@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: FSL-1.1-Apache-2.0
 """Observe a paired E2 in the actual background, then verify native foreground UI recovery."""
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -19,6 +20,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', default=os.environ.get('ANDROID_SERIAL', ''))
     parser.add_argument('--seconds', type=int, default=900)
+    parser.add_argument('--output', type=Path, default=ROOT / '.build/acceptance/lifetime',
+                        help='Keep separate evidence directories for trials of different durations.')
     args = parser.parse_args()
     if not args.serial or args.seconds < 60:
         raise SystemExit('Select the E2 explicitly and observe at least 60 seconds.')
@@ -32,11 +35,12 @@ def main():
     services = adb('shell', 'dumpsys', 'activity', 'services', PACKAGE)
     if 'PocketSessionService' in services:
         raise SystemExit('Capture/upload/background work must be idle before this UI lifetime run.')
-    directory = ROOT / '.build/acceptance/lifetime'
+    directory = args.output.resolve()
     directory.mkdir(parents=True, exist_ok=True)
     result = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
+              'startedAt': datetime.now(timezone.utc).isoformat(),
               'requestedSeconds': args.seconds, 'samples': [], 'trimMemory': 'RUNNING_CRITICAL',
-              'scope': 'actual idle background and trim callback; not a natural LMK or overnight trial'}
+              'scope': 'measured idle background and trim callback; not natural LMK or sustained ambient capture'}
 
     def online(name):
         deadline = time.monotonic() + 40
@@ -49,6 +53,10 @@ def main():
                 nodes = list(ET.fromstring(text).iter('node'))
                 if any(node.get('text') == 'Online' for node in nodes):
                     return True
+            except (subprocess.CalledProcessError, ET.ParseError):
+                # UIAutomator may return success without a file while launch is not idle yet.
+                # Retain the same deadline and require a real Online node from a later dump.
+                result['uiDumpRetries'] = result.get('uiDumpRetries', 0) + 1
             finally:
                 adb('shell', 'rm', '-f', remote)
             time.sleep(1)

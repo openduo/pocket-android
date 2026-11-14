@@ -41,6 +41,15 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("sightRoomOnly"))) {
+                if (!"1".equals(arguments.getString("capture"))
+                        || !"1".equals(arguments.getString("camera")))
+                    throw new AssertionError(
+                            "Actual Sight requires explicit capture and camera options");
+                report.putString("result", new SightRoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("locationServiceOnly"))) {
                 report.putString("result", new LocationServiceProbe().run(context));
                 finish(Activity.RESULT_OK, report);
@@ -52,7 +61,7 @@ public final class Probe extends Instrumentation {
                 return;
             }
             if (arguments != null && "1".equals(arguments.getString("screenReaderOnly"))) {
-                report.putString("result", new ScreenReaderProbe(this).run(context));
+                report.putString("result", new ScreenReaderProbe(this).run(context, arguments));
                 finish(Activity.RESULT_OK, report);
                 return;
             }

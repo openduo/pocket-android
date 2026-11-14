@@ -31,9 +31,9 @@ outbox 和设备资源，不读取屏幕尺寸。新增适配规则时首先修�
 | API 35 窗口/字体矩阵 | 22 组全部通过，共 9,616 项检查；字体 0.85–2.0，手机/平板/短横屏，中英文和明暗组合 | `.build/acceptance/ui/summary.json` |
 | 实际显示旋转 | 20 项通过；横屏 740×360dp、竖屏 360×740dp，显示与 Activity 边界相等；表单、隐藏页面、选区、草稿和阅读位置保留 | `.build/acceptance/ui/windows/rotation/` |
 | 自由窗口/系统分屏 | 分别 8/12 项通过；实际 multi-window，八页分屏截图和草稿保留 | `.build/acceptance/ui/windows/` |
-| 实际 TalkBack 15.0 | 最终复现运行 241 项通过，八页加附件 sheet，原始触屏输入及真实焦点轨迹 | `.build/acceptance/accessibility/talkback/` |
-| 实际 Switch Access 源码 6.1.1 | 11 项通过，八页扫描及 sheet 恰好一次激活；不是当前 Google Play 版本 | `.build/acceptance/accessibility/switch/` |
-| 真 E2 采集/相机/paired-Try | 完整回归 342 项通过；无障碍专项 27 项通过 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility.txt` |
+| 实际 TalkBack 15.0 | 扩展运行 404 项通过，八页加四个弹层/详情；原始触屏滑动、双击/长按、明确控件顺序及真实焦点轨迹 | `.build/acceptance/accessibility/talkback/` |
+| 实际 Switch Access 源码 6.1.1 | 扩展 113 项通过，八页关键控件/顺序、长对话、两次设置滚动、会话与编辑/操作 sheet 激活；不是当前 Google Play 版本 | `.build/acceptance/accessibility/switch/` |
+| 真 E2 采集/相机/paired-Try | 上一 APK 完整回归 342 项通过；移除重复 feed 朗读节点后，当前 APK 无障碍专项重新通过 27 项 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility-expanded.txt` |
 | 实际系统 Geocoder | API 35 公共地标搜索/反查均返回结果，5,664ms；没有替换后端或注入位置 | `.build/acceptance/ui/location-service/` |
 | E2 地点能力查询 | API 27 `Geocoder.isPresent=false`，仅 passive/gps 且无 enabled provider；真实查询为 NOT_RUN，不计通过 | `.build/acceptance/e2-location-service/`、`e2-geocoder-run.txt` |
 | 真 E2 后台寿命 | 900 秒 idle 后台，60 次采样进程均存在，RUNNING_CRITICAL 请求后回前台恢复 Online | `.build/acceptance/lifetime/` |
@@ -42,6 +42,11 @@ outbox 和设备资源，不读取屏幕尺寸。新增适配规则时首先修�
 合并成“同一字节 APK 全部通过”。截图、日志、录音和实际房间信息只保存在 ignored 目录。
 后台测试是 15 分钟 idle 和一次 trim 请求，另留一条只读 Activity 后台观察；当前证据并没有逐采样核对
 Activity 前后台，也没有制造自然 LMK。它不等于过夜待机、真实内存耗尽或长期 ambient 验收。
+
+继续 goal 的补验已得到两个实际服务结论：Sight 探针取得真实 capture master，但服务器未确认 `media=1`，
+因此为 NOT_RUN、没有发送视频；当前自有 room 再次查询仍不是可通知目标，没有发送通知。9 项 Sight
+前置/清理/麦克风恢复检查通过，不能据此接受视频协商。8 小时后台观察正在独立目录运行，尚未完成；
+无障碍扩展的长内容、明确控件顺序和真实服务手势/滚动已通过，结果见 [`acceptance.md`](acceptance.md)。
 
 ## 尚未完成的验收与建议顺序
 
@@ -52,7 +57,7 @@ Activity 前后台，也没有制造自然 LMK。它不等于过夜待机、真�
 | P0 验收 | 自然人声语音/环境模式 | 用户实际对 E2 说话，确认自然 ASR、单条消息/工具回复、可听输出、取消/打断和资源释放；现有合成语音不能替代 |
 | P0 验收 | 身份与恢复 | 有有效登录与新配对恢复路径后，实际 logout/relogin、revoke/re-pair，确认旧任务取消及原消息/草稿语义；当前一次性配对链接已消费，不盲目注销 |
 | P0 验收 | 网络、外部音频与持续寿命 | 两条可切换的实际网络、实际耳机/外部麦克风，以及过夜/长期 ambient、自然进程回收；短断网、trim 回调和 force-stop 分别记录 |
-| P1 验收 | 真实 Sight | 服务实际 ask/参数协商、可识别画面、关闭/重启与拒绝；Camera2 和准备的控制帧证据不等于它 |
+| P1 验收 | 真实 Sight | 当前服务器未确认 media=1；需实际服务支持后，再做 ask/参数协商、可识别画面和关闭/重启。Camera2 和准备控制帧不能替代 |
 | P1 验收 | 真实 session notify | 明确自有且可收件的测试会话，验证单次发送、确认和收件端记录；当前配对 room 不满足资格，未向其他会话发送 |
 | P1 验收 | E2 地点与真实到达 | 当前 E2 无系统 Geocoder、无 enabled provider，继续依赖手动坐标/地图选点；需可用位置源及地理编码后端再做真实停留/到达。API 35 查询通过不能替代 |
 | 后续兼容性 | 无障碍和更多设备 | 当前 Play Switch Access、所有滚动层级/长会话/系统权限对话框、OEM/折叠/刘海/外接显示器、外部操作中的重建 |

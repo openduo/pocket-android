@@ -144,6 +144,7 @@ public final class ConversationPage implements PocketController.Listener {
         feed = ui.column();
         feed.setPadding(ui.pagePadding(), ui.dp(8), ui.pagePadding(), ui.dp(16));
         feed.setFocusableInTouchMode(true);
+        feed.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         scroll = ui.scroll(feed);
         scroll.setId(top.kuaner.pockete2.R.id.page_scroll);
         scroll.setDescendantFocusability(android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS);

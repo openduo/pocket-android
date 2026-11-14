@@ -6,7 +6,7 @@ Passport 暂缓。已通过只针对下列实际条件，不以断言数量替�
 | 范围 | 当前结果 | 仍开放的范围 |
 | --- | --- | --- |
 | UI 窗口和字体 | 22 组截图/真实 IME，9,616 项检查通过；真实显示旋转 20 项、自由窗口 8 项、系统双应用分屏 12 项通过 | OEM、刘海/折叠/外接显示器、所有外部操作中的配置变化和系统权限弹窗 |
-| 无障碍 | 实际 TalkBack 15.0 最终运行 241 项；Google 源码 Switch Access 6.1.1 扫描/激活 11 项；E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、所有动态消息/长列表/滚动层级、系统权限对话框的全流程 |
+| 无障碍 | 实际 TalkBack 15.0 扩展运行 12 个场景、404 项；Google 源码 Switch Access 6.1.1 扫描/滚动/激活 113 项；当前 E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、其余动态消息/滚动层级、系统权限对话框的全流程 |
 | 真实服务 | 既有实际历史/文本/文件/会话读取、合成语音 ASR/brain/tool/静音播放；新增 API 35 实际 Geocoder 搜索/反查通过 | 自然人声 ASR 和可听回复、真实 Sight 协商、session notify 收件、physical visit 和 E2 geocoder |
 | 身份、网络和生命周期 | 既有短 Wi-Fi 断开恢复、前后台、force-stop/cold-launch；新增 900 秒真 E2 idle 后台和 trim 请求后恢复 Online | 实际 logout/relogin、revoke/re-pair、两条真实网络切换、外部音频路由、过夜/长期 ambient、自然 LMK |
 
@@ -45,19 +45,39 @@ python3 scripts/test-window-ui.py --serial YOUR_API35_EMULATOR
 
 ## 实际无障碍服务
 
-实际 TalkBack 15.0.0.639625893 下，八页加附件 sheet 的原始触屏滑动遍历通过，最终 runner 为 241 项。
+实际 TalkBack 15.0.0.639625893 下，八页加四个弹层/详情的原始触屏滑动遍历通过，扩展 runner 为 404 项。
 保留实际 accessibility focus 轨迹和截图。旧的直接 node/keyboard 证据单独保留，不能替代此次服务运行。
 
 Google 官方镜像不含 Switch Access，当前 Play APK 不可得；从未修改 Java 行为的官方开源 6.1.1 构建独立
-QA 服务，原始 uinput 两键输入完成八页扫描和 sheet 恰好一次激活，11 项通过。这是旧版实际服务证据，
+QA 服务，原始 uinput 键盘完成八页扫描、滚动和详情/弹层激活，扩展 113 项通过。这是旧版实际服务证据，
 当前 Google Play 版本仍未验收。完整复现、源码 pin、输入路径和覆盖限制见
 [`accessibility.md`](accessibility.md)。
 
 证据：`.build/acceptance/accessibility/{talkback,switch}/run.json`。
 
+### 扩展交互补验
+
+继续四类 goal 时，TalkBack 测试增加四轮 Try 长内容、八主页面的明确控件阅读顺序、消息操作、会话详情和
+编辑 sheet。专项已通过 36 项：实际服务的双击并按住打开消息操作，顺序遍历 Copy/Share/Reply/Read aloud，
+再双击关闭。输入 helper 使用当前焦点控件在真实显示上的位置；早期固定在显示中心触摸没有打开菜单，
+该失败没有计为通过。证据：`.build/acceptance/accessibility/talkback-message-actions/`。
+
+完整扩展运行 **404 项全部通过**，还检查实际双击关闭附件 sheet、发送体验模式通知和提交编辑文本；通知只进入 Try transport，
+不作为实际 session notify 证据。设置页的首次完整阅读顺序与滚动后回绕分别处理：到末端后 TalkBack 可以从
+当前可见后缀继续，顺序 gate 校验首次完整 pass 且要求所有关键控件可到达。初次 gate 将平台回绕误判为
+乱序，修正检查后完整复跑通过。
+
+Switch Access 扩展运行 **113 项全部通过**：A/B 为 next/select，C/D 映射服务原生向前/向后滚动。
+实际执行设置页两次向前滚动到末端，长对话、八页关键操作、会话详情和编辑/操作 sheet 都有明确可达性与
+顺序断言，并实际选择体验模式通知、确认编辑和恰好一次操作回调。没有直接 `View.scrollTo` 冒充服务滚动。
+扫描框按 native View 的可见裁剪区域和 Dialog 的实际显示偏移匹配；长对话扫描预算不再在到达输入框前
+结束。会话测试同时等待 controller loaded 与真实编辑器渲染，仍保留原 5 秒期限。
+两种服务报告均为 schema 2；runner 删除旧证据、校验完整报告，异常/超时会停止隔离模拟器中的 app 并清理。
+
 ## 真 E2 与真实 Geocoder
 
-最终生产 APK 的采集/相机/paired-Try 完整回归通过 342 项，无障碍专项通过 27 项。使用真实 E2 microphone、
+上一 APK 检查点的采集/相机/paired-Try 完整回归通过 342 项；移除 feed 重复朗读节点后，当前 APK 的
+无障碍专项重新通过 27 项。两份报告保留各自 APK 摘要。使用真实 E2 microphone、
 JNI Opus、Camera2、Activity/SQLite；业务失败场景中的准备响应保持单独标注。完整回归曾发现音频测试在
 Listening 早于首包到达时提前断言的竞态，现等待其原断言的两个条件，原 7 秒期限未变，随后完整运行通过。
 
@@ -93,12 +113,32 @@ python3 scripts/test-background-lifetime.py --serial YOUR_IDLE_E2 --seconds 900
 | 场景 | 当前缺口及继续条件 |
 | --- | --- |
 | 自然语音 | 需要真实人声进入麦克风，验证识别和可听回复；既有合成 fixture、静音播放和 Try 不替代 |
-| Sight | 需要实际服务 ask/协商/帧/关闭和可识别画面；准备控制加真实 Camera2 不替代 |
-| Session notify | 当前自有 room 不满足通知资格，已有 probe 为 NOT_RUN，未发出通知；需明确自有可收件目标 |
+| Sight | 新增实际服务探针到达真实 master seat 并上传静音，服务器仍未确认 media=1，结果 NOT_RUN、0 视频帧；需服务支持后再做 ask/帧/关闭和可识别画面 |
+| Session notify | 重新查询当前自有 room 仍不满足通知资格，probe 为 NOT_RUN，未发出通知；需明确自有可收件目标 |
 | 地点和到达 | E2 当前缺少系统 Geocoder、无 enabled provider；需可用位置源/后端与真实停留，验证 arrival header/settlement 和后台行为 |
 | 身份恢复 | 当前一次性配对链接已消费，未在缺少恢复路径时注销或撤销现有凭据 |
 | 跨网络与音频 | 当前没有第二条实际网络和连接的外部音频设备；不能以断网重连或模拟路由替代 |
 | 长期后台/低内存 | 短时后台、trim 回调、force-stop 是不同证据；仍需过夜/长期 ambient、自然进程回收和能耗测试 |
+
+实际 Sight 复现：
+
+```sh
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_SIGHT_ROOM_ONLY=1 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 scripts/test-device.sh
+```
+
+探针不注入 camera 控制，不发送消息；音频字节替换为静音，仅收到真实 ask 并 opt-in 后才允许原生视频通过。
+本次 9 项前置/资源释放/房间麦克风恢复检查通过，但视频能力未提供，因此整体为 NOT_RUN。
+证据：`.build/acceptance/sight-room/result.json`、`sight-room-run.txt`；通知资格复查在
+`.build/acceptance/notify-room-recheck.txt`。没有为验证通知而改选其他人的会话。
+
+8 小时真实 E2 idle 后台观察已开始，独立证据在 `.build/acceptance/lifetime-8h/`，**尚未通过**；
+每个样本同时检查进程和实际 Activity 后台状态，不干扰真实 E2 显示设置。这是连接 USB/ADB 的定时观察，
+不能等同拔线能耗、自然 LMK 或持续收音。首次启动时 UIAutomator 没有生成快照，探针现于原 40 秒期限内
+重试并仍要求真实 Online 节点；该失败保留为 `initial-launch-failure.json`。
+
+```sh
+python3 scripts/test-background-lifetime.py --serial YOUR_IDLE_E2 --seconds 28800 --output .build/acceptance/lifetime-8h
+```
 
 ## 证据约定
 
