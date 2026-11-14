@@ -28,6 +28,7 @@ final class AdaptiveMetricsContracts {
         AdaptiveMetrics phone = AdaptiveMetrics.of(320, 800, 1f);
         AdaptiveMetrics medium = AdaptiveMetrics.of(720, 900, 1f);
         AdaptiveMetrics wide = AdaptiveMetrics.of(1440, 900, 1f);
+        AdaptiveMetrics tiny = AdaptiveMetrics.of(64, 240, 1f);
         check(
                 phone.contentMaxWidthDp() == 320 && phone.pagePaddingDp() > 0,
                 "compact content remains full width with positive breathing room");
@@ -58,7 +59,8 @@ final class AdaptiveMetricsContracts {
                         && shortWindow.viewfinderHeightDp() <= shortWindow.heightDp() / 2,
                 "short windows do not receive controls or sheets taller than the viewport");
 
-        for (AdaptiveMetrics metrics : new AdaptiveMetrics[] {phone, medium, wide, shortWindow}) {
+        for (AdaptiveMetrics metrics :
+                new AdaptiveMetrics[] {phone, medium, wide, shortWindow, tiny}) {
             check(
                     metrics.qrMaxWidthDp() <= metrics.widthDp(),
                     "QR content fits the current window width");

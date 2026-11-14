@@ -27,6 +27,14 @@ for file in pure:
 for file in (source / 'ui').rglob('*.java'):
     if re.search(r'^import (?:tsbridge\.|top\.kuaner\.pockete2\.(?:net\.|audio\.input\.|audio\.Opus)|android\.database\.)', file.read_text(), re.M):
         errors.append(f'{file.relative_to(root)} crosses the UI boundary')
+# Window geometry belongs to the UI policy and inset adapters. Pages/components must not turn a
+# physical display measurement into business or layout decisions themselves.
+for file in (source / 'ui').rglob('*.java'):
+    if file.name in ('Ui.java', 'InsetsFrame.java'):
+        continue
+    text = file.read_text()
+    if re.search(r'\b(?:widthPixels|heightPixels|screenWidthDp|screenHeightDp)\b', text):
+        errors.append(f'{file.relative_to(root)} reads physical/window pixels outside the UI policy')
 for directory in ('android/src', 'scripts', 'tests', 'bridge/tsbridge'):
     for file in (root / directory).rglob('*'):
         if file.suffix not in ('.java', '.go', '.c', '.h', '.sh', '.py') or not file.is_file():

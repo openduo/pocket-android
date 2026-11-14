@@ -400,7 +400,7 @@ it never changes the user's density, overscan, launcher or E2Studio.
 
 UI 尺寸和窗口适配策略见 [`docs/ui.md`](docs/ui.md)。页面通过 `AdaptiveMetrics`、`AdaptivePage` 和
 `Ui` token 共享断点、触控目标、sheet、媒体和字体策略；业务页面不应直接读取物理像素。当前适配层已
-通过 322 项 host contract assertions；适配层改造后的紧凑采集/相机/Try 回归通过 342 项，宽屏、横屏、
+通过 325 项 host contract assertions；适配层改造后的紧凑采集/相机/Try 回归通过 342 项，宽屏、横屏、
 分屏和完整 TalkBack 验收仍留待后续设备覆盖。
 - `tests/`: host contracts and a separately signed instrumentation APK with a disposable database.
 

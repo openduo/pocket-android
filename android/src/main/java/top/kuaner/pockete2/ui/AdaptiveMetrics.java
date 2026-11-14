@@ -134,7 +134,8 @@ public final class AdaptiveMetrics {
                 widthClass == WidthClass.COMPACT
                         ? 156
                         : widthClass == WidthClass.MEDIUM ? 240 : 320;
-        return Math.min(preferred, Math.max(96, widthDp - pagePaddingDp() * 2));
+        int available = Math.max(1, widthDp - pagePaddingDp() * 2);
+        return Math.min(preferred, available);
     }
 
     public int inlineImageHeightDp() {
@@ -164,6 +165,24 @@ public final class AdaptiveMetrics {
                 widthClass == WidthClass.COMPACT
                         ? 180
                         : widthClass == WidthClass.MEDIUM ? 280 : 360;
-        return Math.min(preferred, Math.max(96, widthDp - pagePaddingDp() * 2));
+        int available = Math.max(1, widthDp - pagePaddingDp() * 2);
+        return Math.min(preferred, available);
+    }
+
+    public int markdownTableCellMinDp() {
+        return 88;
+    }
+
+    public int markdownTableColumnMinDp() {
+        return 64;
+    }
+
+    public int markdownTableColumnMaxDp() {
+        if (widthClass == WidthClass.COMPACT) return 140;
+        return widthClass == WidthClass.MEDIUM ? 180 : 220;
+    }
+
+    public int markdownTableFitThresholdDp() {
+        return 140;
     }
 }

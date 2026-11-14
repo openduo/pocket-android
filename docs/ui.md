@@ -30,9 +30,10 @@ Pocket E2 的页面使用原生 Android View，但页面业务类不再根据物
   兼容性提示等 P0/P1 业务仍由原来的 controller/state owner 管理，页面容器只负责尺寸和可见性。
 - 对话、环境、设置、会话、位置、配对、二维码、登录 sheet、底部导航和 hold-to-talk 已接入公共尺寸
   token；输入框、附件图片/名称、viewfinder、sheet 和二维码不再从页面读取物理像素。
-- `tests/host/AdaptiveMetricsContracts.java` 覆盖 320/360/599/600/839/840dp 断点、宽度上限、
-  48dp 目标、大字体、短屏 sheet、媒体和二维码边界。`scripts/test-host.sh` 当前通过 322 项 host
-  contract assertions；架构、本地化和 Android APK 构建也通过。
+- `tests/host/AdaptiveMetricsContracts.java` 覆盖 64/320/360/599/600/839/840dp 断点、宽度上限、
+  48dp 目标、大字体、短屏 sheet、媒体和二维码边界。`scripts/test-host.sh` 当前通过 325 项 host
+  contract assertions；架构、本地化和 Android APK 构建也通过。架构检查会阻止页面和组件直接读取
+  物理窗口像素。
 - 当前 E2 的约 259dp 应用窗口已经验证过紧凑布局、键盘、1.35 字体和中英文页面。适配层改造后，
   采集/相机/Try 回归通过 342 项，另一个包含系统导入器的 Try 回归通过 211 项；环境中断专项 39 项、
   朗读失败专项 27 项也通过。宽屏设备仍然没有实机证据。

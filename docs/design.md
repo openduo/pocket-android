@@ -2,6 +2,10 @@
 
 Reference: the local E2Studio design rules and Pocket's `docs/design/native-app.md`.
 
+The reusable window-size, typography and geometry policy is documented in [`ui.md`](ui.md). This
+file records the E2-specific interaction and hardware constraints; page code must use the policy's
+tokens instead of copying the current viewport dimensions.
+
 The connected device reports a physical 480×800 px panel, density override 210, and left/right
 overscan of 70 px each. The **application viewport is 340 px (~259 dp)**. Do not confuse these px
 with dp, assume a phone-sized canvas, or change the user's display settings to make a layout fit.
@@ -9,8 +13,9 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
 - Warm dark/light semantic tokens, system fonts, filled borderless surfaces, actual Lucide vectors.
 - Shared icon controls have 48 dp minimum touch targets and expose an accessibility button role.
   Full screen-reader navigation and larger-font acceptance remain separate work.
-- 44–48 dp controls, bottom navigation and composer, full-width internally scrolling sheets capped
-  at 82% of screen height. Hide bottom navigation for the IME. Measured Android-8 insets keep the
+- 48 dp controls, bottom navigation and composer, internally scrolling sheets capped at the adaptive
+  sheet height (82% of a normal window and never taller than a short window). Hide bottom navigation
+  for the IME. Measured Android-8 insets keep the
   composer above the keyboard. Bottom controls can grow with the font scale. Detached windows stop
   their inset callbacks; returning from a dialog reapplies the window's immersive flags. E2 firmware
   retains white system icons, so its status/navigation surfaces stay dark in both app themes.
@@ -39,10 +44,10 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   permission or expiry. See `location.md` for the broadcast budget and remaining visit acceptance.
 - External shares enter the composer as a complete ordered batch, without sending. Focused editors
   apply acknowledged draft updates and preserve typing that overlaps an incoming append; room/send
-  resets invalidate stale editor changes. Attachment chips expose horizontal overflow and size their
-  names around the actual viewport, thumbnail and 44 dp removal target. See `imports.md`.
-- The rear camera has an actual colour viewfinder from the same Camera2 image stream, bounded to
-  a 240 px edge and 5 fps. Only a visible rear viewfinder requests those pixels. Front-camera
+  resets invalidate stale editor changes. Attachment chips expose horizontal overflow and use the
+  adaptive name bound, thumbnail and 48 dp removal target. See `imports.md`.
+- The rear camera has an actual colour viewfinder from the same Camera2 image stream, bounded by
+  the adaptive viewfinder height and 5 fps. Only a visible rear viewfinder requests those pixels. Front-camera
   preview is hidden, and a one-camera E2 has no unavailable lens-switch button. Physical rotation
   restarts the encoder with a key frame and the swapped dimensions, preserving uplink numbering.
 - Occupied cameras are observed before opening; the app waits without preempting another owner.

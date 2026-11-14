@@ -41,7 +41,7 @@ final class MarkdownTableView extends HorizontalScrollView {
                 cell != null;
                 cell = cell.getNext()) count++;
         preferred = new int[count];
-        java.util.Arrays.fill(preferred, ui.dp(88));
+        java.util.Arrays.fill(preferred, ui.markdownTableCellMinWidth());
         for (Node section = node.getFirstChild(); section != null; section = section.getNext())
             for (Node line = section.getFirstChild(); line != null; line = line.getNext()) {
                 LinearLayout row = ui.row();
@@ -68,7 +68,10 @@ final class MarkdownTableView extends HorizontalScrollView {
                     preferred[col] =
                             Math.max(
                                     preferred[col],
-                                    ui.dp(Math.min(140, 24 + content.length() * 10)));
+                                    ui.dp(
+                                            Math.min(
+                                                    ui.metrics.markdownTableColumnMaxDp(),
+                                                    24 + content.length() * 10)));
                     row.addView(text, new LinearLayout.LayoutParams(preferred[col++], -2));
                 }
                 rows.add(row);
@@ -84,15 +87,15 @@ final class MarkdownTableView extends HorizontalScrollView {
         for (int width : preferred) total += width;
         int[] widths = preferred.clone();
         if (preferred.length <= 2
-                && available >= ui.dp(140)
+                && available >= ui.markdownTableFitThreshold()
                 && MeasureSpec.getMode(widthSpec) != MeasureSpec.UNSPECIFIED) {
             if (preferred.length == 1) widths[0] = available;
             else {
                 widths[0] =
                         Math.max(
-                                ui.dp(64),
+                                ui.markdownTableColumnMinWidth(),
                                 Math.min(
-                                        available - ui.dp(64),
+                                        available - ui.markdownTableColumnMinWidth(),
                                         Math.round(available * preferred[0] / (float) total)));
                 widths[1] = available - widths[0];
             }

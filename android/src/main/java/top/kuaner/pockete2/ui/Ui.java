@@ -158,6 +158,22 @@ public final class Ui {
         return dp(metrics.attachmentNameMaxDp());
     }
 
+    public int markdownTableCellMinWidth() {
+        return dp(metrics.markdownTableCellMinDp());
+    }
+
+    public int markdownTableColumnMinWidth() {
+        return dp(metrics.markdownTableColumnMinDp());
+    }
+
+    public int markdownTableColumnMaxWidth() {
+        return dp(metrics.markdownTableColumnMaxDp());
+    }
+
+    public int markdownTableFitThreshold() {
+        return dp(metrics.markdownTableFitThresholdDp());
+    }
+
     /** Constrains page content on medium and expanded windows while keeping phones full width. */
     public View adaptivePage(View child) {
         AdaptivePage page = new AdaptivePage(context, this);
