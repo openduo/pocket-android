@@ -17,7 +17,7 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **212 host contract assertions and 279 E2 device assertions**,
+The latest local checkpoint passed **212 host contract assertions and 282 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
@@ -26,7 +26,7 @@ assertions** verified one marked synthetic note through actual ASR/delivery/repl
 upload. **11 cold-restart assertions** reused its journal without sending again. A separate
 **18-assertion actual ambient run** accepted marked synthetic speech, the requested service reply,
 real synthesized downlink/playback completion, redial after an injected local write failure, and
-actual server mic restoration on held-note exit. **18 isolated live-recovery assertions** cover
+actual server mic restoration on held-note exit. **21 isolated live-recovery assertions** cover
 writer failures, queue overflow
 and restoring the room microphone before teardown. Acoustic recognition from the E2 microphone
 remains unverified. These checks are regression evidence, not a parity-completion claim.
@@ -72,6 +72,9 @@ and background/focus stimuli; physical network changes remain separate acceptanc
 bottom controls retain their touch areas while fitting short labels on one line in the compact view.
 A separate 48 dp power control remains available when the primary action offers reopen/takeover,
 including in the expanded transcript, so retry never removes the way to end capture.
+Android now watches the default network path, rebinds tsnet on a path/interface change and pings an
+existing live socket before reusing it. A healthy socket is retained; a stale socket enters the same
+generation-safe retry path. The live recovery probe covers both outcomes in the disposable room.
 
 For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
 The native login sheet displays an authorization QR, copyable link and live backend state. Its QR

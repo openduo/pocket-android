@@ -211,6 +211,7 @@ public final class PocketController {
     }
 
     private final GoTransport transport;
+    private final top.kuaner.pockete2.net.NetworkPath networkPath;
     private ChannelConnection channel;
     private TryChannel tryChannel;
     private ChannelConnection readChannel;
@@ -356,6 +357,9 @@ public final class PocketController {
                         });
         transport = new GoTransport(context);
         channel = transport;
+        networkPath =
+                new top.kuaner.pockete2.net.NetworkPath(
+                        context, () -> state.execute(this::networkPathChanged));
         sightSession =
                 new top.kuaner.pockete2.sight.SightSession(
                         context,
@@ -492,6 +496,7 @@ public final class PocketController {
                                             updateSight();
                                             publish();
                                         }));
+        networkPath.start();
     }
 
     public void addListener(Listener listener) {
@@ -533,6 +538,39 @@ public final class PocketController {
                     if (!trying) {
                         transport.rebind();
                         startNetwork();
+                    }
+                });
+    }
+
+    /** Rechecks a held live socket after Android reports a default-network/path change. */
+    private void networkPathChanged() {
+        if (!foreground && !ambientWanted && pending.isEmpty() && !passport.snapshot().waiting)
+            return;
+        redial.reset();
+        channel.rebind();
+        verifyLiveOnState();
+    }
+
+    /** Mirrors the upstream foreground/keepalive check without blocking the state executor. */
+    private void verifyLiveOnState() {
+        if (!channel.isOpen()) {
+            connect();
+            return;
+        }
+        final int epoch = connectionEpoch;
+        final ChannelConnection target = channel;
+        network.execute(
+                () -> {
+                    try {
+                        target.ping(3000);
+                    } catch (Exception failure) {
+                        state.execute(
+                                () -> {
+                                    if (epoch == connectionEpoch && target == channel)
+                                        linkClosed(
+                                                "Network path changed; live connection is stale",
+                                                epoch);
+                                });
                     }
                 });
     }
@@ -582,6 +620,7 @@ public final class PocketController {
                         redial.reset();
                         if (trying) connect();
                         else startNetwork();
+                        verifyLiveOnState();
                         resumeAmbientLink();
                         if (ambientWanted && capture == null) startCapture();
                         updateSight();

@@ -609,6 +609,16 @@ public final class TryChannel implements ChannelConnection, AutoCloseable {
     }
 
     @Override
+    public synchronized void ping(long timeoutMs) throws IOException {
+        if (!isOpen()) throw new IOException("Local live socket is closed");
+    }
+
+    @Override
+    public void rebind() {
+        // The disposable channel never touches the system network or embedded node.
+    }
+
+    @Override
     public synchronized void closeLive() {
         live = null;
         audio = watching = false;

@@ -181,6 +181,37 @@ final class LiveRecoveryProbe {
                     controller.draft().equals(draft)
                             && controller.snapshot().outbox.size() == pending,
                     "live transport recovery preserves the composer and sends no messages");
+            int pathOpened = source.opens.get();
+            int pathClosed = source.closes.get();
+            int pathPings = source.pings.get();
+            onState(
+                    () -> {
+                        invoke("networkPathChanged");
+                        return null;
+                    });
+            await(() -> source.pings.get() > pathPings, 3000);
+            check(
+                    source.pings.get() > pathPings
+                            && source.opens.get() == pathOpened
+                            && source.closes.get() == pathClosed
+                            && online(),
+                    "a healthy path change pings and keeps the existing live socket");
+            source.failPing.set(true);
+            onState(
+                    () -> {
+                        invoke("networkPathChanged");
+                        return null;
+                    });
+            await(() -> source.pings.get() > pathPings + 1, 3000);
+            await(() -> source.closes.get() == pathClosed + 1 && !online(), 3000);
+            check(
+                    source.closes.get() == pathClosed + 1 && !online(),
+                    "a path ping failure retires the stale live generation");
+            source.failPing.set(false);
+            await(() -> source.opens.get() > pathOpened && online(), 5000);
+            check(
+                    source.opens.get() == pathOpened + 1 && online(),
+                    "a stale path is redialled after the ping failure");
             return assertions;
         } finally {
             source.release.countDown();
@@ -292,9 +323,11 @@ final class LiveRecoveryProbe {
     private static final class Observed implements ChannelConnection {
         final ChannelConnection delegate;
         final AtomicInteger opens = new AtomicInteger(), closes = new AtomicInteger();
+        final AtomicInteger pings = new AtomicInteger();
         final AtomicInteger pressureDelivered = new AtomicInteger();
         final AtomicInteger binary = new AtomicInteger();
         final AtomicBoolean failText = new AtomicBoolean(), failBinary = new AtomicBoolean();
+        final AtomicBoolean failPing = new AtomicBoolean();
         final AtomicBoolean blockText = new AtomicBoolean(), failedWhileOpen = new AtomicBoolean();
         final AtomicBoolean blockRestore = new AtomicBoolean();
         final CountDownLatch blocked = new CountDownLatch(1), release = new CountDownLatch(1);
@@ -383,6 +416,12 @@ final class LiveRecoveryProbe {
 
         public boolean isOpen() {
             return delegate.isOpen();
+        }
+
+        public void ping(long timeoutMs) throws Exception {
+            pings.incrementAndGet();
+            if (failPing.get()) throw new java.io.IOException("Prepared stale network path");
+            delegate.ping(timeoutMs);
         }
 
         public void closeLive() {

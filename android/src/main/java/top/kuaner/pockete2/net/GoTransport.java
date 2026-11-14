@@ -172,10 +172,17 @@ public final class GoTransport implements ChannelConnection {
         return started && Tsbridge.liveIsOpen();
     }
 
+    @Override
+    public void ping(long timeoutMs) throws Exception {
+        if (!started) throw new java.io.IOException("网络节点尚未启动");
+        Tsbridge.livePing(timeoutMs);
+    }
+
     public void closeLive() {
         if (started) Tsbridge.liveClose();
     }
 
+    @Override
     public void rebind() {
         if (started) {
             Tsbridge.rebind();

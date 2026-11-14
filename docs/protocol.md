@@ -38,6 +38,12 @@ remains a visible ambient refusal until explicit reopen/session end, independent
 seat metadata. Automatic connection retry continues, matching the pinned upstream; credentials are
 invalidated only by the separate unauthorized path (for example 4401). Prepared outage acceptance
 uses actual retry deadlines and native capture, with lifecycle stimuli distinguished in `audio.md`.
+Android observes the default `ConnectivityManager` path signature. A changed interface, address,
+route or validated transport asks tsnet to rebind; an existing live socket is then checked with a
+WebSocket ping off the state executor. A successful ping preserves its connection generation. A
+failed ping retires the generation and enters the normal redial path, so stale reader callbacks cannot
+close the replacement. Foreground entry performs the same ping check. The disposable transport's
+ping is an open-state check only; it never touches the device network.
 `AmbientOutput` keeps the current speech's hardware and immediately skipped muted samples separate
 until forming one monotonic watermark. Hardware receipts retain their playback generation through
 the state-executor hop. Local presses/read can report an interruption; remote `stop_audio` and local

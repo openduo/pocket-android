@@ -72,8 +72,11 @@ until cancellation, and another local press recovers before the pending 30-secon
 survives ready/seat metadata, prepared audio interruption/gain and foreground; the actual narrow-screen
 reopen control clears it. A separate power click from refusal releases the real capture lease.
 Old transcript/heat text cannot hide the refusal. Native focus competition
-is separately covered by the existing audio probe. Physical network-path monitoring and live ping
-remain unported.
+is separately covered by the existing audio probe. Android's `NetworkPath` watches the default
+network/interface signature, asks tsnet to rebind, and pings an existing live socket before reuse;
+healthy paths stay on the same generation, while a failed ping retires and redials it. The live
+recovery probe covers both outcomes in the disposable room. Physical Wi-Fi/cellular switching and
+long-term path/energy behaviour remain separate acceptance.
 
 `AmbientOutput` is an Android-independent output policy with one current declaration or local read.
 It implements these upstream behaviours:

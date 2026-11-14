@@ -50,5 +50,13 @@ public interface ChannelConnection extends ChannelTransport {
 
     boolean isOpen();
 
+    /** Verifies the held socket off the state owner; isOpen alone may describe a stale path. */
+    default void ping(long timeoutMs) throws Exception {
+        if (!isOpen()) throw new java.io.IOException("Live connection is closed");
+    }
+
+    /** Rebinds this transport after a default network change without discarding a healthy live. */
+    default void rebind() {}
+
     void closeLive();
 }
