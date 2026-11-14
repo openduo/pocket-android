@@ -10,7 +10,7 @@ source = root / 'android/src/main/java/top/kuaner/pockete2'
 errors = []
 pure = [source / 'core' / (name + '.java') for name in
         ('Endpoint', 'Json', 'Message', 'Attachment', 'Outbox', 'TurnState', 'SessionViewer', 'AmbientInput', 'AmbientOutput', 'VoiceRetry', 'RedialBackoff', 'PlaceLedger')]
-pure += [source / 'passport' / (name + '.java') for name in ('PocketProtocol', 'PressAssembler', 'ReplyTracker')]
+pure += [source / 'passport' / (name + '.java') for name in ('PassportPolicy', 'PocketProtocol', 'PressAssembler', 'ReplyTracker')]
 pure += [source / 'audio/PacketStream.java', source / 'sight/SightProtocol.java', source / 'pairing/QrCode.java']
 pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.java', source / 'trymode/TryScript.java']
 pure += [source / 'sight/PreviewFrame.java']

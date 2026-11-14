@@ -5,8 +5,10 @@ using E2Studio's visual and interaction conventions. **The target is 1:1 functio
 migration is in progress; this repository is not yet a parity-complete release.**
 
 The user deferred external Passport Bluetooth integration on 2026-11-14. The current scope is
-standalone E2 use; Passport shortcuts and prompts are omitted from conversation and settings.
-Its existing implementation is retained for later, without reducing the remaining migration goal.
+standalone E2 use; Passport shortcuts and prompts are omitted from conversation and settings, and
+the standalone policy does not automatically resume a remembered accessory or keep an accessory
+background service alive. Its existing implementation is retained for later, without reducing the
+remaining migration goal.
 
 The upstream clone is kept separately at `../pocket-ios`; the initial reference commit is
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. `docs/migration.md` records both implemented paths and
@@ -17,9 +19,16 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **212 host contract assertions and 282 E2 device assertions**,
-plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
-login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
+The latest local checks passed **213 host contract assertions**, Go vet/tests and the Android build.
+The standalone-policy APK also passed the complete capture/camera/import/paired-try device run with
+**283 assertions**, including no Passport activity or BLE thread. An earlier attempt failed the first
+outage retry timing check at 345 ms; the unchanged standalone outage run passed all 39 assertions,
+and the complete suite subsequently passed. The intermittent timing failure remains unlocated;
+these results do not establish consistently reproducible device acceptance.
+The final policy correction also removes remembered accessory waits from background connection
+gates; that APK passed **21 live-recovery assertions**. The complete suite was not repeated after
+this last correction. A separate two-assertion run verified the actual Tailscale login QR.
+Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
 and streamed synthesis/completion/cancellation with muted hardware playback. A further **15 real-voice
 assertions** verified one marked synthetic note through actual ASR/delivery/reply and native background
@@ -34,9 +43,9 @@ An independent process-death run passed **27 host-controlled and 12 native-phase
 two actual force-stop/cold-launch cycles around an unfinished system-picked document copy.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
-language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
-with source/activity, grouped lists and recipient-specific notification drafts. English conversation,
-settings and session screens were inspected at ~259 dp, including 1.35 font scale, light theme and
+language-aware notifications and retained Passport protocol frames, occupied-camera waiting/recovery,
+and a session viewer with source/activity, grouped lists and recipient-specific notification drafts.
+English conversation, settings and session screens were inspected at ~259 dp, including 1.35 font scale, light theme and
 the real E2 keyboard. Shares now use an atomic file inbox and transactional delivery receipts,
 preserve names/MIME and order, retain concurrent typing, and recover without duplication through
 recreation. Real system document-picker and camera returns exercise the same import path.

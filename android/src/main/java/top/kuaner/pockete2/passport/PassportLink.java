@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.ParcelUuid;
 
 import java.util.*;
@@ -87,6 +88,14 @@ public final class PassportLink implements AutoCloseable {
         this.context = context.getApplicationContext();
         this.listener = listener;
         prefs = context.getSharedPreferences("passport.link", Context.MODE_PRIVATE);
+        if (!PassportPolicy.ENABLED) {
+            // The protocol remains compiled for a future release, but standalone E2 must not
+            // start a BLE thread or register a Bluetooth receiver just because the controller was
+            // created.
+            handler = new Handler(Looper.getMainLooper());
+            snapshot = new Snapshot(this);
+            return;
+        }
         thread.start();
         handler = new Handler(thread.getLooper());
         snapshot = new Snapshot(this);
@@ -522,6 +531,7 @@ public final class PassportLink implements AutoCloseable {
 
     @Override
     public void close() {
+        if (!PassportPolicy.ENABLED) return;
         closed = true;
         try {
             context.unregisterReceiver(changes);

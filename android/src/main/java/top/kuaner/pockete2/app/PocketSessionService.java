@@ -62,13 +62,13 @@ public final class PocketSessionService extends Service implements PocketControl
                                         ? words().t("Pocket E2 · 环境模式")
                                         : s != null && s.uploadingVoice
                                                 ? words().t("Pocket E2 · 正在发送语音")
-                                                : "Pocket E2 · Passport")
+                                                : "Pocket E2")
                         .setContentText(
                                 listening
                                         ? words().explain(s.status)
                                         : s != null && s.uploadingVoice
                                                 ? words().t("发送完成后自动结束上传任务")
-                                                : words().t("保持配件连接，按键语音可在后台处理"))
+                                                : words().t("保持 Pocket E2 的后台任务"))
                         .setContentIntent(open)
                         .setOngoing(true);
         if (listening)

@@ -21,6 +21,7 @@ import top.kuaner.pockete2.audio.SpeechPlayer;
 import top.kuaner.pockete2.net.ChannelClient;
 import top.kuaner.pockete2.net.ChannelConnection;
 import top.kuaner.pockete2.net.GoTransport;
+import top.kuaner.pockete2.passport.PassportPolicy;
 import top.kuaner.pockete2.trymode.TryChannel;
 
 import java.io.BufferedOutputStream;
@@ -169,7 +170,8 @@ public final class PocketController {
             olderLoading = c.olderLoading;
             uploadingVoice = c.uploadForeground;
             ambientActive = c.ambientWanted;
-            accessoryActive = !c.trying && c.passport.snapshot().link.remembered;
+            accessoryActive =
+                    PassportPolicy.ENABLED && !c.trying && c.passport.snapshot().link.remembered;
             pressMuted = c.ambientInput.pressMuted();
             echoCancellation = c.capture != null && c.capture.echoCancellation();
             latencyMs = c.latencyMs;
@@ -457,7 +459,7 @@ public final class PocketController {
                         });
         state.scheduleAtFixedRate(
                 () -> {
-                    passport.tick();
+                    if (PassportPolicy.ENABLED) passport.tick();
                     sightSession.busy();
                 },
                 1,
@@ -531,6 +533,10 @@ public final class PocketController {
         return current == null ? 0 : current.level();
     }
 
+    private boolean accessoryWaiting() {
+        return PassportPolicy.ENABLED && !trying && passport.snapshot().waiting;
+    }
+
     public void start() {
         state.execute(
                 () -> {
@@ -544,8 +550,7 @@ public final class PocketController {
 
     /** Rechecks a held live socket after Android reports a default-network/path change. */
     private void networkPathChanged() {
-        if (!foreground && !ambientWanted && pending.isEmpty() && !passport.snapshot().waiting)
-            return;
+        if (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()) return;
         redial.reset();
         channel.rebind();
         verifyLiveOnState();
@@ -593,7 +598,7 @@ public final class PocketController {
                     notifications.foreground(value);
                     log.event("foreground", String.valueOf(value));
                     arrivals.refresh();
-                    passport.foreground(value);
+                    if (PassportPolicy.ENABLED) passport.foreground(value);
                     surface();
                     if (!value && !ambientWanted) stopPlayback();
                     else if (value && audioSuspended && !audioFocus.interrupted()) {
@@ -609,7 +614,7 @@ public final class PocketController {
                         if (trying || !settings.keepListening()) ambientOff();
                         if (!ambientWanted
                                 && pending.isEmpty()
-                                && !passport.snapshot().waiting
+                                && !accessoryWaiting()
                                 && closingEpoch != connectionEpoch) {
                             stopPlayback();
                             channel.closeLive();
@@ -698,7 +703,7 @@ public final class PocketController {
         state.execute(
                 () -> {
                     notifications.language();
-                    if (!trying) passport.languageChanged();
+                    if (PassportPolicy.ENABLED && !trying) passport.languageChanged();
                     if (trying) {
                         stopTryingOnState(false);
                         if (!startTryingOnState()) {
@@ -816,14 +821,12 @@ public final class PocketController {
                 || channel.isOpen()
                 || pairingActive
                 || !trying && (!settings.isComplete() || settings.unauthorized())
-                || (!foreground
-                        && !ambientWanted
-                        && pending.isEmpty()
-                        && !passport.snapshot().waiting)) return;
+                || (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()))
+            return;
         opening = true;
         ambientInput.socketOpened();
         sightSession.connectionReset();
-        if (!trying) passport.beginReplay();
+        if (PassportPolicy.ENABLED && !trying) passport.beginReplay();
         int epoch = ++connectionEpoch;
         connection = Connection.CONNECTING;
         ChannelConnection target = channel;
@@ -975,7 +978,7 @@ public final class PocketController {
         socketWriter.getQueue().clear();
         channel.closeLive();
         sightSession.connectionReset();
-        passport.online(false);
+        if (PassportPolicy.ENABLED) passport.online(false);
         viewer.dropPending();
         connection = Connection.OFFLINE;
         opening = false;
@@ -1015,10 +1018,13 @@ public final class PocketController {
         try {
             JSONObject frame = new JSONObject(text);
             String type = frame.optString("type");
-            boolean accessoryAlert = passport.snapshot().link.ready && passport.snapshot().waiting;
+            boolean accessoryAlert =
+                    PassportPolicy.ENABLED
+                            && passport.snapshot().link.ready
+                            && passport.snapshot().waiting;
             if (!trying) {
                 notifications.frame(frame, accessoryAlert);
-                passport.frame(frame);
+                if (PassportPolicy.ENABLED) passport.frame(frame);
             }
             if (viewer.handle(frame)) {
                 if (foreground) publish();
@@ -1038,7 +1044,7 @@ public final class PocketController {
                 reload();
             } else if (type.equals("ready")) {
                 connection = Connection.ONLINE;
-                if (!trying) passport.online(true);
+                if (PassportPolicy.ENABLED && !trying) passport.online(true);
                 opening = false;
                 redial.reset();
                 lastError =
@@ -1421,7 +1427,10 @@ public final class PocketController {
                 new SendOperation(item, client(), repo.roomIdentity(), ++sendEpoch);
         sending = operation;
         uploadForeground =
-                !trying && item.voice && (foreground || passport.snapshot().link.remembered);
+                !trying
+                        && item.voice
+                        && (foreground
+                                || PassportPolicy.ENABLED && passport.snapshot().link.remembered);
         if (uploadForeground) refreshService();
         repo.transition(item.state(Message.SENDING, ""));
         reload();
@@ -1457,7 +1466,7 @@ public final class PocketController {
 
     private void messageAccepted(Outbox.Item item) {
         if (item == null || trying) return;
-        passport.accepted(item.id);
+        if (PassportPolicy.ENABLED) passport.accepted(item.id);
         arrivals.settle(item.place);
     }
 
@@ -1570,7 +1579,7 @@ public final class PocketController {
             repo.transition(current.state(Message.QUEUED, ""));
             unauthorized();
         } else {
-            if (current.source.equals("passport"))
+            if (PassportPolicy.ENABLED && current.source.equals("passport"))
                 passport.uploadFailed(current.id, error.transport);
             repo.transition(
                     current.state(
@@ -2080,7 +2089,7 @@ public final class PocketController {
     }
 
     private void refreshService() {
-        boolean bluetooth = passport.snapshot().link.remembered;
+        boolean bluetooth = PassportPolicy.ENABLED && passport.snapshot().link.remembered;
         boolean needed = !trying && (ambientWanted || uploadForeground || bluetooth);
         if (needed) {
             try {
@@ -2457,7 +2466,7 @@ public final class PocketController {
                     channel.closeLive();
                     opening = false;
                     releaseOnState(true);
-                    passport.online(false);
+                    if (PassportPolicy.ENABLED) passport.online(false);
                     stopCapture();
                     ambientWanted = false;
                     ambient = Ambient.OFF;
@@ -2564,7 +2573,7 @@ public final class PocketController {
                         trying = false;
                     }
                     repo.clear();
-                    passport.online(false);
+                    if (PassportPolicy.ENABLED) passport.online(false);
                     settings.clearConnection();
                     resetRoomTransient();
                     top.kuaner.pockete2.app.BackgroundSync.schedule(context);
@@ -2612,7 +2621,7 @@ public final class PocketController {
         ambientWanted = false;
         ambient = Ambient.OFF;
         sightSession.clear();
-        passport.online(false);
+        if (PassportPolicy.ENABLED) passport.online(false);
         realRepo.select(realRepo.roomIdentity());
         trying = true;
         channel = tryChannel = local;
@@ -2753,9 +2762,11 @@ public final class PocketController {
                                                                                 row.text,
                                                                                 "message_ids",
                                                                                 new JSONArray(ids)),
-                                                                        passport.snapshot()
-                                                                                .link
-                                                                                .ready,
+                                                                        PassportPolicy.ENABLED
+                                                                                && passport
+                                                                                        .snapshot()
+                                                                                        .link
+                                                                                        .ready,
                                                                         bootstrapped);
                                                             }
                                                         reload();
@@ -2820,25 +2831,27 @@ public final class PocketController {
     }
 
     public void scanPassport() {
-        state.execute(passport::scan);
+        if (PassportPolicy.ENABLED) state.execute(passport::scan);
     }
 
     public void resumeAccessory() {
-        state.execute(
-                () -> {
-                    if (!trying && passport.snapshot().link.remembered) passport.resume();
-                });
+        if (PassportPolicy.ENABLED)
+            state.execute(
+                    () -> {
+                        if (!trying && passport.snapshot().link.remembered) passport.resume();
+                    });
     }
 
     public void connectPassport(String address) {
-        state.execute(() -> passport.connect(address));
+        if (PassportPolicy.ENABLED) state.execute(() -> passport.connect(address));
     }
 
     public void forgetPassport() {
-        state.execute(passport::forget);
+        if (PassportPolicy.ENABLED) state.execute(passport::forget);
     }
 
     private void passportPress(top.kuaner.pockete2.passport.PressAssembler.Press press) {
+        if (!PassportPolicy.ENABLED) return;
         if (press.packets.isEmpty()) {
             passport.rejected(press.id, 1);
             return;

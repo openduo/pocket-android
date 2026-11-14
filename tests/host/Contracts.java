@@ -30,6 +30,9 @@ public final class Contracts {
     }
 
     public static void main(String[] args) throws Exception {
+        check(
+                !top.kuaner.pockete2.passport.PassportPolicy.ENABLED,
+                "standalone E2 keeps deferred Passport integration disabled");
         Endpoint.PairingLink p =
                 Endpoint.PairingLink.parse(
                         "请用 duoduopocket://pair?host=example.test&port=8443&tls=0&code=a%2Bb-opaque"

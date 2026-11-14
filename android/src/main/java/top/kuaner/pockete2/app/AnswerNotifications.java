@@ -15,9 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 
-/**
- * Local background notices deduplicate live/log answers and leave Passport as the audible alert.
- */
+/** Local background notices deduplicate live/log answers for the standalone E2. */
 public final class AnswerNotifications {
     private final Context context;
     private final NotificationManager manager;

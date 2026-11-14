@@ -703,6 +703,12 @@ public final class Probe extends Instrumentation {
         while (controller.snapshot() == null && android.os.SystemClock.elapsedRealtime() < until)
             Thread.sleep(10);
         check(controller.snapshot() != null, "asynchronous initial snapshot available");
+        boolean passportThread =
+                Thread.getAllStackTraces().keySet().stream()
+                        .anyMatch(thread -> "Pocket E2 BLE".equals(thread.getName()));
+        check(
+                !controller.snapshot().accessoryActive && !passportThread,
+                "standalone E2 keeps Passport routing and BLE work disabled");
         check(
                 context.getResources().getDisplayMetrics().widthPixels >= 240
                         && context.getResources().getDisplayMetrics().widthPixels <= 480,
