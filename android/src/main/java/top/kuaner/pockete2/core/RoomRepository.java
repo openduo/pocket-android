@@ -22,6 +22,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
     public static final String IMPORT_CANCELLED = "cancelled";
     private static final String IMPORT_RECEIPTS = "@import-receipts";
     private static final String IMPORT_REQUESTS = "@import-requests";
+    private static final String OUTBOX_CLEANUP = "@outbox-cleanup";
     private String room = "unpaired";
 
     public RoomRepository(Context context) {
@@ -60,6 +61,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
 
     public void select(String identity) {
         room = identity;
+        finishCleanup();
         for (Outbox.Item item : pending())
             if (item.state == Message.SENDING) transition(item.state(Message.QUEUED, ""));
     }
@@ -362,6 +364,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
                 if (message.kind == Message.MINE) {
                     Outbox.Item item = findPending(message.id);
                     if (item != null) {
+                        rememberCleanup(item);
                         db.delete("pending", "room=? AND id=?", new String[] {room, item.id});
                         removed.add(item);
                     }
@@ -372,7 +375,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
-        for (Outbox.Item item : removed) cleanup(item);
+        if (!removed.isEmpty()) finishCleanup();
     }
 
     public List<Outbox.Item> pending() {
@@ -411,13 +414,14 @@ public final class RoomRepository extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            if (item != null) rememberCleanup(item);
             db.delete("pending", "room=? AND id=?", new String[] {room, id});
             db.delete("rows", "room=? AND id=? AND seq<0", new String[] {room, id});
             db.setTransactionSuccessful();
         } finally {
             db.endTransaction();
         }
-        if (item != null) cleanup(item);
+        if (item != null) finishCleanup();
     }
 
     public void clear() {
@@ -425,13 +429,14 @@ public final class RoomRepository extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
+            for (Outbox.Item item : items) rememberCleanup(item);
             for (String table : new String[] {"rows", "pending", "metadata"})
                 db.delete(table, "room=?", new String[] {room});
             db.setTransactionSuccessful();
         } finally {
             db.endTransaction();
         }
-        for (Outbox.Item item : items) cleanup(item);
+        if (!items.isEmpty()) finishCleanup();
     }
 
     public long cursor() {
@@ -475,9 +480,48 @@ public final class RoomRepository extends SQLiteOpenHelper {
                 < 0) throw new IllegalStateException("无法保存房间状态");
     }
 
-    private void cleanup(Outbox.Item item) {
-        if (!item.voiceFile.isEmpty()) new File(item.voiceFile).delete();
+    /** The paths and the removal of their outbox owner commit together. No message content. */
+    private void rememberCleanup(Outbox.Item item) {
+        JSONArray paths = new JSONArray();
+        if (!item.voiceFile.isEmpty()) paths.put(item.voiceFile);
         for (Attachment attachment : item.attachments)
-            if (!attachment.localPath.isEmpty()) new File(attachment.localPath).delete();
+            if (!attachment.localPath.isEmpty()) paths.put(attachment.localPath);
+        if (paths.length() > 0) metadata(OUTBOX_CLEANUP, room + "|" + item.id, paths.toString());
+    }
+
+    /** A crash or failed delete after admission must not leave the removed note's bytes forever. */
+    private void finishCleanup() {
+        if (getWritableDatabase().inTransaction()) return;
+        List<String[]> tasks = new ArrayList<>();
+        try (Cursor cursor =
+                getReadableDatabase()
+                        .rawQuery(
+                                "SELECT name,value FROM metadata WHERE room=?",
+                                new String[] {OUTBOX_CLEANUP})) {
+            while (cursor.moveToNext())
+                tasks.add(new String[] {cursor.getString(0), cursor.getString(1)});
+        }
+        for (String[] task : tasks) {
+            boolean done = true;
+            try {
+                JSONArray paths = new JSONArray(task[1]);
+                for (int i = 0; i < paths.length(); i++) {
+                    File file = new File(paths.getString(i));
+                    try {
+                        if (file.exists() && !file.delete()) done = false;
+                    } catch (SecurityException denied) {
+                        done = false;
+                    }
+                }
+            } catch (org.json.JSONException invalid) {
+                throw new IllegalStateException("Invalid pending outbox cleanup", invalid);
+            }
+            if (done)
+                getWritableDatabase()
+                        .delete(
+                                "metadata",
+                                "room=? AND name=?",
+                                new String[] {OUTBOX_CLEANUP, task[0]});
+        }
     }
 }

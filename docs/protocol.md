@@ -22,6 +22,10 @@ live socket for reconnect; a healthy socket stays open after an HTTP service fai
 Each real voice dispatch requests its data-sync foreground service, including background retries.
 A denied service start retains the queued item and its surface without starting HTTP; actual
 foreground return resumes it without needing a live reconnect. See `audio.md`.
+Owned file cleanup now has a path-only receipt committed with outbox removal. File deletion waits
+until no enclosing native transaction remains; failed deletes and post-commit process death retain
+the obligation for ordinary startup to drain, including after discard or room clear. Actual
+force-stop/rollback/commit/cleanup evidence and its prepared-row limits are in `storage.md`.
 
 Voice bodies are `[u16 little-endian length][20 ms 16 kHz mono Opus packet]…`. `hello` follows actual
 input capture, `mute.on=true` means the room microphone is ON, and downlink speech declarations

@@ -131,6 +131,7 @@ final class BackgroundVoiceProbe {
                                     id, "", "phone", 400, Message.QUEUED, Collections.emptyList()),
                             item);
                     invoke("reload");
+                    invoke("publish");
                     invoke("pump");
                     return null;
                 });
@@ -146,7 +147,7 @@ final class BackgroundVoiceProbe {
                         && !controller.snapshot().uploadingVoice
                         && onState(() -> repository.row(id).durationMs) == 400,
                 "logged acceptance retains duration and releases both voice bytes and the upload"
-                    + " service");
+                        + " service");
     }
 
     String run(Context context) throws Exception {
@@ -215,7 +216,8 @@ final class BackgroundVoiceProbe {
             check(
                     onState(() -> field("repo") != field("realRepo") && field("channel") == source),
                     "all fixture messages use isolated storage and a transport incapable of network"
-                        + " I/O");
+                            + " I/O");
+            stalePublication(source, (Context) originalContext);
             Exchange failed = new Exchange(-1);
             long began = SystemClock.elapsedRealtime();
             String id = queue(source, failed);
@@ -249,7 +251,7 @@ final class BackgroundVoiceProbe {
             check(
                     recovered.started.await(5, TimeUnit.SECONDS) && background(),
                     "live reconnection automatically starts the retained upload while the Activity"
-                        + " stays backgrounded");
+                            + " stays backgrounded");
             await(this::service, 3000);
             check(
                     service()
@@ -263,7 +265,7 @@ final class BackgroundVoiceProbe {
                                     .toString()
                                     .equals(failed.headers.get(0).toString()),
                     "background retry reacquires the actual foreground service with the original"
-                        + " key, body and surface");
+                            + " key, body and surface");
             recovered.release.countDown();
             logged(source, id);
 
@@ -294,7 +296,7 @@ final class BackgroundVoiceProbe {
                             && deferred.bodies.isEmpty()
                             && denied.get() == 1,
                     "a prepared service-start refusal retains queued voice without pretending to"
-                        + " upload or making HTTP requests");
+                            + " upload or making HTTP requests");
             for (int i = 0; i < 3; i++)
                 onState(
                         () -> {
@@ -318,15 +320,27 @@ final class BackgroundVoiceProbe {
             check(
                     deferred.started.await(5, TimeUnit.SECONDS),
                     "actual foreground return resumes deferred voice on the already-open live"
-                        + " connection");
+                            + " connection");
             await(this::service, 3000);
+            boolean back = background(), running = service();
             check(
-                    !background()
-                            && service()
+                    !back
+                            && running
                             && deferred.bodies.size() == 1
                             && Arrays.equals(deferred.bodies.get(0), body)
                             && deferred.headers.get(0).optString("Idempotency-Key").equals(waiting),
-                    "foreground recovery preserves the deferred message id and bytes");
+                    "foreground recovery preserves the deferred message id and bytes: background="
+                            + back
+                            + ", service="
+                            + running
+                            + ", attempts="
+                            + deferred.bodies.size()
+                            + ", upload="
+                            + controller.snapshot().uploadingVoice
+                            + ", bytes="
+                            + Arrays.equals(deferred.bodies.get(0), body)
+                            + ", id="
+                            + deferred.headers.get(0).optString("Idempotency-Key").equals(waiting));
             deferred.release.countDown();
             logged(source, waiting);
         } finally {
@@ -378,10 +392,60 @@ final class BackgroundVoiceProbe {
                         && controller.snapshot().outbox.isEmpty()
                         && !service(),
                 "the actual paired room, composer and service state are restored without sending a"
-                    + " real message");
+                        + " real message");
         return "PASS "
                 + assertions
                 + " native background upload assertions; HTTP outcomes are prepared";
+    }
+
+    private void stalePublication(Source source, Context originalContext) throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean heldService =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        Context delayed =
+                new ContextWrapper(originalContext) {
+                    @Override
+                    public ComponentName startForegroundService(Intent intent) {
+                        ComponentName name = super.startForegroundService(intent);
+                        CountDownLatch released = new CountDownLatch(1);
+                        new android.os.Handler(android.os.Looper.getMainLooper())
+                                .postDelayed(
+                                        () -> {
+                                            heldService.set(service());
+                                            released.countDown();
+                                        },
+                                        750);
+                        try {
+                            if (!released.await(2, TimeUnit.SECONDS))
+                                throw new IllegalStateException(
+                                        "Main service observation timed out");
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(interrupted);
+                        }
+                        return name;
+                    }
+                };
+        try {
+            onState(
+                    () -> {
+                        field("context", delayed);
+                        return null;
+                    });
+            Exchange exchange = new Exchange(202);
+            String id = queue(source, exchange);
+            check(
+                    exchange.started.await(3, TimeUnit.SECONDS) && heldService.get() && service(),
+                    "native upload service survives an earlier idle publication while the state"
+                            + " owner is held inside service startup");
+            exchange.release.countDown();
+            logged(source, id);
+        } finally {
+            onState(
+                    () -> {
+                        field("context", originalContext);
+                        return null;
+                    });
+        }
     }
 
     private static final class Exchange {

@@ -41,6 +41,13 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && arguments.getString("outboxPhase") != null) {
+                report.putAll(
+                        new OutboxDeathProbe(this)
+                                .run(context, arguments.getString("outboxPhase")));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("backgroundVoiceOnly"))) {
                 report.putString("result", new BackgroundVoiceProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);

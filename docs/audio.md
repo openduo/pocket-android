@@ -54,6 +54,18 @@ transport have no network delegate, the fixture is silent Opus and no microphone
 The actual paired room/composer/online state are restored. This is native Android Activity/service
 acceptance with prepared HTTP/live outcomes, not another real ASR or natural voice test.
 
+A later regression failed the foreground-recovery service assertion once and then passed it.
+A focused test reproduced a startup publication race: an earlier queued idle notification could
+reach a newly started service while the state owner had not yet published upload intent, causing
+the service to stop itself. `refreshService` now publishes current intent before requesting
+Android startup, for uploads and ambient capture alike. The test holds the state owner inside
+startup for 750 ms while Android creates the actual service and delivers the earlier notification.
+It failed on the previous ordering and passes on the final APK, whose expanded background-upload
+run passed **17 assertions** including retry, denial, foreground recovery and cleanup. The earlier
+intermittent failure lacked component diagnostics, so this establishes the reproduced race and
+its correction rather than retroactively proving that run's exact trigger. The final expanded
+probe retains non-sensitive component diagnostics for any future failure.
+
 Live results outrank HTTP completion. Only sending/accepted notes accept `cleaned`; a late cleaned
 event cannot revive a queued/failed item. A failure, authoritative row or user discard releases the
 current send slot and invalidates its timers/callbacks. Thus a lost HTTP response cannot downgrade

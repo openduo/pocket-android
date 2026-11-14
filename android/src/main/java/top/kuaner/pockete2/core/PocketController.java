@@ -2207,6 +2207,9 @@ public final class PocketController {
         boolean bluetooth = PassportPolicy.ENABLED && passport.snapshot().link.remembered;
         boolean needed = !trying && (ambientWanted || uploadForeground || bluetooth);
         if (needed) {
+            // The service may receive an older queued notification before this call returns.
+            // Publish current intent before Android can create it or it can stop itself as idle.
+            publish();
             try {
                 context.startForegroundService(
                         new Intent(context, PocketSessionService.class)

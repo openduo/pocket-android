@@ -76,6 +76,29 @@ message or capture microphone audio. This accepts Activity/service behaviour wit
 HTTP/live outcomes; modern Android restrictions, process death and natural ASR remain separate.
 Host/architecture/localisation checks and the APK build passed; the full suite was not repeated.
 
+The subsequent storage correction passed **24 native phase assertions** and **10 host-controlled
+assertions** across two actual force-stop/cold-launch boundaries. A native enclosing transaction
+contains completed production row/outbox/cursor admission before its actual commit: termination
+rolls it back while exact voice/attachment bytes, id, original surface and duration survive. A
+committed admission, discard and clear then retain cleanup under an introduced directory-permission
+failure. After permissions are restored and the still-live process is terminated, ordinary startup
+drains the path-only cleanup receipts, preserving one local delivered row/cursor/duration and an
+empty fixture outbox. Cleanup records share the removal transaction and survive clearing room
+metadata. The actual paired room/composer are preserved, no microphone is acquired and no fixture
+message is sent. This is actual native storage/process evidence with prepared rows in separate
+namespaces, not an interrupted actual-server replay or natural recording/upload. See `storage.md`.
+
+The final APK also passed **17 expanded native background-upload assertions** after fixing service
+publication ordering. An earlier queued idle notification could make a newly started service stop
+itself before current upload intent was published. A 750 ms state-owner hold inside native startup
+reproduced that failure on the preceding ordering; publishing intent before requesting Android
+startup preserves the actual service through that same window. The expanded run also accepts
+background retry, prepared service-start denial and actual foreground recovery, with the new
+repository's normal file cleanup. One earlier foreground-recovery assertion failed intermittently
+without component diagnostics; the reproduced race is corrected, but its exact earlier trigger
+is not retroactively established. The storage crash checks used this same repository code before
+the final service-only ordering correction. The complete device suite was not repeated.
+
 Earlier standalone-policy evidence at the 2026-11-14 checkpoint: **213 host contract assertions, Go vet/test, Android APK
 build and 283 real E2 device assertions passed**. The complete capture/camera/import/paired-try run
 used the standalone-policy APK and verifies no Passport activity or BLE thread. An earlier full
@@ -224,7 +247,7 @@ of the rows below is a claim of complete parity.
 | Upstream area | Android owner and current implementation | Remaining parity / acceptance work |
 | --- | --- | --- |
 | Tailscale / pairing | `GoTransport`, `Endpoint`, `SecretStore`, editable pasted/opened/shared links, local QR decode and scan sheet; native login QR/link/status sheet for devices without browsers, explicit interactive login/refresh preserving pending auth; actual node URL decoded from the visible E2 sheet in a dedicated two-assertion login run; real user authorization and link-to-pair succeeded | Revoke/re-pair, browser handoff on a browser-equipped device, actual displayed pairing QR into a room, physical network-path switching and BLE-wake ping acceptance. See `connection.md` |
-| Live/cache/outbox | API v2 `/live`, SQLite cursor transaction, replay, stable ids, persisted retry surface/draft/chips, generation guards; common retirement for reader/writer/queue/HTTP transport failure; upstream redial delays and foreground/press reset; default-network path monitoring with tsnet rebind and live ping; still-open/stale-callback/queue-saturation and actual retry-deadline fault acceptance; live-first bounded dialing/ping independent of HTTP, cancelled retired handshakes, foreground rebind/idle cleanup, generation-scoped metadata and protected retry deadlines; after-row `brain_unreachable` resend preserves the failed logged row; real history/text/reply, physical Wi-Fi loss/restoration and actual background/return accepted | Different-Wi-Fi/cellular handover and long-term standby/path/energy acceptance; process death during admission/replay; historical identity edge cases. Earlier intermittent timing and cold-start triggers were not retroactively diagnosed |
+| Live/cache/outbox | API v2 `/live`, SQLite cursor transaction, replay, stable ids, persisted retry surface/draft/chips, generation guards; common retirement for reader/writer/queue/HTTP transport failure; upstream redial delays and foreground/press reset; default-network path monitoring with tsnet rebind and live ping; still-open/stale-callback/queue-saturation and actual retry-deadline fault acceptance; live-first bounded dialing/ping independent of HTTP, cancelled retired handshakes, foreground rebind/idle cleanup, generation-scoped metadata and protected retry deadlines; after-row `brain_unreachable` resend preserves the failed logged row; real history/text/reply, physical Wi-Fi loss/restoration and actual background/return accepted; path-only cleanup receipts commit with outbox removal and recover failed deletion, discard and clear on ordinary startup; actual pre-commit rollback and post-commit cleanup across force-stop/cold launch with prepared rows | Different-Wi-Fi/cellular handover and long-term standby/path/energy acceptance; process death during real server admission/replay, natural recording and upload; low-memory termination and historical identity edge cases. Earlier intermittent timing and cold-start triggers were not retroactively diagnosed. See `storage.md` |
 | Thread and tools | Keyed bubbles, day/time separators, heard fold and speaker labels, spoken/partly-spoken metadata, live room notes, Markdown, copy/share/reply/read, tool archive and jump-to-latest | Full accessibility and more pages/font sizes; real live/log interruptions and tool identity edge cases |
 | Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal; real file upload/download/local removal accepted | Real upload limit/error/progress and retry acceptance; full clipboard lifecycle; more dense composer/font/keyboard combinations |
 | File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; durable original `ImportRequest` before provider queueing and source-release cleanup after admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release; launch-scoped `ImportRoute` and restored external-operation stages; additional native-decodable media→JPEG, file-picker byte preservation and full-resolution oriented camera JPEG; actual byte progress, send guard and durable cancellation with provider signals/polling; first-pair draft transfer and try isolation; real separate-UID picker, force-stop/cold-start recovery of an unfinished provider copy and second-restart dedup, stock camera capture/confirmation; actual path-only server upload/download accepted with a production-derived digest | Low-memory task recreation, expired temporary grants, unanswered permission dialog restoration, revoked/noncooperative providers, low storage and large batches; valid HEIC decoding on E2; modern Android and real-room limit/failure/retry acceptance. See `imports.md` |

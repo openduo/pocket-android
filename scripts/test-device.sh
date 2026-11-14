@@ -69,6 +69,10 @@ if [[ "${POCKET_E2_TEST_PROCESS_DEATH:-0}" == 1 ]]; then
   python3 "$project_dir/scripts/test-process-death.py" "$build" | tee "$build/process-death-result.txt"
   exit
 fi
+if [[ "${POCKET_E2_TEST_OUTBOX_DEATH:-0}" == 1 ]]; then
+  python3 "$project_dir/scripts/test-outbox-death.py" "$build" | tee "$build/outbox-death-result.txt"
+  exit
+fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
   -e capture "${POCKET_E2_TEST_CAPTURE:-0}"

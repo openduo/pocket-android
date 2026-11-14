@@ -85,6 +85,20 @@ fixed APK using actual Activity/service transitions and prepared transport outco
 message or microphone audio is sent by this test. Modern Android restrictions and process-death
 acceptance remain separate. See [audio.md](docs/audio.md).
 
+An expanded run passed **17 assertions on the final APK** after a focused native delay reproduced
+a service-start publication race. Current upload/ambient intent is now published before Android
+can create the service and deliver an earlier queued notification. This prevents that stale idle
+update from stopping the new service. The final probe also covers normal cleanup using the durable
+outbox changes below; the complete device suite was not repeated.
+
+Outbox file cleanup is now journaled in the row/removal transaction. Actual force-stop/cold-launch
+checks passed **24 native phase assertions and 10 host-controlled assertions** for rollback before
+commit and cleanup recovery after commit, including an introduced filesystem-denial case, discard
+and clear. These use prepared rows in separate SQLite namespaces without sending a real message.
+Ordinary startup retains one committed local row/cursor while cleaning owned bytes; pre-commit
+termination keeps the original pending id/body/surface intact. See [storage.md](docs/storage.md)
+for the exact boundary and remaining real-server replay/low-memory acceptance.
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
