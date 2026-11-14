@@ -1,5 +1,7 @@
 # Application language boundaries
 
+English · [简体中文](localization.zh-CN.md)
+
 Pocket Android supports System, 中文 and English. System resolves Chinese locales to Simplified Chinese
 and other locales to English, matching the supported upstream language fallback. Changing the
 preference recreates the Activity with a scoped Android Configuration, so native controls and
@@ -29,8 +31,10 @@ original recipient, and late receipts do not clear newly edited text. A native t
 recreation retains this UI state without retaining its Activity. Room replacement and try-room
 restart advance the viewer generation and discard prior drafts.
 
-`scripts/check-localization.py` runs during builds. It checks duplicate keys, missing explicitly
-localized UI copy, domain/hardware status keys, empty English translations and printf argument compatibility.
+`scripts/check-localization.py` runs during builds and CI. It checks duplicate keys, missing explicitly
+localized UI copy, status keys across every production module (including QR pairing and hardware adapters),
+empty English translations, printf argument compatibility and native-resource parity. Directly authored
+English labels also need a localization call; brand/protocol labels have a small explicit allowlist.
 Host contracts check immutable scopes, language fallback, error formats, literal-content boundaries,
 date/coordinate formatting and the Passport language byte. Device probes operate on the disposable
 room, switch through the native setting, verify native resource locale, keep Chinese user input
@@ -39,3 +43,33 @@ They restore the app's original presentation preferences synchronously. These ch
 real-room or full accessibility acceptance.
 
 The public README, current status and main architecture/device/UI guides have English entry points and Chinese companions. Public documentation screenshots use English. New hardware statuses must enter the same catalog checks; user content and protocol identities remain literal. To add another locale, extend the catalog/resource boundary and the explicit selector rather than translating live room data. Current shipped languages are English and Simplified Chinese, not an unverified promise of all locales.
+
+## Adding or changing application copy
+
+1. Add the authored key and English value to `android/src/main/assets/i18n/en.json`. Keep complete
+   sentences/templates together; use `ui.format`/`TextCatalog.format` for values instead of concatenating
+   translated fragments. Preserve formatter argument types and counts.
+2. Bind labels, hints, action names and accessibility descriptions with `ui.t` or `ui.format`.
+   Services and local notifications use `AppText.get(context)`; status callbacks and persisted app
+   errors are translated with `ui.explain` when displayed. For a new dynamic legacy error, add an
+   anchored `TextCatalog` format and a focused example to the existing host contracts.
+3. Keep hardware adapters independent of Activity locale. They emit stable application statuses;
+   the presentation boundary translates them. Product names, server output and user content remain
+   literal. Internal logs, protocol fields and programmer diagnostics use English; provide a catalog
+   message where an operational error is presented to the user.
+4. Native resources belong in `res/values` (English fallback), `values-en` and `values-zh`. Keep
+   their resource names aligned. Use the scoped `AppText.context` for native controls rather than
+   changing global system locale.
+5. Run `python3 scripts/verify-sources.py`. If language/format logic changed, run
+   `scripts/test-host.sh` as well. A copy-only change does not require a device regression matrix.
+
+For a new shipped language, extend `TextCatalog`'s resolution/catalog and plural rules, the setting's
+allowed values and selector, `AppText`'s native configuration, Android resources and prepared Try
+text/audio/files together. Add fallback/format contracts for that language and document its support.
+The current two-language implementation is not a general ICU plural/RTL implementation; additional
+languages need their own grammatical and layout review before being advertised.
+
+Source identifiers, comments, development tooling, release notes and public documentation use English
+as the collaboration language. The README and principal guides also provide Chinese companions.
+Historical Chinese acceptance logs are explicitly marked as archives. Translation checks apply to
+application-owned copy and leave actual conversation data unchanged.

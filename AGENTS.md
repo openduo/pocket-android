@@ -25,6 +25,8 @@ Push (including crypto/identifiers/ledger) and external Passport remain explicit
   upstream attribution/licences. OpenDuo brand assets are excluded from the code licence. Public screenshots use English;
   the public README and current technical guides use English with Chinese companions. Keep all
   app-owned copy, native controls and device errors within the localization boundary.
+  This includes English-authored labels, accessibility descriptions, notifications and QR-pairing
+  failures. Follow `docs/localization.md` for copy/language additions; keep user content literal.
 - Never track actual hosts/room/device IDs, tokens, keys, private logs/screenshots, recordings or firmware.
   Exception: the user explicitly requested public README/device screenshots; only sanitized
   prepared Try content under `docs/screens/` may be committed.

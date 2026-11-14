@@ -12,7 +12,7 @@ Updated 2026-11-14. The milestone delivers a maintainable `openduo/pocket-androi
 | Windows | Shared size classes, bounded columns, short-window/IME/Insets and page-state handling; business logic does not branch on E2 or physical-panel dimensions |
 | Hardware | Default Android capture/routing and capability discovery; MIC fallback; E2 model/firmware/system-bar and optional array integration isolated in one module |
 | Identity | DuoDuo Pocket / 多多, `dev.openduo.pocket`, `duoduopocket` links, upstream brand mark, legacy/adaptive/themed icons, one version source; arm64+x86_64 APK |
-| Internationalization | English/Simplified Chinese and system fallback, 617-entry copy catalog, localized native controls/notifications/errors; English public docs with Chinese companions and English screenshots |
+| Internationalization | English/Simplified Chinese and system fallback, 617-entry copy catalog, localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
 | P0 implementation | Tailscale login/pairing/live and network recovery; text/attachments/history; durable/idempotent outbox/drafts; voice upload/retry, ambient playback/interruption |
 | P1 implementation | Sight negotiation and Camera2/H.264, sessions/details/notification controls, maps/coordinates/geocoder/arrival ledger, import/share/Try/diagnostics |
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
@@ -25,7 +25,7 @@ Updated 2026-11-14. The milestone delivers a maintainable `openduo/pocket-androi
 - Three representative API35 windows pass: 320×640dp, 1280×800dp and 740×360dp. The final asset update did not change layout/business behavior; the native smoke was repeated on the icon-updated release candidate. The last launcher-label fallback change was build-checked only.
 - Five native smoke assertions pass for explicit opt-in, Opus JNI, actual standard capture/packets and microphone release. Optional local E2 JNI compilation passes.
 - English documentation captures use prepared Try content on a physical E2 and phone/tablet/landscape emulators. They do not exercise microphone/camera or send real room content. See [screenshot provenance](screens/README.md).
-- Remote CI/publication results are recorded separately from local checks.
+- The first public preview and [remote CI](https://github.com/openduo/pocket-android/actions/runs/43608819152) passed. The internationalization follow-up also checks all 117 production Java sources, catches direct untranslated English labels and covers E2 array read-error translation. The follow-up release is build/contract-checked; audio/window smoke evidence remains attached to the first candidate.
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
 

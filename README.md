@@ -75,7 +75,7 @@ E2 array capture is an [explicit local build option](docs/devices.md). Proprieta
 | `:app` (`android/`) | Android composition, persistence, controller, system services, native View pages and window containers |
 | `bridge/tsbridge` | Embedded Tailscale, HTTP/WebSocket and speech transport |
 
-Start with [architecture](docs/architecture.md), [window policy](docs/ui.md) and [localization](docs/localization.md). Run checks relevant to a change; documentation capture does not run a regression matrix. Earlier expanded checks are retained as [historical evidence](docs/acceptance.md), with separate APK identities and limits.
+Start with [architecture](docs/architecture.md), [window policy](docs/ui.md) and [localization](docs/localization.md). All application copy, native controls, accessibility descriptions, notifications and device errors share the language boundary. Source comments/tooling and public documentation use English; principal guides also have Chinese companions. Run checks relevant to a change; documentation capture does not run a regression matrix. Earlier expanded checks are retained as [historical evidence](docs/acceptance.md), with separate APK identities and limits.
 
 ```sh
 python3 scripts/verify-sources.py

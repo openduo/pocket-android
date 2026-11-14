@@ -112,7 +112,7 @@ public final class TextCatalog {
         new ErrorFormat("扫描未成功（([0-9]+)）", "扫描未成功（%s）"),
         new ErrorFormat("通知订阅失败（([0-9]+)）", "通知订阅失败（%s）"),
         new ErrorFormat("蓝牙发送失败（([0-9]+)）", "蓝牙发送失败（%s）"),
-        new ErrorFormat("E2 阵列(初始化|启动)失败（(-?[0-9]+)）", "E2 阵列%s失败（%s）"),
+        new ErrorFormat("E2 阵列(初始化|启动|读取)失败（(-?[0-9]+)）", "E2 阵列%s失败（%s）"),
         new ErrorFormat("文件太大（上限 ([0-9.]+) MB）", "文件太大（上限 %s MB）"),
         new ErrorFormat("([0-9]{4}-[0-9]{2}-[0-9]{2}) 之前暂未找到 · 继续找", "%s 之前暂未找到 · 继续找"),
     };

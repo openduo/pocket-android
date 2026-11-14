@@ -70,7 +70,7 @@ E2 阵列录音的可选本地构建与固件要求见[设备适配指南](docs/
 | `:app` (`android/`) | Android 入口、持久化、controller、系统服务、原生 View 页面与窗口容器 |
 | `bridge/tsbridge` | 内嵌 Tailscale、HTTP/WebSocket/语音传输；不参与布局 |
 
-先看[架构](docs/architecture.zh-CN.md)与[UI 规则](docs/ui.md)。修改行为只运行相关检查，默认不扩展设备矩阵、不启动长期测试。已有扩展验收保留为[历史证据](docs/acceptance.md)，不能代替当前发布 APK 的验证。
+先看[架构](docs/architecture.zh-CN.md)、[UI 规则](docs/ui.zh-CN.md)与[国际化规范](docs/localization.zh-CN.md)。界面、原生控件、无障碍描述、通知与设备错误统一经过语言边界；源码注释/工具和公开文档以英文协作，主要指南同时提供中文。修改行为只运行相关检查，默认不扩展设备矩阵、不启动长期测试。已有扩展验收保留为[历史证据](docs/acceptance.md)，不能代替当前发布 APK 的验证。
 
 ```sh
 python3 scripts/verify-sources.py

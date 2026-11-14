@@ -806,7 +806,9 @@ public final class Contracts {
                         && english.explain("文件太大（上限 3.5 MB）")
                                 .equals("File too large (limit 3.5 MB)")
                         && english.explain("E2 阵列初始化失败（-2）")
-                                .equals("E2 array initialisation failed (-2)"),
+                                .equals("E2 array initialisation failed (-2)")
+                        && english.explain("E2 阵列读取失败（-5）")
+                                .equals("E2 array read failed (-5)"),
                 "previously persisted app errors localise with numeric context intact");
         check(
                 english.explain("我写了设置，别改这个文件名.txt").equals("我写了设置，别改这个文件名.txt")
