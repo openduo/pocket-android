@@ -33,12 +33,28 @@ version code 2). This adds the localization follow-up to the first preview and c
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
 
+## Unreleased client follow-up
+
+The client now shares a pure credential-scope policy across session controls and controller
+actions. Read-only pairings explain why notifications require `notify` scope; a recipient's
+capability cannot override that scope. A master connection without media support shows the
+ambient-update explanation even without a camera frame, and a new connection clears the old
+negotiation state. The notification probe now requires an explicitly selected dedicated
+ambient/keepalive recipient and preserves a unique, once-only delivery journal.
+
+The local signed Release build, 331 JVM contracts and 618-entry localization/source checks pass.
+One API 35 prepared-camera UI run passes 14 targeted assertions with capture disabled, including
+the no-camera-frame warning and its removal when media support is declared.
+These changes are not included in the published Preview 2. The three actual-service paths remain
+pending; [short service checks](service-acceptance.md) describe their prerequisites and bounded
+acceptance steps.
+
 ## Remaining work and priorities
 
 | Priority | Remaining or unverified | What a next milestone needs |
 | --- | --- | --- |
 | P0 actual use | Natural speech with audible replies/full ambient conversation and long-term background recovery are not fully accepted | Short target-device login/online/voice/reply checks first, then fix actual failures |
-| P1 actual services | Sight host did not confirm media=1; current room was ineligible for session-notification receipt; physical visits unverified | Capable host, an explicit eligible recipient and a device with location/geocoder |
+| P1 actual services | Sight host did not confirm media=1; the old notification probe selected the host-hidden own room, so no notification was sent; physical visits unverified | Capable host, notify-scoped pairing with an explicit dedicated recipient, and a device with location/geocoder |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |

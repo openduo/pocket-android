@@ -15,12 +15,12 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
-/** Once-only notification acceptance restricted to the app's own currently paired room. */
+/** Once-only notification acceptance for an explicitly selected ambient/keepalive test session. */
 final class SessionNotifyRoomProbe {
-    private static final String TEXT = "这是 DuoDuo Pocket 当前房间的会话通知集成测试，请只回复：会话通知验证成功。";
     private final Probe probe;
     private PocketController controller;
     private int assertions;
@@ -52,7 +52,37 @@ final class SessionNotifyRoomProbe {
         }
     }
 
-    String run(Context context) throws Exception {
+    private static File journal(File directory, String room, String key) throws Exception {
+        byte[] digest =
+                MessageDigest.getInstance("SHA-256")
+                        .digest((room + "\u0000" + key).getBytes(StandardCharsets.UTF_8));
+        StringBuilder name = new StringBuilder("session-notify-");
+        for (byte value : digest)
+            name.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
+        return new File(directory, name + ".json");
+    }
+
+    private static JSONObject read(File file) throws Exception {
+        try {
+            return new JSONObject(
+                    new String(
+                            new android.util.AtomicFile(file).readFully(), StandardCharsets.UTF_8));
+        } catch (java.io.FileNotFoundException absent) {
+            if (file.exists()
+                    || new File(file.getPath() + ".bak").exists()
+                    || new File(file.getPath() + ".new").exists()) throw absent;
+            return null;
+        }
+    }
+
+    String run(Context context, String key) throws Exception {
+        if (key.isEmpty())
+            return "NOT_RUN actual session notification: explicitly select a dedicated test"
+                    + " session with POCKET_TEST_NOTIFY_TARGET";
+        check(
+                key.startsWith("ambient:") && key.length() > 8
+                        || key.startsWith("job:") && key.length() > 4,
+                "actual notifications require an explicit ambient room or keepalive test job");
         Activity screen =
                 probe.startActivitySync(
                         new Intent(Intent.ACTION_MAIN)
@@ -81,8 +111,11 @@ final class SessionNotifyRoomProbe {
                         && initial.outbox.isEmpty()
                         && initial.imports.isEmpty(),
                 "real notification acceptance requires idle capture and outgoing work");
-        if (!controller.settings.scope().matches("sessions|notify"))
-            return "NOT_RUN actual session notification: current credential cannot view sessions";
+        if (!initial.sessionsAccess.canNotify)
+            return "NOT_RUN actual session notification: the device needs a notify-scope pairing";
+        if (key.equals("ambient:" + controller.settings.room()))
+            return "NOT_RUN actual session notification: the host hides this connection's own"
+                    + " room; select a separate dedicated test session";
         try {
             probe.runOnMainSync(() -> ((MainActivity) screen).navigate("sessions"));
             await(
@@ -93,15 +126,14 @@ final class SessionNotifyRoomProbe {
             check(
                     controller.snapshot().sessions.listed,
                     "actual scoped service returns the session list");
-            String key = "ambient:" + controller.settings.room();
-            SessionViewer.Summary own =
+            SessionViewer.Summary recipient =
                     controller.snapshot().sessions.sessions.stream()
                             .filter(item -> item.key.equals(key))
                             .findFirst()
                             .orElse(null);
-            if (own == null || !own.notify)
-                return "NOT_RUN actual session notification: the current paired room is not an"
-                        + " available notification target";
+            if (recipient == null || !recipient.notify)
+                return "NOT_RUN actual session notification: the selected test session is not"
+                        + " listed as accepting notifications";
             controller.openSession(key);
             await(
                     () ->
@@ -111,37 +143,53 @@ final class SessionNotifyRoomProbe {
             check(
                     controller.snapshot().sessions.openKey.equals(key)
                             && controller.snapshot().sessions.loaded,
-                    "the actual notification target is exactly the currently paired room");
+                    "the actual notification target is exactly the selected test session");
             File directory = new File(context.getFilesDir(), "qa");
             directory.mkdirs();
-            File journal = new File(directory, "session-notify-own-room-once.json");
-            JSONObject record =
-                    journal.exists()
-                            ? new JSONObject(
-                                    new String(
-                                            Files.readAllBytes(journal.toPath()),
-                                            StandardCharsets.UTF_8))
-                            : new JSONObject()
-                                    .put("target", initial.importTarget)
-                                    .put("key", key)
-                                    .put("stage", "prepared");
+            File journal = journal(directory, initial.importTarget, key);
+            JSONObject record = read(journal);
+            if (record == null)
+                record =
+                        new JSONObject()
+                                .put("target", initial.importTarget)
+                                .put("key", key)
+                                .put("marker", "pocket-notify-" + UUID.randomUUID())
+                                .put("stage", "prepared");
             check(
                     record.optString("target").equals(initial.importTarget)
-                            && record.optString("key").equals(key),
-                    "the private once-only notification journal belongs to this exact room");
+                            && record.optString("key").equals(key)
+                            && !record.optString("marker").isEmpty(),
+                    "the private once-only journal belongs to this exact source and recipient");
+            String marker = record.getString("marker");
+            String text =
+                    "DuoDuo Pocket session notification acceptance ["
+                            + marker
+                            + "]. Please reply with: "
+                            + marker;
             if (record.optString("stage").equals("prepared")) {
+                String previousId = controller.snapshot().sessions.notifyId;
                 record.put("stage", "dispatching");
                 save(journal, record);
-                controller.notifySession(TEXT);
-                await(() -> !controller.snapshot().sessions.notifyId.isEmpty(), 3000);
+                controller.notifySession(text);
+                await(
+                        () ->
+                                !controller.snapshot().sessions.notifyId.isEmpty()
+                                        && !controller
+                                                .snapshot()
+                                                .sessions
+                                                .notifyId
+                                                .equals(previousId),
+                        3000);
                 SessionViewer.Snapshot send = controller.snapshot().sessions;
                 check(
-                        send.notifyKey.equals(key) && send.notifyText.equals(TEXT),
+                        !send.notifyId.equals(previousId)
+                                && send.notifyKey.equals(key)
+                                && send.notifyText.equals(text),
                         "the shipping controller assigns the actual notification recipient and"
                                 + " body");
                 record.put("id", send.notifyId);
                 save(journal, record);
-                await(() -> controller.snapshot().sessions.pending.isEmpty(), 60_000);
+                await(() -> controller.snapshot().sessions.pending.isEmpty(), 30_000);
                 SessionViewer.Snapshot result = controller.snapshot().sessions;
                 check(
                         result.notifyId.equals(record.getString("id"))
@@ -152,7 +200,7 @@ final class SessionNotifyRoomProbe {
                 save(journal, record);
             } else {
                 check(
-                        record.optString("stage").equals("sent"),
+                        record.optString("stage").matches("sent|verified"),
                         "an interrupted unconfirmed send is never automatically retransmitted");
             }
             await(
@@ -161,19 +209,14 @@ final class SessionNotifyRoomProbe {
                                     .anyMatch(
                                             row ->
                                                     row.kind.equals("notify")
-                                                            && row.text.contains("DuoDuo Pocket")
-                                                            && row.text.contains("会话通知集成测试")),
-                    60_000);
+                                                            && row.text.equals(text)),
+                    30_000);
             long copies =
                     controller.snapshot().sessions.rows.stream()
-                            .filter(
-                                    row ->
-                                            row.kind.equals("notify")
-                                                    && row.text.contains("DuoDuo Pocket")
-                                                    && row.text.contains("会话通知集成测试"))
+                            .filter(row -> row.kind.equals("notify") && row.text.equals(text))
                             .count();
             check(
-                    copies == 1,
+                    controller.snapshot().sessions.openKey.equals(key) && copies == 1,
                     "the actual recipient session contains exactly one marked notification");
             check(
                     controller.snapshot().importTarget.equals(initial.importTarget)
@@ -183,7 +226,9 @@ final class SessionNotifyRoomProbe {
                             && controller.snapshot().outbox.isEmpty(),
                     "actual session delivery preserves the room composer and ordinary message"
                             + " outbox");
-            return "PASS " + assertions + " actual own-room session notification assertions";
+            record.put("stage", "verified");
+            save(journal, record);
+            return "PASS " + assertions + " actual selected-session notification assertions";
         } finally {
             controller.showSessions(false);
             probe.runOnMainSync(() -> ((MainActivity) screen).navigate("conversation"));

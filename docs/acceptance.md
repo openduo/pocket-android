@@ -28,3 +28,15 @@ Earlier `top.kuaner.pockete2` builds had actual text/history/files/session readi
 The user-reported Wi-Fi incident was reproduced: tsnet retained a cached all-links-down state after Wi-Fi returned. Recovery now injects a netmon event before rebind/restun. One real E2 background outage/return recovered Online in about 2.7 seconds with the same process and an online peer observed from the computer. That evidence does not establish overnight stability.
 
 Natural speech with audible replies, actual Sight media negotiation, notification receipt, physical arrival, target smart-speaker acoustics and long-term background behavior remain open. Push and Passport are deferred. See [status](status.md) and [migration gaps](migration.md).
+
+The unreleased client follow-up passes 331 JVM contracts, 618-entry localization/source checks
+and a signed Release build. It enforces device scope independently of recipient capability,
+explains a missing media declaration without requiring a camera frame and replaces the
+host-hidden own-room notification target with an explicit dedicated test recipient. The
+[short actual-service guide](service-acceptance.md) records what must still be verified. These
+client checks do not complete actual voice, Sight or notification acceptance.
+
+One targeted API 35 run passes 14 Sight UI assertions with microphone/camera capture disabled.
+Prepared metadata covers a master seat without any camera frame, clearing the warning after media
+support is declared, and the existing refusal/reset states. The notification probe compiles; it
+has not sent to an actual recipient.

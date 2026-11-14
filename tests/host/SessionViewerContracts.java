@@ -57,6 +57,22 @@ public final class SessionViewerContracts {
     }
 
     private void verify() throws Exception {
+        check(
+                !SessionViewer.Access.fromScope("room").canView
+                        && !SessionViewer.Access.fromScope("room").canNotify,
+                "room credentials cannot watch or notify other sessions");
+        check(
+                SessionViewer.Access.fromScope("sessions").canView
+                        && !SessionViewer.Access.fromScope("sessions").canNotify,
+                "sessions credentials permit reading without sending notifications");
+        check(
+                SessionViewer.Access.fromScope("notify").canView
+                        && SessionViewer.Access.fromScope("notify").canNotify,
+                "notify credentials permit both viewing and notification admission");
+        check(
+                !SessionViewer.Access.fromScope("unknown").canView
+                        && !SessionViewer.Access.fromScope(null).canNotify,
+                "unknown or absent credential scopes grant no session access");
         SessionViewer viewer = new SessionViewer();
         viewer.show(true);
         JSONArray list =
@@ -137,7 +153,13 @@ public final class SessionViewerContracts {
                 viewer.snapshot().revision == revision && viewer.snapshot().error.isEmpty(),
                 "unknown viewer error words do not turn into an authored failure state");
 
-        JSONObject sent = viewer.notify("  hello  ", "correlated");
+        check(
+                !viewer.snapshot().canNotify(SessionViewer.Access.READ)
+                        && viewer.notify(SessionViewer.Access.READ, "hello", "read-only") == null
+                        && viewer.notify(SessionViewer.Access.NONE, "hello", "no-access") == null
+                        && viewer.snapshot().pending.isEmpty(),
+                "a notifiable recipient cannot override the device's read-only credential");
+        JSONObject sent = viewer.notify(SessionViewer.Access.NOTIFY, "  hello  ", "correlated");
         viewer.open("lark:team");
         viewer.handle(
                 Json.object("type", "session_notify_result", "id", "correlated", "ok", "true"));
@@ -173,7 +195,7 @@ public final class SessionViewerContracts {
         check(
                 viewer.snapshot().outcome.equals("sent"),
                 "changing the open session does not erase an unobserved delivery receipt");
-        viewer.notify("retry", "refused");
+        viewer.notify(SessionViewer.Access.NOTIFY, "retry", "refused");
         viewer.handle(
                 Json.object(
                         "type",
@@ -188,6 +210,14 @@ public final class SessionViewerContracts {
                 viewer.snapshot().pending.isEmpty()
                         && viewer.snapshot().outcome.equals("not_notifiable"),
                 "a known refusal settles the send with its actual reason");
+        JSONArray readOnly = new JSONArray(list.toString());
+        readOnly.getJSONObject(0).put("notify", false);
+        viewer.handle(Json.object("type", "sessions", "sessions", readOnly));
+        check(
+                !viewer.snapshot().canNotify(SessionViewer.Access.NOTIFY)
+                        && viewer.notify(SessionViewer.Access.NOTIFY, "hello", "no-recipient")
+                                == null,
+                "notify credentials cannot override a recipient that rejects notifications");
         long generation = viewer.snapshot().generation;
         viewer.reset();
         check(

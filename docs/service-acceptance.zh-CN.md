@@ -1,0 +1,66 @@
+# 真实房间服务的短验收
+
+[English](service-acceptance.md) · 简体中文
+
+待完成目标是实际麦克风人声与可听回复、真实 Sight 协商/上传，以及会话通知实际收件。
+本次客户端修复解决权限控制和能力缺失时的提示，不代表这三条真实链路已经通过。
+每条链路先做一次短检查，再修复实际发现的问题；不恢复旧窗口矩阵或通宵后台任务。
+
+## 前置条件
+
+- 新包 `dev.openduo.pocket` 需要独立登录、配对。旧包 `top.kuaner.pockete2` 及其数据保留；
+  不同包名不能直接共用 Android 私有存储和 AndroidKeyStore。
+- 通知验收需要 `notify` 范围的设备凭据。`sessions` 只允许读取；收件会话的
+  `notify: true` 不能赋予设备发送权限。界面和 controller 共用纯 Java 的
+  `SessionViewer.Access` 权限规则。
+- 更新实际运行的 ambient 房间服务，使其支持 Sight。安装版本本身不能证明当前提供服务的
+  进程已更新；真实 `/live` 连接需要确认 `media=1`，master 席位需要收到主机真实的相机请求。
+- 选择一个专用测试 ambient 房间或 keepalive 任务，与配对房间不同。上游会刻意从列表隐藏
+  当前连接自己的 `ambient:<room>`，因此旧探针对本房间返回 `NOT_RUN` 不能诊断通知投递能力。
+
+主机 CLI 可以生成新的指定范围配对链接，例如：
+
+```sh
+duoduo channel ambient device add pocket-android \
+  --room room-id --scope notify --url https://room-host.example
+```
+
+这条命令需要在房间主机上通过管理权限执行。实际配对链接、主机和会话标识仅保留在本地私有证据中。
+
+## 麦克风与可听回复
+
+通过设备的实际麦克风说一句短话，确认真实服务的识别结果，并从预期输出设备听到回复。
+记录结果或具体失败环节。直接注入合成样本、静音输入和零音量 AudioTrack 进度属于其他证据，
+不能代替这次验收。公开 APK 默认使用标准 Android 音频路径；包含 E2 可选固件的本地构建是另一条硬件路径。
+
+## Sight
+
+确认 `media=1` 和主机真实下发的采集参数，明确开启相机，再确认实际首个关键帧及后续上传帧，
+简短检查取景内容。master 连接未声明视频支持时，即使主机没有发送任何相机帧，客户端也会解释
+需要更新 ambient；支持视频的新连接会清除这条提示，且不会自动开启相机。
+预设控制帧只能验证这部分客户端行为，不能代替真实协商。
+
+## 会话通知
+
+明确指定专用测试收件会话的完整协议 key，且真实会话列表需要标记它可以收通知。
+探针只接受 `ambient:` 或 `job:`，不会自动挑选收件人。以下命令会向指定测试会话发送真实内容：
+
+```sh
+ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
+POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1 \
+POCKET_TEST_NOTIFY_TARGET='ambient:notification-test' \
+scripts/test-device.sh
+```
+
+脚本在操作设备前要求填写目标，并用 Base64 跨越 ADB shell 参数边界。探针要求实际在线、
+`notify` 凭据、没有进行中的采集或发送工作，以及与指定 key 完全一致的可通知收件会话。
+同时检查匹配发送 ID 的投递回执，以及目标会话中唯一标记的通知行。
+目标生成回复可以作为补充证据，但通知收件本身不依赖回复生成成功。
+
+私有 `files/qa/session-notify-*.json` 按来源房间和收件会话区分，发送前记录 `dispatching`。
+结果不确定时不会自动重发；AtomicFile 的备份恢复保证中断写入后仍遵守这一规则。
+保留不确定记录，先核对实际收件结果，再决定是否另行发送。不要通过清除数据或删除记录反复获取通过结果。
+
+APK 身份、服务能力、实际使用路径和结果保存在 ignored `.build/`。
+公开文档只记录脱敏结论，并更新[状态](status.zh-CN.md)和[迁移差异](migration.md)。
+三条链路分别获得实际证据前，都保留为未完成。

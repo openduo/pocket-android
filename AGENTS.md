@@ -1,7 +1,8 @@
 # Pocket Android engineering rules
 
-Current milestone: publish `openduo/pocket-android`, align the app name/icon/application ID with
-Pocket iOS, and finish maintainable multi-device architecture. The user explicitly narrowed testing:
+Current milestone: finish actual microphone-to-room speech and audible replies, real Sight
+negotiation/uplink, and delivery of a notification to an explicitly selected test session.
+The multi-device architecture and public Preview 2 are already delivered. The user explicitly narrowed testing:
 run necessary builds and relevant contracts/short representative checks; do not expand rotation,
 accessibility or overnight matrices. Earlier acceptance plans are historical evidence, not a mandate
 to keep testing. Complete 1:1 parity is a future comparison against iOS

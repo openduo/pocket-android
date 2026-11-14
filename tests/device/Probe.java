@@ -143,7 +143,13 @@ public final class Probe extends Instrumentation {
                 return;
             }
             if (arguments != null && "1".equals(arguments.getString("notifyRoomOnly"))) {
-                report.putString("result", new SessionNotifyRoomProbe(this).run(context));
+                String target =
+                        new String(
+                                android.util.Base64.decode(
+                                        arguments.getString("notifyTargetBase64", ""),
+                                        android.util.Base64.NO_WRAP),
+                                java.nio.charset.StandardCharsets.UTF_8);
+                report.putString("result", new SessionNotifyRoomProbe(this).run(context, target));
                 finish(Activity.RESULT_OK, report);
                 return;
             }

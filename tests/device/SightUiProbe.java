@@ -96,6 +96,38 @@ final class SightUiProbe {
             onState(
                     () -> {
                         field("ambientWanted").setBoolean(controller, true);
+                        AmbientInput input = (AmbientInput) field("ambientInput").get(controller);
+                        input.socketOpened();
+                        input.meta(Json.object("role", "master"), "try");
+                        invoke("updateSight");
+                        invoke("publish");
+                        return null;
+                    });
+            probe.runOnMainSync(() -> ((MainActivity) screen).navigate("ambient"));
+            probe.waitForIdleSync();
+            check(
+                    visible(screen, words.t("房间不支持视频，请更新 ambient"))
+                            && !controller.snapshot().cameraOffered
+                            && !controller.snapshot().cameraOn
+                            && !controller.snapshot().cameraRequested,
+                    "a master seat without media support explains the missing camera even when"
+                            + " the server sends no camera frame");
+            onState(
+                    () -> {
+                        ((AmbientInput) field("ambientInput").get(controller))
+                                .meta(Json.object("role", "master", "media", 1), "try");
+                        invoke("updateSight");
+                        invoke("publish");
+                        return null;
+                    });
+            check(
+                    !controller.snapshot().cameraStatusVisible
+                            && !controller.snapshot().cameraOffered,
+                    "a media-capable connection clears the derived warning while waiting for"
+                            + " a real camera offer");
+            onState(
+                    () -> {
+                        field("ambientWanted").setBoolean(controller, true);
                         ((AmbientInput) field("ambientInput").get(controller))
                                 .meta(Json.object("role", "master", "media", 1), "try");
                         invoke("updateSight");

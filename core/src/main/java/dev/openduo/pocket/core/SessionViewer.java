@@ -15,6 +15,25 @@ import java.util.Map;
 
 /** Pure viewer state and uplink rules, shared by reconnection and the compact session page. */
 public final class SessionViewer {
+    /** Credential scope and recipient capability are independent authorization requirements. */
+    public enum Access {
+        NONE(false, false),
+        READ(true, false),
+        NOTIFY(true, true);
+        public final boolean canView, canNotify;
+
+        Access(boolean canView, boolean canNotify) {
+            this.canView = canView;
+            this.canNotify = canNotify;
+        }
+
+        public static Access fromScope(String scope) {
+            if ("notify".equals(scope)) return NOTIFY;
+            if ("sessions".equals(scope)) return READ;
+            return NONE;
+        }
+    }
+
     public static final class Summary {
         public final String key, name, group, status, at;
         public final List<String> tools;
@@ -108,6 +127,11 @@ public final class SessionViewer {
         public Summary open() {
             for (Summary s : sessions) if (s.key.equals(openKey)) return s;
             return null;
+        }
+
+        public boolean canNotify(Access access) {
+            Summary recipient = open();
+            return access.canNotify && recipient != null && recipient.notify;
         }
 
         /** A sending session is named by the live list, then by its readable wire key. */
@@ -204,10 +228,9 @@ public final class SessionViewer {
         }
     }
 
-    public JSONObject notify(String text, String id) {
-        Summary open = snapshot().open();
+    public JSONObject notify(Access access, String text, String id) {
         String body = text.trim();
-        if (open == null || !open.notify || body.isEmpty() || !pending.isEmpty()) return null;
+        if (!snapshot().canNotify(access) || body.isEmpty() || !pending.isEmpty()) return null;
         pending = id;
         notifyKey = openKey;
         notifyId = id;

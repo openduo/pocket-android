@@ -8,6 +8,12 @@ tools="$sdk/build-tools/${POCKET_E2_BUILD_TOOLS:-35.0.0}"
 android_jar="$sdk/platforms/${POCKET_E2_ANDROID_PLATFORM:-android-35}/android.jar"
 build="$project_dir/.build/device-tests"
 sign_dir="${POCKET_SIGN_DIR:-$HOME/.local/share/pocket-android/signing}"
+if [[ "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 ]]; then
+  case "${POCKET_TEST_NOTIFY_TARGET:-}" in
+    ambient:?*|job:?*) ;;
+    *) echo 'Select a dedicated ambient/keepalive test session with POCKET_TEST_NOTIFY_TARGET.' >&2; exit 1 ;;
+  esac
+fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" != 27 ]]; then
   echo 'Native import UI probe currently requires API 27 to restore camera-location decisions.' >&2
   exit 1
@@ -119,6 +125,9 @@ probe_args=(
   -e outageOnly "${POCKET_E2_TEST_OUTAGE_ONLY:-0}"
   -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}"
 )
+if [[ -n "${POCKET_TEST_NOTIFY_TARGET:-}" ]]; then
+  probe_args+=(-e notifyTargetBase64 "$(printf '%s' "$POCKET_TEST_NOTIFY_TARGET" | base64 | tr -d '\r\n')")
+fi
 adb shell am instrument -w -r "${probe_args[@]}" dev.openduo.pocket.qa/dev.openduo.pocket.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"

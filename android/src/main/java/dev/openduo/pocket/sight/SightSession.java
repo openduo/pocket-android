@@ -34,15 +34,19 @@ public final class SightSession {
         public final int rotation;
 
         Snapshot(SightSession session) {
-            offered = session.ask != null && session.active && session.master;
+            boolean unsupported =
+                    session.active && session.master && !session.framed && !session.notice;
+            offered = session.ask != null && session.active && session.master && session.framed;
             statusVisible =
-                    session.active && session.master && (session.ask != null || session.notice);
+                    session.active
+                            && session.master
+                            && (session.ask != null || session.notice || unsupported);
             on = session.capture != null && session.transmitting;
             requested = session.enabled;
             retry = session.recovery.exhausted();
             front = session.front;
             canFlip = session.frontAvailable && session.rearAvailable;
-            status = session.status;
+            status = unsupported ? "房间不支持视频，请更新 ambient" : session.status;
             refusal = session.refusal;
             rotation = session.deviceOrientation;
         }
@@ -169,6 +173,7 @@ public final class SightSession {
         cancelRetry();
         recovery.reset();
         ask = null;
+        master = false;
         framed = false;
         declined = "";
         refusal = "";

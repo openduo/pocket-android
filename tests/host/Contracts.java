@@ -475,10 +475,12 @@ public final class Contracts {
                                                 "notify",
                                                 true))));
         viewer.open("job:qa");
-        JSONObject notification = viewer.notify("  hello  ", "notify-1");
+        JSONObject notification =
+                viewer.notify(SessionViewer.Access.NOTIFY, "  hello  ", "notify-1");
         check(
                 notification.getString("text").equals("hello")
-                        && viewer.notify("duplicate", "notify-2") == null,
+                        && viewer.notify(SessionViewer.Access.NOTIFY, "duplicate", "notify-2")
+                                == null,
                 "one correlated session notification");
         viewer.handle(Json.object("type", "session_notify_result", "id", "wrong", "ok", true));
         check(viewer.snapshot().pending.equals("notify-1"), "unrelated notify result ignored");
@@ -807,8 +809,7 @@ public final class Contracts {
                                 .equals("File too large (limit 3.5 MB)")
                         && english.explain("E2 阵列初始化失败（-2）")
                                 .equals("E2 array initialisation failed (-2)")
-                        && english.explain("E2 阵列读取失败（-5）")
-                                .equals("E2 array read failed (-5)"),
+                        && english.explain("E2 阵列读取失败（-5）").equals("E2 array read failed (-5)"),
                 "previously persisted app errors localise with numeric context intact");
         check(
                 english.explain("我写了设置，别改这个文件名.txt").equals("我写了设置，别改这个文件名.txt")

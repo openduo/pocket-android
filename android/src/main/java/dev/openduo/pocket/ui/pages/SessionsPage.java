@@ -51,6 +51,7 @@ public final class SessionsPage implements PocketController.Listener {
     private EditText input;
     private ScrollAnchor anchor;
     private long revision = -1, generation = -1;
+    private SessionViewer.Access access;
     private final Set<String> expandedGroups = new HashSet<>();
     private final Map<String, String> drafts = new HashMap<>();
     private String inputKey = "", handledNotify = "";
@@ -173,12 +174,14 @@ public final class SessionsPage implements PocketController.Listener {
     @Override
     public void changed() {
         if (root == null || controller.snapshot() == null) return;
-        SessionViewer.Snapshot s = controller.snapshot().sessions;
-        if (s.revision == revision) {
+        PocketController.Snapshot room = controller.snapshot();
+        SessionViewer.Snapshot s = room.sessions;
+        if (s.revision == revision && access == room.sessionsAccess) {
             updateSend();
             return;
         }
         revision = s.revision;
+        access = room.sessionsAccess;
         if (s.generation != generation) {
             generation = s.generation;
             drafts.clear();
@@ -202,12 +205,8 @@ public final class SessionsPage implements PocketController.Listener {
         anchor.capture(!s.openKey.isEmpty());
         content.removeAllViews();
         roomReturn.setVisibility(s.openKey.isEmpty() ? View.VISIBLE : View.GONE);
-        PocketController.Snapshot room = controller.snapshot();
         Ui.updateText(roomTitle, room.trying ? ui.t("体验房间") : room.roomName);
-        boolean permitted =
-                controller.snapshot().trying
-                        || controller.settings.scope().matches("sessions|notify");
-        if (!permitted) {
+        if (!access.canView) {
             content.addView(
                     ui.label(
                             ui.t("当前配对只允许访问房间。在房间管理页用 sessions 或 notify 范围生成新配对链接，才能查看其他会话。"),
@@ -259,19 +258,29 @@ public final class SessionsPage implements PocketController.Listener {
                 row(s, row);
             }
             flushTools(tools);
-            notify.setVisibility(open != null && open.notify ? View.VISIBLE : View.GONE);
+            if (open != null && !access.canNotify)
+                ui.add(
+                        content,
+                        ui.label(
+                                ui.t("当前配对只能查看会话。使用 notify 范围重新配对后，才能发送通知。"),
+                                14,
+                                ui.palette.secondary,
+                                false),
+                        12);
+            notify.setVisibility(s.canNotify(access) ? View.VISIBLE : View.GONE);
             if (open != null) Ui.updateText(notifyTarget, ui.format("通知 %s", open.name));
-            input.setEnabled(s.pending.isEmpty());
+            input.setEnabled(s.canNotify(access) && s.pending.isEmpty());
         }
         updateSend();
     }
 
     private void updateSend() {
         if (sendNotify == null || controller.snapshot() == null) return;
-        SessionViewer.Snapshot s = controller.snapshot().sessions;
+        PocketController.Snapshot room = controller.snapshot();
+        SessionViewer.Snapshot s = room.sessions;
         boolean empty = input.getText().toString().trim().isEmpty();
         result.setText(
-                !s.notifyKey.equals(s.openKey)
+                !room.sessionsAccess.canNotify || !s.notifyKey.equals(s.openKey)
                         ? ""
                         : s.pending.isEmpty()
                                 ? s.outcome.equals("sent")
@@ -280,8 +289,9 @@ public final class SessionsPage implements PocketController.Listener {
                                 : ui.t("正在发送通知…"));
         result.setVisibility(result.length() == 0 ? View.GONE : View.VISIBLE);
         boolean enabled =
-                s.pending.isEmpty()
-                        && controller.snapshot().connection == PocketController.Connection.ONLINE
+                s.canNotify(room.sessionsAccess)
+                        && s.pending.isEmpty()
+                        && room.connection == PocketController.Connection.ONLINE
                         && !empty;
         sendNotify.setEnabled(enabled);
         sendNotify.setAlpha(enabled ? 1 : .4f);

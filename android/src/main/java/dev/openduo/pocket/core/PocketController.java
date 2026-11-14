@@ -87,6 +87,7 @@ public final class PocketController {
         public final Map<String, TurnState.Trace> traces;
         public final TurnState.Working working;
         public final SessionViewer.Snapshot sessions;
+        public final SessionViewer.Access sessionsAccess;
         public final dev.openduo.pocket.passport.PassportCoordinator.Snapshot passport;
         public final String status,
                 roomName,
@@ -137,6 +138,7 @@ public final class PocketController {
             ambientLinkPaused = c.ambientLinkPaused;
             arrivalStatus = c.arrivals.status();
             sessions = c.viewer.snapshot();
+            sessionsAccess = c.sessionsAccess();
             passport = c.passport.snapshot();
             rows = Collections.unmodifiableList(new ArrayList<>(c.cachedRows));
             outbox = Collections.unmodifiableList(new ArrayList<>(c.pending));
@@ -688,7 +690,7 @@ public final class PocketController {
                         audioSuspended = false;
                         if (ambientWanted) ambient = Ambient.STARTING;
                     }
-                    if (viewer.snapshot().watching && channel.isOpen())
+                    if (sessionsAccess().canView && viewer.snapshot().watching && channel.isOpen())
                         send(value ? viewer.watchFrame() : Json.object("type", "sessions_unwatch"));
                     if (!value) viewer.dropPending();
                     if (!value) {
@@ -1345,7 +1347,8 @@ public final class PocketController {
                     for (Message answer : repo.recentAnswers()) turn.settled(answer);
                 if (resumed) reconcileReady(frame);
                 viewer.dropPending();
-                if (foreground && viewer.snapshot().watching) send(viewer.watchFrame());
+                if (foreground && sessionsAccess().canView && viewer.snapshot().watching)
+                    send(viewer.watchFrame());
                 resumeAmbientLink();
                 if (ambientWanted && !audioSuspended && capture == null) startCapture();
                 pump();
@@ -3344,12 +3347,18 @@ public final class PocketController {
         }
     }
 
+    private SessionViewer.Access sessionsAccess() {
+        return trying
+                ? SessionViewer.Access.NOTIFY
+                : SessionViewer.Access.fromScope(settings.scope());
+    }
+
     public void showSessions(boolean shown) {
         state.execute(
                 () -> {
+                    if (shown && !sessionsAccess().canView) return;
                     JSONObject frame = viewer.show(shown);
-                    if (foreground && (trying || settings.scope().matches("sessions|notify")))
-                        send(frame);
+                    if (foreground && sessionsAccess().canView) send(frame);
                     publish();
                 });
     }
@@ -3357,6 +3366,7 @@ public final class PocketController {
     public void sessionList() {
         state.execute(
                 () -> {
+                    if (!sessionsAccess().canView) return;
                     JSONObject frame = viewer.list();
                     if (foreground) send(frame);
                     publish();
@@ -3366,6 +3376,7 @@ public final class PocketController {
     public void openSession(String key) {
         state.execute(
                 () -> {
+                    if (!sessionsAccess().canView) return;
                     JSONObject frame = viewer.open(key);
                     if (foreground) send(frame);
                     publish();
@@ -3375,11 +3386,16 @@ public final class PocketController {
     public void notifySession(String text) {
         state.execute(
                 () -> {
+                    SessionViewer.Access access = sessionsAccess();
+                    if (!access.canNotify) {
+                        notice("这台设备没有发通知的权限，需要重新配对");
+                        return;
+                    }
                     if (connection != Connection.ONLINE) {
                         notice("连接恢复后再发送通知");
                         return;
                     }
-                    JSONObject frame = viewer.notify(text, UUID.randomUUID().toString());
+                    JSONObject frame = viewer.notify(access, text, UUID.randomUUID().toString());
                     if (frame != null) send(frame);
                     publish();
                 });

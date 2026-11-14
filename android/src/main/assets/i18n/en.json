@@ -186,6 +186,7 @@
   "当前没有配置提示": "No configuration issues",
   "当前设备没有发送通知的权限": "This device cannot notify sessions",
   "当前设备没有查看会话的权限": "This device cannot view sessions",
+  "当前配对只能查看会话。使用 notify 范围重新配对后，才能发送通知。": "This pairing can only view sessions. Pair again with the notify scope to send notifications.",
   "当前配对只允许访问房间。在房间管理页用 sessions 或 notify 范围生成新配对链接，才能查看其他会话。": "This pairing only grants room access. Generate a new link with sessions or notify scope in your room's management page to view other sessions.",
   "录音被打断 · 轻点重试": "Recording interrupted · Tap to retry",
   "多多 需要更新 · 查看说明": "Update DuoDuo Pocket · View details",
