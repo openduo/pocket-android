@@ -16,7 +16,7 @@
 | P0 语音与环境模式 | 独占输入、原生 Opus、上传重试与后台 service、静音/打断/朗读策略、故障后释放和恢复资源 | 真 E2 采集和实际合成语音 ASR → brain/tool → 回复 → 静音 AudioTrack 已通过；自然人声识别和可听回复仍需验收 |
 | P1 Sight、会话与位置 | Camera2/H.264、协商状态和拒绝恢复、会话列表/详情/通知状态、地图/坐标插入、有限时 geocoder、arrival ledger | 原生相机加准备的控制帧、真实会话读取、坐标插入、API 35 真实正反地理编码已通过；真实 Sight 协商、session notify 投递、physical visit 未通过完整验收 |
 | UI 适配与状态 | 解除强制竖屏、Compact/Medium/Expanded 窗口策略、列宽上限、Insets/IME、短窗口容器、可滚动表单/编辑器、原生每页状态保存 | 22 组窗口/字体/语言/主题矩阵、实际显示旋转、自由窗口和系统分屏通过；E2 小屏回归通过 |
-| 无障碍 | 至少 48dp 公共操作目标、按钮/选择/开关语义、具名消息操作、录音的键盘/无障碍开始/发送/取消、地图/图片的非手势操作 | 实际 TalkBack 遍历、旧版 Google 源码 Switch Access 扫描/激活和真 E2 专项通过；当前 Play 版服务及所有动态内容/系统对话框仍需扩大覆盖 |
+| 无障碍 | 至少 48dp 公共操作目标、按钮/选择/开关语义、具名消息操作、录音的键盘/无障碍开始/发送/取消、地图/图片的非手势操作 | 实际 TalkBack、旧版 Google 源码 Switch Access、四类系统权限和文件选择器取消返回通过；当前 Play 版服务及其他动态内容/系统对话框仍需扩大覆盖 |
 | 工程维护 | 纯协议与业务 owner、窗口策略/容器/页面状态/控件分层、架构边界检查、本地化检查、可重复模拟器验收脚本、文档入口 | Host 325 项通过，架构/616 条本地化 catalog、Go vet/test、Android 构建通过；远端 CI 和发布分发未执行 |
 
 UI 方案沿用项目的原生 View 技术栈，使用 Android 的窗口尺寸类别、WindowInsets、原生 View 状态保存和
@@ -33,7 +33,8 @@ outbox 和设备资源，不读取屏幕尺寸。新增适配规则时首先修�
 | 自由窗口/系统分屏 | 分别 8/12 项通过；实际 multi-window，八页分屏截图和草稿保留 | `.build/acceptance/ui/windows/` |
 | 实际 TalkBack 15.0 | 扩展运行 404 项通过，八页加四个弹层/详情；原始触屏滑动、双击/长按、明确控件顺序及真实焦点轨迹 | `.build/acceptance/accessibility/talkback/` |
 | 实际 Switch Access 源码 6.1.1 | 扩展 113 项通过，八页关键控件/顺序、长对话、两次设置滚动、会话与编辑/操作 sheet 激活；不是当前 Google Play 版本 | `.build/acceptance/accessibility/switch/` |
-| 实际系统相机权限 | TalkBack 46 项、Switch Access 33 项通过；实际拒绝/再次授权、关闭扫码面板返回表单，恢复原权限决定；其他权限仍开放 | `.build/acceptance/accessibility/{talkback-permissions,switch-permissions}/` |
+| 实际系统权限 | 两种服务下相机、麦克风、定位、通知均通过；覆盖拒绝/重试、粗略位置升级、授权后的待执行操作和返回焦点。逐类检查数见无障碍文档 | `.build/acceptance/accessibility/*-permissions*/` |
+| 实际外部文件选择器 | 两种服务各 25 项通过；服务打开 DocumentsUI，连续两次系统返回取消，保留草稿/选区，清理待导入状态，服务可再次打开附件菜单 | `.build/acceptance/accessibility/{talkback-picker,switch-picker}/` |
 | 真 E2 采集/相机/paired-Try | 上一 APK 完整回归 342 项通过；移除重复 feed 朗读节点后，当前 APK 无障碍专项重新通过 27 项 | `.build/acceptance/e2-final-regression.txt`、`e2-accessibility-expanded.txt` |
 | 实际系统 Geocoder | API 35 公共地标搜索/反查均返回结果，5,664ms；没有替换后端或注入位置 | `.build/acceptance/ui/location-service/` |
 | E2 地点能力查询 | API 27 `Geocoder.isPresent=false`，仅 passive/gps 且无 enabled provider；真实查询为 NOT_RUN，不计通过 | `.build/acceptance/e2-location-service/`、`e2-geocoder-run.txt` |
@@ -49,6 +50,12 @@ Activity 前后台，也没有制造自然 LMK。它不等于过夜待机、真�
 前置/清理/麦克风恢复检查通过，不能据此接受视频协商。8 小时后台观察正在独立目录运行，尚未完成；
 无障碍扩展的长内容、明确控件顺序和真实服务手势/滚动已通过，结果见 [`acceptance.md`](acceptance.md)。
 
+等待后台任务期间又补齐了四类系统权限及真实文件选择器取消返回。麦克风授权返回不会意外开始录音，
+重新激活后能采集，打开另一窗口会取消采集并保留草稿；位置权限可从粗略升级为精确，到达检测仍等待
+独立后台权限。这些检查使用隔离模拟器和必要时的 Try transport，不能替代自然人声、真实 visit、
+Sight 或通知收件验收。本轮只扩展 QA 与文档，生产 APK 未改；失败轨迹和完整复现见
+[`accessibility.md`](accessibility.md)。
+
 ## 尚未完成的验收与建议顺序
 
 以下是已知实现的真实使用验证缺口。本阶段不为追求 1:1 无边界增加新功能。
@@ -61,7 +68,7 @@ Activity 前后台，也没有制造自然 LMK。它不等于过夜待机、真�
 | P1 验收 | 真实 Sight | 当前服务器未确认 media=1；需实际服务支持后，再做 ask/参数协商、可识别画面和关闭/重启。Camera2 和准备控制帧不能替代 |
 | P1 验收 | 真实 session notify | 明确自有且可收件的测试会话，验证单次发送、确认和收件端记录；当前配对 room 不满足资格，未向其他会话发送 |
 | P1 验收 | E2 地点与真实到达 | 当前 E2 无系统 Geocoder、无 enabled provider，继续依赖手动坐标/地图选点；需可用位置源及地理编码后端再做真实停留/到达。API 35 查询通过不能替代 |
-| 后续兼容性 | 无障碍和更多设备 | 当前 Play Switch Access、其余滚动层级/长会话/系统权限对话框、OEM/折叠/刘海/外接显示器、外部操作中的重建 |
+| 后续兼容性 | 无障碍和更多设备 | 当前 Play Switch Access、其余滚动层级/长会话、一次性/永久拒绝及系统设置撤权等权限组合、OEM/折叠/刘海/外接显示器、外部操作中的重建 |
 
 ## 距离完整 1:1 仍有什么
 

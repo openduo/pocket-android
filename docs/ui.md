@@ -68,8 +68,9 @@ transport 和持久层不需要依赖新的窗口组件；验收脚本和差距�
 - 实际 TalkBack 15.0 扩展运行的 404 项检查通过，包含 12 个场景及原始触屏双击/长按；实际 Google 开源
   Switch Access 6.1.1 的 113 项页面扫描/顺序、长内容、服务滚动及详情/弹层激活通过。后者不是当前
   Google Play 版本。服务、原始输入、焦点轨迹与限制见 [`accessibility.md`](accessibility.md)。
-- 原生系统相机权限另有 TalkBack 46 项、Switch Access 33 项通过，实际拒绝/再次授权、打开/关闭扫码面板
-  并返回表单。测试服务补充现代 Android 的辅助工具声明；其他系统权限和外部 Activity 返回仍分开验收。
+- 两种实际服务另通过相机、麦克风、定位、通知权限的拒绝/重试/返回和粗略位置升级；真实 DocumentsUI
+  两次返回取消保留草稿/选区，分别 25 项通过。测试服务补充现代 Android 的辅助工具声明；详细检查数、
+  原始证据和一次性/永久拒绝/外部操作重建等未覆盖边界见 [`accessibility.md`](accessibility.md)。
 - 325 项 host contracts、架构/本地化、Go vet/test 和 Android 构建通过。上一 APK 检查点的 E2 完整采集/相机/Try
   回归 342 项通过；移除重复 feed 朗读节点后，当前 APK 无障碍专项重新通过 27 项。真实 E2 的显示密度、
   overscan、launcher 和 E2Studio 配置保持原状。

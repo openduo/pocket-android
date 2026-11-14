@@ -150,9 +150,15 @@ The optional UI probe currently runs on API 27: a narrowly scoped shell helper s
 stock camera's location user-decision flags. The test declines optional location access and disables
 location tagging in its first-use screen. The helper and test source never ship in the application.
 
+On API 35, actual TalkBack and the pinned source Switch Access each pass a separate 25-check
+DocumentsUI cancellation scene: real service opening, two platform Back returns, retained native
+editor selection/draft, no residual attachments/imports/outbox, and service access to the menu
+again. It uses a disposable Try room without selecting a real file. See [accessibility](accessibility.md)
+for raw input, restoration and service-version limits.
+
 Remaining acceptance work includes low-memory task recreation, recreation during an unanswered
 first permission dialog, expired temporary grants and revoked/noncooperative providers,
-low-storage/large-batch cancellation, modern Android, valid HEIC conversion, and real-room
+low-storage/large-batch cancellation, modern Android import completion, valid HEIC conversion, and real-room
 upload limit/failure/retry. An incomplete copy has no durable content manifest; its durable request
 can resume only while Android retains source access. The inbox does not claim to preserve expired
 temporary URI data before copying completes.

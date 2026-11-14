@@ -23,12 +23,24 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--service', choices=['talkback', 'switch'], required=True)
     parser.add_argument('--installed', action='store_true')
-    parser.add_argument('--scene', choices=['full', 'message-actions', 'permissions'], default='full')
+    parser.add_argument('--scene', choices=['full', 'message-actions', 'permissions', 'picker'], default='full')
+    parser.add_argument('--permission', choices=['camera', 'microphone', 'location', 'notifications'],
+                        default='camera')
     args = parser.parse_args()
 
     def adb(*command, timeout=30, check=True):
         return subprocess.run(['adb', '-s', args.serial, *map(str, command)], check=check,
                               capture_output=True, text=True, timeout=timeout).stdout.strip()
+
+    def installed_digest(package):
+        paths = [line.removeprefix('package:') for line in adb('shell', 'pm', 'path', package).splitlines()]
+        apk = next((path for path in paths if path.endswith('/base.apk')), paths[0] if paths else '')
+        if not re.fullmatch(r'/[A-Za-z0-9._~/+=-]+\.apk', apk):
+            raise RuntimeError('Could not identify the installed APK: ' + package)
+        digest = adb('shell', 'sha256sum', apk).split()[0]
+        if not re.fullmatch('[a-f0-9]{64}', digest):
+            raise RuntimeError('Could not hash the installed APK: ' + package)
+        return digest
 
     if not args.serial.startswith('emulator-') or adb('shell', 'getprop', 'ro.kernel.qemu') != '1':
         raise SystemExit('Accessibility settings and raw input are restricted to an isolated emulator.')
@@ -38,8 +50,11 @@ def main():
         raise SystemExit('This service acceptance harness requires API 35 or later.')
     if args.scene == 'message-actions' and args.service != 'talkback':
         raise SystemExit('The focused message-action scene currently uses TalkBack.')
+    if args.scene != 'permissions' and args.permission != 'camera':
+        raise SystemExit('--permission selects a flow within --scene permissions.')
     directory = ROOT / '.build/acceptance/accessibility' / (
-        args.service if args.scene == 'full' else args.service + '-' + args.scene)
+        args.service if args.scene == 'full' else args.service + '-' + args.scene
+        + ('-' + args.permission if args.scene == 'permissions' and args.permission != 'camera' else ''))
     directory.mkdir(parents=True, exist_ok=True)
     lock = (ROOT / '.build' / f'ui-{args.serial}.lock').open('w')
     try:
@@ -67,12 +82,17 @@ def main():
     notifications_were_granted = bool(re.search(
         r'android.permission.POST_NOTIFICATIONS: granted=true', talkback_permissions))
     keyboard = None
-    camera_permission = None
+    original_permissions = {}
     report = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
               'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk'),
               'passed': False}
     (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
     try:
+        report['installedApkSha256'] = installed_digest(PACKAGE)
+        report['probeApkSha256'] = installed_digest(PACKAGE + '.qa')
+        if report['installedApkSha256'] != report['apkSha256'] or report['probeApkSha256'] != hashlib.sha256(
+                (ROOT / '.build/device-tests/probe.apk').read_bytes()).hexdigest():
+            raise RuntimeError('Installed app/probe differs from the current build; install matching APKs first.')
         options = ['-e', 'screenReaderScene', args.scene]
         if args.service == 'talkback':
             component = 'com.google.android.marvin.talkback/.TalkBackService'
@@ -121,28 +141,34 @@ def main():
             options = ['-e', 'switchKeyboard', device]
             mode, cache = 'switchOnly', 'switch-ui'
         service_package = 'com.google.android.marvin.talkback' if args.service == 'talkback' else SWITCH
-        apk_paths = [line.removeprefix('package:') for line in adb('shell', 'pm', 'path', service_package).splitlines()]
-        service_apk = next((path for path in apk_paths if path.endswith('/base.apk')), apk_paths[0] if apk_paths else '')
-        if not re.fullmatch(r'/[A-Za-z0-9._~/+=-]+\.apk', service_apk):
-            raise RuntimeError('Could not identify the installed accessibility service APK.')
-        digest = adb('shell', 'sha256sum', service_apk).split()[0]
-        if not re.fullmatch('[a-f0-9]{64}', digest):
-            raise RuntimeError('Could not hash the installed accessibility service APK.')
-        report['serviceApkSha256'] = digest
-        if args.scene == 'permissions':
-            permission = 'android.permission.CAMERA'
+        report['serviceApkSha256'] = installed_digest(service_package)
+        if args.scene in ['permissions', 'picker']:
+            permissions = {
+                'camera': ['CAMERA'], 'microphone': ['RECORD_AUDIO'],
+                'location': ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'ACCESS_BACKGROUND_LOCATION'],
+                'notifications': ['POST_NOTIFICATIONS'],
+            }[args.permission] if args.scene == 'permissions' else []
+            if args.permission == 'microphone' and re.search(
+                    r'RecordingService|WorkService', adb('shell', 'dumpsys', 'activity', 'services',
+                                                       'top.kuaner.recorder')):
+                raise RuntimeError('Another app is recording or working; capture probe refused.')
             package = adb('shell', 'dumpsys', 'package', PACKAGE)
-            decision = re.search(r'android.permission.CAMERA: granted=(true|false), flags=\[([^\]]*)\]', package)
-            if not decision:
-                raise RuntimeError('Could not preserve the emulator camera permission decision.')
-            camera_permission = {'granted': decision[1] == 'true',
-                                 'userFlags': [flag for flag, token in [('user-set', 'USER_SET'), ('user-fixed', 'USER_FIXED')]
-                                               if token in [value.strip() for value in decision[2].split('|')]]}
-            report['originalCameraPermission'] = camera_permission
+            for name in permissions:
+                permission = 'android.permission.' + name
+                decision = re.search(re.escape(permission) + r': granted=(true|false), flags=\[([^\]]*)\]', package)
+                if not decision:
+                    raise RuntimeError('Could not preserve the emulator permission decision: ' + name)
+                original_permissions[permission] = {
+                    'granted': decision[1] == 'true',
+                    'userFlags': [flag for flag, token in [('user-set', 'USER_SET'), ('user-fixed', 'USER_FIXED')]
+                                  if token in [value.strip() for value in decision[2].split('|')]]}
+            report['originalPermissions'] = original_permissions
+            report['flow'] = args.permission if args.scene == 'permissions' else 'picker'
             adb('shell', 'am', 'force-stop', PACKAGE)
-            adb('shell', 'pm', 'revoke', PACKAGE, permission)
-            adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
-            options += ['-e', 'accessibilityService', args.service]
+            for permission in reversed(original_permissions):
+                adb('shell', 'pm', 'revoke', PACKAGE, permission)
+                adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
+            options += ['-e', 'accessibilityService', args.service, '-e', 'permissionFlow', report['flow']]
             mode, cache = 'permissionOnly', 'permission-service'
         adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', component)
         adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1')
@@ -170,37 +196,55 @@ def main():
                             and result.get('schema') == 2 and result.get('complete', True)
                             and result.get('assertions', 0) > 0 and not result.get('failures'))
         (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
-        print(('PASS' if report['passed'] else 'FAIL') + ' actual ' + args.service + ' service acceptance')
         if not report['passed']:
+            print('FAIL actual ' + args.service + ' service acceptance')
             raise SystemExit('Inspect the retained accessibility trace and screenshots.')
     except BaseException as failure:
         report['error'] = type(failure).__name__
         (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
         raise
     finally:
-        adb('shell', 'am', 'force-stop', PACKAGE, check=False)
-        if camera_permission is not None:
-            permission = 'android.permission.CAMERA'
-            adb('shell', 'pm', 'grant' if camera_permission['granted'] else 'revoke', PACKAGE, permission)
-            adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
-            if camera_permission['userFlags']:
-                adb('shell', 'pm', 'set-permission-flags', PACKAGE, permission, *camera_permission['userFlags'])
-        for key, value in original.items():
-            adb('shell', 'settings', 'delete' if value == 'null' else 'put', 'secure', key,
-                *([] if value == 'null' else [value]))
-        if keyboard is not None:
-            keyboard.stdin.close()
+        cleanup_errors = []
+
+        def clean(*command):
             try:
-                keyboard.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                keyboard.terminate()
-                keyboard.wait(timeout=5)
+                adb(*command)
+            except (subprocess.SubprocessError, OSError) as failure:
+                cleanup_errors.append(type(failure).__name__ + ': ' + ' '.join(map(str, command)))
+
+        clean('shell', 'am', 'force-stop', PACKAGE)
+        # Restore foreground location before background, as required by Android's grant rules.
+        for permission, saved in original_permissions.items():
+            clean('shell', 'pm', 'grant' if saved['granted'] else 'revoke', PACKAGE, permission)
+            clean('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
+            if saved['userFlags']:
+                clean('shell', 'pm', 'set-permission-flags', PACKAGE, permission, *saved['userFlags'])
+        for key, value in original.items():
+            clean('shell', 'settings', 'delete' if value == 'null' else 'put', 'secure', key,
+                  *([] if value == 'null' else [value]))
+        if keyboard is not None:
+            try:
+                keyboard.stdin.close()
+                try:
+                    keyboard.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    keyboard.terminate()
+                    keyboard.wait(timeout=5)
+            except (subprocess.SubprocessError, OSError) as failure:
+                cleanup_errors.append(type(failure).__name__ + ': remove native QA keyboard')
         if args.service == 'talkback' and not notifications_were_granted:
-            adb('shell', 'pm', 'revoke', 'com.google.android.marvin.talkback',
-                'android.permission.POST_NOTIFICATIONS')
-        adb('shell', 'rm', '-f', '/data/local/tmp/pocket-switch-preferences.xml')
+            clean('shell', 'pm', 'revoke', 'com.google.android.marvin.talkback',
+                  'android.permission.POST_NOTIFICATIONS')
+        clean('shell', 'rm', '-f', '/data/local/tmp/pocket-switch-preferences.xml')
         if not args.installed:
-            adb('uninstall', PACKAGE + '.qa')
+            clean('uninstall', PACKAGE + '.qa')
+        report['cleanup'] = {'complete': not cleanup_errors, 'errors': cleanup_errors}
+        if cleanup_errors:
+            report['passed'] = False
+        (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
+        if cleanup_errors:
+            raise RuntimeError('Emulator cleanup failed; inspect run.json before reusing this emulator.')
+    print('PASS actual ' + args.service + ' service acceptance')
 
 
 if __name__ == '__main__':

@@ -74,11 +74,12 @@ session notify 验收。旧基线为 11 项。
 **不等于当前 Google Play Switch Access、全部滚动子树或所有系统对话框已验收**。位置页未选点时的
 “使用这个位置”按钮是禁用状态，未将其计为可扫描操作；只读设置说明也不要求成为 Switch 停靠点。
 
-## 实际系统相机权限
+## 实际系统权限与文件选择器
 
 另一个专项通过实际服务激活配对页的扫码按钮，进入原生 Permission Controller，遍历“使用应用时允许”、
 “仅限这一次”和“拒绝”的顺序；先拒绝并关闭 app 的权限说明，再次请求、实际授权，打开扫码相机面板并
-关闭返回配对表单。**TalkBack 46 项、Switch Access 33 项通过**。记录真实系统节点、原始输入和截图，
+关闭返回配对表单。早期为 TalkBack 46 项、Switch Access 33 项；扩展 runner 复跑为 **50/37 项通过**。
+记录真实系统节点、原始输入和截图，
 没有用准备的权限 callback 或直接 node click 替代。
 
 Android 第二次请求把拒绝控件改为 `permission_deny_and_dont_ask_again_button`，测试保留实际 ID，按同一
@@ -93,9 +94,48 @@ Android 第二次请求把拒绝控件改为 `permission_deny_and_dont_ask_again
 `switch-source-before-tool-metadata.json`，新元数据由 `prepare-switch-access.py` 可重复生成。
 同一新构建随后完整页面回归再次通过 113 项，旧完整结果另存 `switch-before-tool-metadata/`。
 
-证据：`.build/acceptance/accessibility/{talkback-permissions,switch-permissions}/`。专项保留 app 草稿和
-未配对状态；退出时恢复原相机授权和 USER_SET/USER_FIXED 决定标记、无障碍服务及临时通知权限。此项只覆盖
-系统相机权限的拒绝/前台授权与返回，不接受真实 Sight、麦克风/地点/通知等其他系统权限流程。
+扩展 `PermissionServiceProbe` 共通过下列专项。检查数包含实际扫描的系统焦点，随一次遍历稍有变化，
+不能据此推导覆盖率。生产 APK 没有变化。
+
+| 实际流程 | TalkBack | Switch Access | 已执行边界 |
+| --- | --- | --- | --- |
+| 相机权限 | 50 | 37 | 系统拒绝、app 说明、重试前台授权、真实扫码 sheet 关闭返回 |
+| 麦克风权限与取消 | 54 | 42 | 拒绝/重试，授权返回不自动录音，新激活采集，打开附件 sheet 取消并保留草稿 |
+| 定位权限与精度升级 | 82 | 65 | 拒绝/重试、粗略授权、实际升级精确授权、后台权限单独提示和返回 |
+| 通知权限 | 45 | 33 | 开关请求、拒绝、关闭说明、状态行重试授权、偏好和焦点保留 |
+| 外部文件选择器 | 25 | 25 | 服务打开 DocumentsUI，两次系统 Back 取消，选区/草稿/空导入状态及菜单重新可达 |
+
+麦克风和文件专项使用一次性 Try 房间，保留原房间草稿，拒绝已配置真实房间的模拟器。授权窗口失焦后旧的
+录音 activation 不会复活；实际服务重新激活后能采集，打开另一个窗口取消采集，没有产生消息或待发送项。
+这是实际权限/原生采集/取消证据，没有自然人声或真实 ASR/回复验收。
+
+到达检测按现有精确停留规则要求 fine + background；粗略授权后保持暂停符合规则。随后真实 Permission
+Controller 提供“Change to precise location”升级决定；这个弹窗没有初次申请的精度 radio 控件，测试按
+真实可见决定操作，验证系统最终授予 fine，并由 app 单独提示后台定位。没有授予后台权限、注入 fix 或
+发送 visit。通知专项同样没有触发任何实际通知投递。
+
+文件取消通过平台 Back 键返回真实外部 Activity，没有准备 ActivityResult；Back 未记作服务手势或服务
+系统返回菜单操作。两轮后原生编辑器选区和业务草稿保留，chips/imports/outbox 为空，真实服务焦点能返回
+app，并可再次打开和关闭附件菜单。选择文件、相机外部 Activity 及其重建仍属于其他验收。
+
+证据根目录：`.build/acceptance/accessibility/`。相机沿用 `{talkback,switch}-permissions/`；其他权限为
+`{talkback,switch}-permissions-{microphone,location,notifications}/`；文件为 `{talkback,switch}-picker/`。
+每个目录保留 `run.json`、原生节点 ID/焦点轨迹、截图和 instrumentation 输出。早期相机报告存于
+`*-permissions-camera-baseline/`，没有把复跑计数回写进早期报告。
+本轮 10 个专项的报告索引为 ignored `permissions-summary.json`，共 458 项；不与完整页面遍历计数合并。
+
+退出时恢复语言、相关设置/到达 ledger、原权限授权和 USER_SET/USER_FIXED 标记、无障碍服务及临时通知权限，
+并移除测试键盘。清理命令全部尝试执行，失败会把最终运行判为失败。最终相机/定位复跑记录 cleanup 完成；其余
+较早报告保留当时字段，最终权限/服务恢复状态另存 ignored `permissions-restoration.json`。
+
+扩展过程中的 QA 失败原样保留：通知首次缺少服务滚动，随后只读到返回过程的第一个空扫描焦点；TalkBack
+始终向前移动会跳过仍然聚焦的开关，回绕到当前可见后缀后找不到它；定位升级弹窗本身没有初次申请的 radio。
+这些分别通过服务滚动、有限返回焦点扫描、先检查当前焦点及读取真实升级控件修正。没有修改产品代码来绕过
+测试。证据位于 `*-no-scroll-trial/`、`*-single-focus-trial/`、`*-current-focus-trial/`、
+`*-upgrade-control-trial/`。
+清理步骤另有一次误用消息 revision 等待配置完成的失败，保留于 `*-cleanup-barrier-trial/`；最终改为
+在 controller 自身状态队列中等待停用到达检测、原样恢复偏好并核对全部键值。该队列访问只用于 QA 收尾，
+系统权限决定仍全部通过实际服务输入完成。
 
 ## 真 E2 原生专项
 
@@ -126,18 +166,27 @@ python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULAT
 # Actual camera permission denial, grant and app return through either service.
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch --scene permissions
+# Other native dialogs: use the same --permission value with either service.
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions --permission microphone
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions --permission location
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions --permission notifications
+# Native external picker cancellation with either service.
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene picker
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch --scene picker
 ```
 
 runner 拒绝真实设备，共享 UI 验收锁，保存/恢复原无障碍服务和临时授予的 TalkBack 通知权限。服务源码和
 NDK helper 仅在 ignored `.build/` 编译，不是产品依赖。当前 TalkBack helper 使用此镜像的 touchscreen
 `/dev/input/event1` 和坐标范围；换镜像需先核对 getevent 信息，不能无条件外推。
 每次起跑删除旧场景缓存；超时会停止隔离模拟器中的目标 app，保留失败报告，退出时清理服务和测试键盘。
-runner 另记录实际安装的服务 APK 摘要；早期报告的服务摘要作为独立 `service-identity.json` 记录，
+runner 核对实际安装 app/probe 与本地构建摘要相同，另记录实际服务 APK 摘要；退出清理完成后才输出 PASS。
+旧报告只保留起跑时已经实现的字段；早期服务摘要作为独立 `service-identity.json` 记录，
 不回写成当时 runner 已经产生的字段。
 
 ## 尚未覆盖
 
 本次实际服务遍历覆盖上述 12 个场景及准备的长内容。其余历史消息/附件/长会话折叠、所有滚动层级、
-其他弹层和其余系统权限对话框、跨外部 Activity 的返回/取消以及当前 Play 版 Switch Access 仍需扩大覆盖。
+其他弹层、一次性授权实际选择/永久拒绝/设置撤权/后台位置授权等权限组合、外部 Activity 配置变化以及当前
+Play 版 Switch Access 仍需扩大覆盖。现有文件专项不接受完整 DocumentsUI 操作或真实文件选中。
 字体/窗口矩阵是独立 UI 验证，不能宣称每一组都执行了两种服务的完整组合。Escape 有实现，采集专项重点
 执行了 DPAD click 与具名取消 action。自然声学 ASR 与可听回复仍单独开放。

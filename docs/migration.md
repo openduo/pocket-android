@@ -19,11 +19,15 @@ separate from natural LMK or sustained capture. [UI architecture](ui.md) and [ac
 runners and coverage limits. Actual natural speech, Sight negotiation, notify/visit, identity,
 cross-network/external-audio and sustained-lifetime acceptance remain open.
 
-The actual camera permission round trip additionally passes 46 TalkBack and 33 Switch Access
-checks: raw service activation, real denial, app explanation dismissal, repeated request/grant,
-scanner-sheet return and native form/draft preservation. The legacy Switch QA build now declares
-`isAccessibilityTool` for modern Android sensitive-node eligibility; upstream Java remains unchanged.
-Other system permissions and external-activity flows remain separate. See [accessibility](accessibility.md).
+Actual camera, microphone, location and notification permission flows now pass with both services:
+raw service activation, real denial/retry/grant, native return focus and pending-action cancellation.
+Location includes actual approximate-to-precise authorization and separate background guidance;
+it does not supply a fix or accept a visit. Real DocumentsUI opening and two platform Back
+cancellations pass 25 checks per service, preserving draft/selection with no pending import/send.
+No product code changed for these runs. The legacy Switch QA build declares `isAccessibilityTool`
+for modern Android sensitive-node eligibility; upstream Java remains unchanged. One-time choices,
+permanent denial, settings revocation and external-operation recreation remain separate. Exact
+counts, failed QA trials and reproducible commands are in [accessibility](accessibility.md).
 
 The actual-service Sight recheck reaches a capture master seat with native-paced silence, but the
 server does not confirm `media=1`: NOT_RUN, zero video frames. Nine setup/restoration guards pass;

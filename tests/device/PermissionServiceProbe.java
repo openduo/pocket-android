@@ -8,12 +8,14 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.EditText;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -29,6 +31,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -36,13 +39,15 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Actual service input through the system camera permission dialog and the returning app sheets.
+ * Actual service input through native permission dialogs and external document picker round trips.
  */
 final class PermissionServiceProbe {
     private final Probe probe;
     private UiAutomation automation;
     private MainActivity screen;
-    private String service, keyboard;
+    private String service, keyboard, flow;
+    private Context context;
+    private PocketController controller;
     private File directory;
     private final JSONArray pages = new JSONArray(), failures = new JSONArray();
     private int assertions;
@@ -50,6 +55,9 @@ final class PermissionServiceProbe {
         "permission_allow_foreground_only_button",
         "permission_allow_one_time_button",
         "permission_deny_button"
+    };
+    private static final String[] NOTIFICATION_DECISIONS = {
+        "permission_allow_button", "permission_deny_button"
     };
 
     PermissionServiceProbe(Probe probe) {
@@ -71,6 +79,14 @@ final class PermissionServiceProbe {
         return result.get();
     }
 
+    private void onState(Runnable action) throws Exception {
+        java.lang.reflect.Field field = PocketController.class.getDeclaredField("state");
+        field.setAccessible(true);
+        ((java.util.concurrent.ExecutorService) field.get(controller))
+                .submit(action)
+                .get(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private void check(boolean condition, String label) {
         assertions++;
         if (!condition) failures.put(label);
@@ -78,7 +94,20 @@ final class PermissionServiceProbe {
 
     private void require(boolean condition, String label) {
         check(condition, label);
-        if (!condition) throw new AssertionError(label);
+        if (!condition) {
+            Bitmap image = automation.takeScreenshot();
+            if (image != null && directory != null) {
+                try (FileOutputStream output =
+                        new FileOutputStream(
+                                new File(directory, "failure-" + assertions + ".png"))) {
+                    image.compress(Bitmap.CompressFormat.PNG, 100, output);
+                } catch (java.io.IOException ignored) {
+                } finally {
+                    image.recycle();
+                }
+            }
+            throw new AssertionError(label);
+        }
     }
 
     private void await(BooleanSupplier condition, long timeout) throws Exception {
@@ -88,12 +117,16 @@ final class PermissionServiceProbe {
     }
 
     String run(Context context, Bundle arguments) throws Exception {
+        this.context = context;
         if (!android.os.Build.HARDWARE.contains("ranchu"))
             throw new AssertionError("Emulator only");
         service = arguments.getString("accessibilityService", "");
         if (!service.equals("talkback") && !service.equals("switch"))
             throw new AssertionError("Select an actual accessibility service");
         keyboard = arguments.getString("switchKeyboard", "");
+        flow = arguments.getString("permissionFlow", "camera");
+        if (!java.util.Arrays.asList("camera", "microphone", "location", "notifications", "picker")
+                .contains(flow)) throw new AssertionError("Select a supported native flow");
         if (service.equals("switch") && !keyboard.matches("/dev/input/event[0-9]+"))
             throw new AssertionError("Select the native QA switch keyboard");
         automation = probe.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
@@ -109,74 +142,69 @@ final class PermissionServiceProbe {
                 manager.getEnabledAccessibilityServiceList(-1).stream()
                         .anyMatch(enabled -> enabled.getId().contains(component)),
                 "the selected actual accessibility service remains enabled");
-        check(
-                context.checkSelfPermission(Manifest.permission.CAMERA)
-                        != PackageManager.PERMISSION_GRANTED,
-                "camera permission starts ungranted for the actual system dialog");
-        PocketController controller = PocketController.get(context);
+        controller = PocketController.get(context);
         await(() -> controller.snapshot() != null, 8000);
         if (controller.configured()) throw new AssertionError("No actual room may be configured");
         String language = controller.settings.language();
         String draft = controller.draft();
+        boolean voice = controller.settings.voiceInput(),
+                output = controller.settings.ambientOutput(),
+                answers = controller.settings.answerNotifications();
+        SharedPreferences arrivals =
+                context.getSharedPreferences("place.arrivals", Context.MODE_PRIVATE);
+        Map<String, ?> arrivalValues = arrivals.getAll();
+        boolean trial = flow.equals("microphone") || flow.equals("picker");
         controller.settings.language("en");
         directory = new File(context.getExternalCacheDir(), "permission-service");
         directory.mkdirs();
         boolean complete = false;
         try {
+            if (!flow.equals("picker"))
+                check(
+                        !granted(permission()),
+                        flow + " permission starts ungranted for the actual system dialog");
+            if (flow.equals("notifications")) controller.settings.answerNotifications(false);
+            if (flow.equals("location")) {
+                controller.arrivalsEnabled(false);
+                await(() -> !controller.arrivalsEnabled(), 3000);
+            }
+            if (trial) {
+                controller.setReplyAudio(false);
+                controller.startTrying();
+                await(
+                        () ->
+                                controller.snapshot().trying
+                                        && controller.snapshot().connection
+                                                == PocketController.Connection.ONLINE,
+                        6000);
+                require(
+                        controller.snapshot().trying,
+                        "the native flow uses an isolated prepared room");
+                controller.setVoiceInput(flow.equals("microphone"));
+                controller.draft("QA native flow draft");
+                await(
+                        () ->
+                                controller.draft().equals("QA native flow draft")
+                                        && controller.snapshot().voiceInput
+                                                == flow.equals("microphone"),
+                        3000);
+            }
             screen =
                     (MainActivity)
                             probe.startActivitySync(
                                     new Intent(Intent.ACTION_MAIN)
                                             .setClass(context, MainActivity.class)
                                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            main(
-                    () -> {
-                        screen.navigate("pairing");
-                        return null;
-                    });
+            navigate(flow.equals("camera") ? "pairing" : trial ? "conversation" : "settings");
             Thread.sleep(400);
-            require(
-                    activate(
-                            node -> label(node).equals("Scan pairing QR"), this::permissionVisible),
-                    "actual service activation opens the system camera permission dialog");
-            if (!permissionVisible())
-                throw new AssertionError("No actual permission controller window");
-            scanPermission("camera-deny");
-            require(
-                    activate(
-                            node -> id(node).equals(DECISIONS[2]),
-                            () -> contains("Open app permissions")),
-                    "actual service denial returns to the app permission explanation");
-            check(
-                    context.checkSelfPermission(Manifest.permission.CAMERA)
-                            != PackageManager.PERMISSION_GRANTED,
-                    "the denied decision does not grant camera permission");
-            require(
-                    activate(
-                            node -> label(node).equals("Close panel"),
-                            () -> contains("Scan pairing QR")),
-                    "actual service dismisses the explanation and returns to pairing");
-            require(
-                    activate(
-                            node -> label(node).equals("Scan pairing QR"), this::permissionVisible),
-                    "pairing can request permission again after a single denial");
-            if (!permissionVisible())
-                throw new AssertionError("The repeated request did not open a system dialog");
-            scanPermission("camera-allow");
-            require(
-                    activate(
-                            node -> id(node).equals(DECISIONS[0]),
-                            () -> contains("Room pairing QR camera view")),
-                    "actual service grants foreground permission and opens the camera sheet");
-            check(
-                    context.checkSelfPermission(Manifest.permission.CAMERA)
-                            == PackageManager.PERMISSION_GRANTED,
-                    "the system records the actual foreground camera grant");
-            require(
-                    activate(
-                            node -> label(node).equals("Close panel"),
-                            () -> contains("Pairing link")),
-                    "actual service closes the camera sheet and returns to the native form");
+            if (flow.equals("picker")) picker();
+            else permissions();
+            if (trial) {
+                controller.stopTrying();
+                await(
+                        () -> !controller.snapshot().trying && controller.draft().equals(draft),
+                        5000);
+            }
             check(
                     controller.draft().equals(draft)
                             && !controller.configured()
@@ -190,17 +218,53 @@ final class PermissionServiceProbe {
                                 .put("schema", 2)
                                 .put("complete", complete)
                                 .put("service", service)
+                                .put("flow", flow)
                                 .put("assertions", assertions)
                                 .put("pages", pages)
                                 .put("failures", failures)
                                 .put(
                                         "driver",
-                                        "actual service raw input; native permission controller");
+                                        "actual service raw input; native permission controller or"
+                                            + " DocumentsUI; system Back for picker cancellation");
                 Files.write(
                         new File(directory, "result.json").toPath(),
                         report.toString(2).getBytes(StandardCharsets.UTF_8));
             } finally {
+                if (trial) controller.stopTrying();
                 controller.settings.language(language);
+                if (trial) {
+                    controller.setVoiceInput(voice);
+                    controller.setReplyAudio(output);
+                    await(
+                            () ->
+                                    !controller.snapshot().trying
+                                            && controller.draft().equals(draft)
+                                            && controller.snapshot().voiceInput == voice
+                                            && !controller.snapshot().holdLive,
+                            5000);
+                    if (controller.snapshot().trying
+                            || !controller.draft().equals(draft)
+                            || controller.snapshot().voiceInput != voice
+                            || controller.snapshot().holdLive)
+                        throw new AssertionError(
+                                "Native flow cleanup did not restore the original room state");
+                }
+                if (flow.equals("notifications")) controller.settings.answerNotifications(answers);
+                if (flow.equals("location")) {
+                    controller.arrivalsEnabled(false);
+                    onState(
+                            () -> {
+                                if (controller.arrivalsEnabled())
+                                    throw new AssertionError(
+                                            "Arrival monitoring did not stop before preference"
+                                                + " restoration");
+                                restore(arrivals, arrivalValues);
+                                if (!arrivals.getAll().equals(arrivalValues))
+                                    throw new AssertionError(
+                                            "Native flow cleanup did not restore arrival"
+                                                + " preferences");
+                            });
+                }
                 if (screen != null)
                     main(
                             () -> {
@@ -211,6 +275,356 @@ final class PermissionServiceProbe {
         }
         if (failures.length() > 0) throw new AssertionError(failures.toString());
         return "PASS actual permission service; " + assertions + " checks";
+    }
+
+    private static void restore(SharedPreferences prefs, Map<String, ?> values) {
+        SharedPreferences.Editor edit = prefs.edit().clear();
+        for (Map.Entry<String, ?> entry : values.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Boolean) edit.putBoolean(key, (Boolean) value);
+            else if (value instanceof Integer) edit.putInt(key, (Integer) value);
+            else if (value instanceof Long) edit.putLong(key, (Long) value);
+            else if (value instanceof Float) edit.putFloat(key, (Float) value);
+            else if (value instanceof String) edit.putString(key, (String) value);
+            else throw new AssertionError("Unexpected arrival preference type");
+        }
+        if (!edit.commit()) throw new AssertionError("Could not restore arrival preferences");
+    }
+
+    private String permission() {
+        if (flow.equals("microphone")) return Manifest.permission.RECORD_AUDIO;
+        if (flow.equals("location")) return Manifest.permission.ACCESS_FINE_LOCATION;
+        if (flow.equals("notifications")) return Manifest.permission.POST_NOTIFICATIONS;
+        return Manifest.permission.CAMERA;
+    }
+
+    private boolean granted(String permission) {
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void navigate(String page) {
+        main(
+                () -> {
+                    screen.navigate(page);
+                    return null;
+                });
+    }
+
+    private String entry() {
+        if (flow.equals("microphone")) return "Hold to Talk";
+        if (flow.equals("location")) return "Let the room know where I arrived";
+        if (flow.equals("notifications")) return "Show answer notifications";
+        return "Scan pairing QR";
+    }
+
+    private void permissions() throws Exception {
+        String entry = entry();
+        require(
+                activate(node -> label(node).startsWith(entry), this::permissionVisible),
+                "actual service opens the system " + flow + " permission dialog");
+        scanPermission(flow + "-deny");
+        require(
+                activate(
+                        node -> decision(node).equals(DECISIONS[2]),
+                        () -> contains("Open app permissions")),
+                "actual service denial returns to the app permission explanation");
+        check(!granted(permission()), "denial leaves the requested permission ungranted");
+        require(
+                activate(
+                        node -> label(node).equals("Close panel"),
+                        () -> !contains("Open app permissions")),
+                "actual service dismisses the explanation and returns to the page");
+        check(
+                !controller.snapshot().holdLive,
+                "denial does not leave a pending microphone capture");
+        if (flow.equals("location")) {
+            require(
+                    activate(
+                            node -> label(node).startsWith(entry),
+                            () -> !controller.arrivalsEnabled()),
+                    "actual service disables the arrival preference before requesting again");
+        }
+        String retry = flow.equals("notifications") ? "Notifications and background sync" : entry;
+        require(
+                activate(node -> label(node).startsWith(retry), this::permissionVisible),
+                "actual service can request again after a single denial");
+        scanPermission(flow + "-allow");
+        if (flow.equals("location")) {
+            require(
+                    activate(
+                            node -> id(node).equals("permission_location_accuracy_radio_coarse"),
+                            () -> checked("permission_location_accuracy_radio_coarse")),
+                    "actual service selects approximate location in the native dialog");
+        }
+        String allow = flow.equals("notifications") ? NOTIFICATION_DECISIONS[0] : DECISIONS[0];
+        require(
+                activate(node -> id(node).equals(allow), () -> !permissionVisible()),
+                "actual service grants the selected native permission");
+        if (flow.equals("location")) {
+            await(() -> contains("Open app permissions"), 3000);
+            check(
+                    granted(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            && !granted(Manifest.permission.ACCESS_FINE_LOCATION),
+                    "Android records approximate permission without a precise grant");
+            check(
+                    controller.arrivalsNeedPermission(),
+                    "arrival remains paused because its accurate dwell rule requires precise and"
+                            + " background access");
+            require(
+                    activate(
+                            node -> label(node).equals("Close panel"),
+                            () -> !contains("Open app permissions")),
+                    "the approximate-only decision returns to settings without starting visits");
+            check(!controller.configured(), "the unpaired location test cannot send a room visit");
+            recordReturn("location-approximate-return");
+            require(
+                    activate(
+                            node -> label(node).startsWith(entry),
+                            () -> !controller.arrivalsEnabled()),
+                    "actual service switches off the approximate-only arrival preference");
+            require(
+                    activate(node -> label(node).startsWith(entry), this::permissionVisible),
+                    "a precise location upgrade still opens a native dialog when coarse access is"
+                            + " already granted");
+            boolean upgrade = hasId("permission_upgrade_button");
+            scanPermission(upgrade ? "location-upgrade" : "location-precise");
+            if (!upgrade && hasId("permission_location_accuracy_radio_fine"))
+                require(
+                        activate(
+                                node -> id(node).equals("permission_location_accuracy_radio_fine"),
+                                () -> checked("permission_location_accuracy_radio_fine")),
+                        "actual service selects precise location for the upgrade");
+            require(
+                    activate(
+                            node ->
+                                    id(node).equals(
+                                                    upgrade
+                                                            ? "permission_upgrade_button"
+                                                            : DECISIONS[0]),
+                            () -> !permissionVisible()),
+                    "actual service authorizes the precision upgrade");
+            check(
+                    granted(Manifest.permission.ACCESS_FINE_LOCATION),
+                    "Android records the precise location upgrade");
+            await(() -> contains("Always allow location access"), 3000);
+            require(
+                    contains("Always allow location access"),
+                    "foreground precision succeeds and the app explains the separate background"
+                            + " requirement");
+            require(
+                    activate(
+                            node -> label(node).equals("Close panel"),
+                            () -> !contains("Close panel")),
+                    "actual service closes the background permission guidance");
+        } else {
+            check(granted(permission()), "Android records the actual " + flow + " grant");
+        }
+        if (flow.equals("camera")) {
+            await(() -> contains("Room pairing QR camera view"), 3000);
+            require(
+                    contains("Room pairing QR camera view"),
+                    "the granted action opens the actual QR camera sheet");
+            require(
+                    activate(
+                            node -> label(node).equals("Close panel"),
+                            () -> contains("Pairing link")),
+                    "actual service closes the camera sheet and returns to the form");
+        } else if (flow.equals("microphone")) {
+            Thread.sleep(400);
+            check(
+                    !controller.snapshot().holdLive,
+                    "permission window focus loss cancels the old recording activation");
+            int rows = controller.snapshot().rows.size();
+            require(
+                    activate(
+                            node -> label(node).startsWith(entry),
+                            () -> controller.snapshot().holdLive),
+                    "a fresh actual service activation starts microphone capture after permission");
+            require(
+                    activate(
+                            node ->
+                                    label(node)
+                                            .equals(
+                                                    "Attach a photo, take a photo, add a file or"
+                                                            + " location"),
+                            () -> contains("Close panel")),
+                    "actual service opens the attachment sheet while recording");
+            await(() -> !controller.snapshot().holdLive, 3000);
+            check(
+                    !controller.snapshot().holdLive,
+                    "opening another window cancels and releases microphone capture");
+            require(
+                    activate(
+                            node -> label(node).equals("Close panel"),
+                            () -> !contains("Close panel")),
+                    "actual service returns to the composer after capture cancellation");
+            check(
+                    controller.snapshot().rows.size() == rows
+                            && controller.snapshot().outbox.isEmpty()
+                            && controller.draft().equals("QA native flow draft"),
+                    "cancelled permission/capture round trip sends nothing and preserves the"
+                            + " draft");
+        } else if (flow.equals("notifications")) {
+            check(
+                    controller.settings.answerNotifications(),
+                    "the user's answer notification preference survives denial and later system"
+                            + " authorization");
+            check(
+                    !contains("Open app permissions"),
+                    "the successful retry does not leave a stale denial sheet");
+        }
+        recordReturn(flow + "-return");
+    }
+
+    private boolean checked(String resource) {
+        AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            List<AccessibilityNodeInfo> nodes = permissionNodes(root, resource);
+            boolean checked = false;
+            for (AccessibilityNodeInfo node : nodes) {
+                checked |= node.isChecked();
+                node.recycle();
+            }
+            return checked;
+        } finally {
+            root.recycle();
+        }
+    }
+
+    private boolean hasId(String resource) {
+        AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            List<AccessibilityNodeInfo> nodes = permissionNodes(root, resource);
+            boolean found = !nodes.isEmpty();
+            for (AccessibilityNodeInfo node : nodes) node.recycle();
+            return found;
+        } finally {
+            root.recycle();
+        }
+    }
+
+    private static List<AccessibilityNodeInfo> permissionNodes(
+            AccessibilityNodeInfo root, String resource) {
+        List<AccessibilityNodeInfo> nodes =
+                root.findAccessibilityNodeInfosByViewId(
+                        "com.android.permissioncontroller:id/" + resource);
+        if (nodes.isEmpty())
+            nodes =
+                    root.findAccessibilityNodeInfosByViewId(
+                            "com.google.android.permissioncontroller:id/" + resource);
+        return nodes;
+    }
+
+    private void picker() throws Exception {
+        EditText editor = main(() -> screen.findViewById(top.kuaner.pockete2.R.id.composer));
+        main(
+                () -> {
+                    editor.requestFocus();
+                    editor.setSelection(3, 9);
+                    screen.ui().hideKeyboard(editor);
+                    return null;
+                });
+        int rows = controller.snapshot().rows.size();
+        for (int round = 0; round < 2; round++) {
+            require(
+                    activate(
+                            node ->
+                                    label(node)
+                                            .equals(
+                                                    "Attach a photo, take a photo, add a file or"
+                                                            + " location"),
+                            () -> contains("File")),
+                    "actual service opens the attachment menu before native file selection");
+            require(
+                    activate(node -> label(node).equals("File"), this::documentsVisible),
+                    "actual service launches the real external DocumentsUI picker");
+            recordReturn("picker-open-" + round);
+            check(
+                    controller.draft().equals("QA native flow draft"),
+                    "opening the external picker preserves the business draft");
+            // A platform Back key cancels the real external Activity; no ActivityResult is
+            // fabricated.
+            try (android.os.ParcelFileDescriptor output =
+                            automation.executeShellCommand("input keyevent 4");
+                    FileInputStream input = new FileInputStream(output.getFileDescriptor())) {
+                while (input.read() != -1) {}
+            }
+            await(() -> !documentsVisible() && contains("QA native flow draft"), 5000);
+            require(
+                    !documentsVisible() && contains("QA native flow draft"),
+                    "system Back returns from DocumentsUI to the existing composer");
+            check(
+                    main(() -> editor.getSelectionStart() == 3 && editor.getSelectionEnd() == 9),
+                    "external cancellation preserves the native editor selection");
+            check(
+                    controller.draft().equals("QA native flow draft")
+                            && controller.snapshot().rows.size() == rows
+                            && controller.snapshot().chips.isEmpty()
+                            && controller.snapshot().imports.isEmpty()
+                            && controller.snapshot().outbox.isEmpty(),
+                    "picker cancellation adds no messages, imports, attachments or pending sends");
+            recordReturn("picker-cancel-" + round);
+        }
+        require(
+                activate(
+                        node ->
+                                label(node)
+                                        .equals(
+                                                "Attach a photo, take a photo, add a file or"
+                                                        + " location"),
+                        () -> contains("File")),
+                "the actual service can reach and reopen attachments after two cancellations");
+        require(
+                activate(node -> label(node).equals("Close panel"), () -> !contains("Close panel")),
+                "the actual service closes the restored attachment sheet");
+    }
+
+    private boolean documentsVisible() {
+        AccessibilityNodeInfo root = automation.getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            return root.getPackageName() != null
+                    && root.getPackageName().toString().endsWith("documentsui");
+        } finally {
+            root.recycle();
+        }
+    }
+
+    private void recordReturn(String name) throws Exception {
+        AccessibilityNodeInfo node = null;
+        for (int step = 0; step < 16 && node == null; step++) node = next();
+        require(
+                node != null,
+                name + " actual service has a reachable focus after the window transition");
+        if (node == null) return;
+        try {
+            String pkg = String.valueOf(node.getPackageName());
+            check(
+                    name.startsWith("picker-open")
+                            ? pkg.endsWith("documentsui")
+                            : pkg.equals(screen.getPackageName()),
+                    name + " actual service focus belongs to the returned window");
+            pages.put(
+                    new JSONObject()
+                            .put("page", name)
+                            .put("package", pkg)
+                            .put("label", label(node))
+                            .put("id", id(node)));
+            Bitmap image = automation.takeScreenshot();
+            if (image != null) {
+                try (FileOutputStream output =
+                        new FileOutputStream(new File(directory, name + ".png"))) {
+                    image.compress(Bitmap.CompressFormat.PNG, 100, output);
+                } finally {
+                    image.recycle();
+                }
+            }
+        } finally {
+            node.recycle();
+        }
     }
 
     private boolean permissionVisible() {
@@ -282,6 +696,10 @@ final class PermissionServiceProbe {
         if (service.equals("talkback")) raw("/dev/input/event1 right");
         else raw(keyboard + " key 30");
         Thread.sleep(200);
+        return focused();
+    }
+
+    private AccessibilityNodeInfo focused() {
         AccessibilityNodeInfo root = automation.getRootInActiveWindow();
         if (root == null) return null;
         try {
@@ -325,10 +743,27 @@ final class PermissionServiceProbe {
 
     private boolean activate(Predicate<AccessibilityNodeInfo> selected, BooleanSupplier completed)
             throws Exception {
+        JSONArray trace = new JSONArray();
+        Set<String> visited = new LinkedHashSet<>();
+        pages.put(new JSONObject().put("page", "activation-" + assertions).put("trace", trace));
         for (int step = 0; step < 100; step++) {
-            AccessibilityNodeInfo node = next();
+            if (service.equals("switch")
+                    && (flow.equals("location") || flow.equals("notifications"))
+                    && (step == 30 || step == 60)
+                    && !permissionVisible()
+                    && !contains("Close panel")) {
+                raw(keyboard + " key 46");
+                Thread.sleep(200);
+            }
+            AccessibilityNodeInfo node = step == 0 ? focused() : next();
             if (node == null) continue;
             try {
+                if (visited.add(id(node) + ":" + label(node)))
+                    trace.put(
+                            new JSONObject()
+                                    .put("label", label(node))
+                                    .put("id", id(node))
+                                    .put("package", String.valueOf(node.getPackageName())));
                 if (!node.isEnabled() || !selected.test(node)) continue;
                 if (service.equals("talkback")) {
                     Rect bounds = new Rect();
@@ -359,6 +794,14 @@ final class PermissionServiceProbe {
     }
 
     private void scanPermission(String name) throws Exception {
+        String[] decisions =
+                flow.equals("notifications")
+                        ? NOTIFICATION_DECISIONS
+                        : name.equals("location-upgrade")
+                                ? new String[] {
+                                    "permission_upgrade_button", "permission_no_upgrade_button"
+                                }
+                                : DECISIONS;
         JSONArray trace = new JSONArray();
         Set<String> reached = new LinkedHashSet<>(), unique = new LinkedHashSet<>();
         List<Integer> order = new ArrayList<>();
@@ -400,8 +843,8 @@ final class PermissionServiceProbe {
                         }
                     }
                 } else stale++;
-                for (int n = 0; n < DECISIONS.length; n++)
-                    if (resource.equals(DECISIONS[n])) {
+                for (int n = 0; n < decisions.length; n++)
+                    if (resource.equals(decisions[n])) {
                         reached.add(resource);
                         if (order.isEmpty() || order.get(order.size() - 1) != n) order.add(n);
                     }
@@ -409,11 +852,11 @@ final class PermissionServiceProbe {
                 node.recycle();
             }
         }
-        for (String decision : DECISIONS)
+        for (String decision : decisions)
             check(reached.contains(decision), name + " reaches " + decision);
-        boolean ordered = order.size() >= DECISIONS.length;
-        for (int i = 1; i < Math.min(order.size(), DECISIONS.length); i++)
-            if (order.get(i) != (order.get(i - 1) + 1) % DECISIONS.length) ordered = false;
+        boolean ordered = order.size() >= decisions.length;
+        for (int i = 1; i < Math.min(order.size(), decisions.length); i++)
+            if (order.get(i) != (order.get(i - 1) + 1) % decisions.length) ordered = false;
         check(ordered, name + " actual decision focus follows the visible order");
         JSONObject page =
                 new JSONObject()
@@ -424,7 +867,7 @@ final class PermissionServiceProbe {
         Files.write(
                 new File(directory, name + ".json").toPath(),
                 page.toString(2).getBytes(StandardCharsets.UTF_8));
-        if (reached.size() != DECISIONS.length || !ordered)
+        if (reached.size() != decisions.length || !ordered)
             throw new AssertionError(
                     "The actual system permission decisions were not all scanned in order");
     }
