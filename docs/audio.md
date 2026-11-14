@@ -18,6 +18,30 @@ packet file before entering the transactional outbox with a stable id and origin
 audio interruption retains a long-enough note as failed and retryable; cancelling or backgrounding
 an unfinished hold removes it. A note shorter than fifteen 20 ms packets is not sent.
 
+`VoiceInbox` now persists the hold's identity and originating room before capture begins, flushes
+complete packets at least once per fifty packets, and hands the closed file to SQLite through a
+transactional receipt. A failed admission remains visible as one retryable note; repeated failure
+does not upload or allocate a new message id. An actual force-stop during capture recovers only
+the readable complete-frame prefix as failed, requiring explicit retry. A completed SQLite
+handoff is acknowledged without replay, and a persisted cancellation is cleaned without revival.
+Try recordings remain isolated in cache. The outgoing voice type/duration and unsent placeholder
+use the bubble's readable text colour; the failed-note action has a real 48 dp button target.
+The separate native storage run passed **14 assertions**; actual recording/commit/discard crash
+checks passed **23 native and 15 host-controlled assertions**. Uploads use a prepared sink, so no
+surrounding recording leaves the device. Buffered tail loss, power loss, full physical storage and
+legacy orphan files remain explicit limits; see `storage.md` for ownership and reproduction.
+
+The same APK's final background regression initially failed its foreground-state check: the
+retained id/body, upload attempt and native service were correct, but the controller had returned
+to background. Actual power state was Asleep, and system logs record the existing 60-second screen
+timeout before the Activity return. Starting an Activity alone did not wake the display. The
+harness now deliberately checks actual screen-off while the denied upload remains deferred, then
+wakes/unlocks before returning and checks native window focus and foreground within the original
+five-second deadline. The expanded **18-assertion** run passes without production or system-setting
+changes. Its restoration also wakes before opening the actual room. This establishes this run's
+missing wake, not the causes of earlier intermittent background failures. The complete **336-device**,
+**77-access** and **eight actual read-only HTTP** regressions pass on this production APK as well.
+
 The room microphone switch outlives its capture socket. `AmbientInput` remembers that a socket may
 have turned it off, even after the last press releases: its queued unmute might otherwise be cleared
 by immediate teardown. Ambient exit and focus interruption freeze a final `mute{on:true}` before
@@ -246,9 +270,9 @@ journal and the earlier failed fixture journal. The earlier unnormalized attempt
 
 Remaining acceptance includes acoustic microphone-to-room recognition and actual empty/failure outcomes,
 natural ambient brain/tool turns, cross-network handover, long streams, actual
-calls and external route changes, prolonged background/process death and energy trials. Native
-protocol faults, synthetic API speech and zero-volume hardware
-watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.
+calls and external route changes, prolonged background, ambient/upload process death and energy
+trials. Native protocol faults, synthetic API speech and zero-volume hardware watermarks do not
+prove audible acoustics or recognition of the E2 microphone's speech.
 
 On the resumed P0 run, `POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 POCKET_E2_TEST_AMBIENT_BRAIN=1` accepted a
 distinct once-only actual ambient brain/tool turn with **21 assertions**. The clearly marked

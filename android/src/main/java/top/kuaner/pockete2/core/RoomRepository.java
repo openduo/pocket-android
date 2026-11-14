@@ -23,6 +23,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
     private static final String IMPORT_RECEIPTS = "@import-receipts";
     private static final String IMPORT_REQUESTS = "@import-requests";
     private static final String OUTBOX_CLEANUP = "@outbox-cleanup";
+    private static final String VOICE_RECEIPTS = "@voice-handoff";
     private String room = "unpaired";
 
     public RoomRepository(Context context) {
@@ -312,6 +313,46 @@ public final class RoomRepository extends SQLiteOpenHelper {
         } finally {
             db.endTransaction();
         }
+    }
+
+    /** The handoff receipt prevents replay after a crash between commit and manifest removal. */
+    public void enqueueVoice(VoiceInbox.Note note) {
+        if (!room.equals(note.room))
+            throw new IllegalArgumentException("Voice note belongs to another room");
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            String admitted = roomMetadata(VOICE_RECEIPTS, note.id);
+            if (!admitted.isEmpty() && !admitted.equals(room))
+                throw new IllegalStateException("Voice identity belongs to another room");
+            if (admitted.isEmpty()) {
+                if (row(note.id) == null && findPending(note.id) == null) {
+                    put(note.row(false));
+                    pending(note.item(false));
+                }
+                metadata(VOICE_RECEIPTS, note.id, room);
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public java.util.Set<String> voiceReceipts() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        try (Cursor cursor =
+                getReadableDatabase()
+                        .rawQuery(
+                                "SELECT name FROM metadata WHERE room=?",
+                                new String[] {VOICE_RECEIPTS})) {
+            while (cursor.moveToNext()) ids.add(cursor.getString(0));
+        }
+        return ids;
+    }
+
+    public void acknowledgeVoice(String id) {
+        getWritableDatabase()
+                .delete("metadata", "room=? AND name=?", new String[] {VOICE_RECEIPTS, id});
     }
 
     /** The two newest cached days cover turn settlement across midnight without a UI row limit. */

@@ -37,7 +37,7 @@ jar cf "$build/tests.jar" -C "$build/classes" .
 (cd "$build/dex" && zip -q "$build/base.apk" ./*.dex)
 "$tools/zipalign" -f -p 4 "$build/base.apk" "$build/aligned.apk"
 "$tools/apksigner" sign --ks "$sign_dir/pocket-e2.p12" --ks-key-alias pocket-e2 --ks-pass "file:$sign_dir/password" --out "$build/probe.apk" "$build/aligned.apk"
-if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 || "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" == 1 ]]; then
+if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 || "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" == 1 || "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
   if adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then echo 'E2Studio is recording or working; capture probe refused.' >&2; exit 1; fi
   adb shell pm grant top.kuaner.pockete2 android.permission.RECORD_AUDIO
 fi
@@ -73,6 +73,10 @@ if [[ "${POCKET_E2_TEST_OUTBOX_DEATH:-0}" == 1 ]]; then
   python3 "$project_dir/scripts/test-outbox-death.py" "$build" | tee "$build/outbox-death-result.txt"
   exit
 fi
+if [[ "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
+  python3 "$project_dir/scripts/test-voice-death.py" "$build" | tee "$build/voice-death-result.txt"
+  exit
+fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
   -e capture "${POCKET_E2_TEST_CAPTURE:-0}"
@@ -81,6 +85,7 @@ probe_args=(
   -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}"
   -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}"
   -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}"
+  -e voiceStorageOnly "${POCKET_E2_TEST_VOICE_STORAGE_ONLY:-0}"
   -e backgroundVoiceOnly "${POCKET_E2_TEST_BACKGROUND_VOICE_ONLY:-0}"
   -e historyOnly "${POCKET_E2_TEST_HISTORY_ONLY:-0}"
   -e audioBurstOnly "${POCKET_E2_TEST_AUDIO_BURST_ONLY:-0}"

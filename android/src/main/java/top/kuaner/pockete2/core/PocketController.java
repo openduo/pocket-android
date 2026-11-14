@@ -324,9 +324,23 @@ public final class PocketController {
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
+    private final VoiceInbox voiceInbox, tryVoiceInbox;
+    private VoiceInbox.Note heldVoice;
+    private VoiceInbox heldInbox;
+    private final Map<String, VoiceAdmission> voiceAdmissions = new java.util.LinkedHashMap<>();
     private final ImportCoordinator imports;
     private final top.kuaner.pockete2.sight.DeviceHeat deviceHeat;
     private int heatLevel;
+
+    private static final class VoiceAdmission {
+        final VoiceInbox inbox;
+        final VoiceInbox.Note note;
+
+        VoiceAdmission(VoiceInbox inbox, VoiceInbox.Note note) {
+            this.inbox = inbox;
+            this.note = note;
+        }
+    }
 
     /** Mutable fields belong to the state executor; each HTTP attempt captures immutable inputs. */
     private static final class SendOperation {
@@ -357,6 +371,8 @@ public final class PocketController {
         this.context = context;
         settings = new Settings(context);
         attachmentStore = new AttachmentStore(context);
+        voiceInbox = new VoiceInbox(new File(context.getFilesDir(), "voice"));
+        tryVoiceInbox = new VoiceInbox(new File(context.getCacheDir(), "try-voice"));
         arrivals = new top.kuaner.pockete2.location.ArrivalMonitor(context);
         arrivals.refresh();
         log = top.kuaner.pockete2.diagnostics.AppLog.get(context);
@@ -523,6 +539,7 @@ public final class PocketController {
                     }
                     restoreDraft();
                     imports.recover(true);
+                    recoverVoiceNotes();
                     reload();
                     publish();
                     if (settings.isComplete()) startNetwork();
@@ -644,6 +661,10 @@ public final class PocketController {
                 () -> {
                     foreground = value;
                     if (value) voiceUploadDeferred = false;
+                    if (value) {
+                        recoverVoiceNotes();
+                        reload();
+                    }
                     notifications.foreground(value);
                     log.event("foreground", String.valueOf(value));
                     arrivals.refresh();
@@ -1597,6 +1618,15 @@ public final class PocketController {
     public void retry(String id) {
         state.execute(
                 () -> {
+                    VoiceAdmission retained = voiceAdmissions.get(id);
+                    if (retained != null) {
+                        if (!retained.note.room.equals(repo.roomIdentity())) return;
+                        if (!admitVoice(retained)) {
+                            reload();
+                            publish();
+                            return;
+                        }
+                    }
                     Outbox.Item item = repo.findPending(id);
                     if (item == null) {
                         Message logged = repo.row(id);
@@ -1627,8 +1657,9 @@ public final class PocketController {
                                         System.currentTimeMillis(),
                                         0));
                     } else {
-                        if (item.state != Message.FAILED) return;
-                        repo.transition(item.state(Message.QUEUED, ""));
+                        if (item.state != Message.FAILED && retained == null) return;
+                        if (item.state == Message.FAILED)
+                            repo.transition(item.state(Message.QUEUED, ""));
                     }
                     reload();
                     publish();
@@ -1643,6 +1674,18 @@ public final class PocketController {
     public void discard(String id) {
         state.execute(
                 () -> {
+                    VoiceAdmission retained = voiceAdmissions.get(id);
+                    if (retained != null) {
+                        if (!retained.note.room.equals(repo.roomIdentity())) return;
+                        try {
+                            retained.inbox.discard(retained.note);
+                            voiceAdmissions.remove(id);
+                            if (lastError.equals(VoiceInbox.UNSAVED)) lastError = "";
+                        } catch (java.io.IOException failure) {
+                            notice("录音未能删除，请稍后重试");
+                            return;
+                        }
+                    }
                     repo.discard(id);
                     settleSend();
                     reload();
@@ -2051,12 +2094,9 @@ public final class PocketController {
                         return;
                     }
                     try {
-                        File dir =
-                                new File(
-                                        trying ? context.getCacheDir() : context.getFilesDir(),
-                                        trying ? "try-voice" : "voice");
-                        if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException();
-                        heldFile = new File(dir, UUID.randomUUID().toString() + ".packets");
+                        heldInbox = trying ? tryVoiceInbox : voiceInbox;
+                        heldVoice = heldInbox.begin(repo.roomIdentity());
+                        heldFile = heldVoice.file;
                         heldFileOutput = new FileOutputStream(heldFile);
                         heldOutput = new BufferedOutputStream(heldFileOutput);
                         holdRequested = true;
@@ -2073,6 +2113,7 @@ public final class PocketController {
                         else if (!captureStopping) holdLive = true;
                         publish();
                     } catch (Exception failure) {
+                        cancelHeldVoice();
                         notice("无法准备语音存储");
                     }
                 });
@@ -2090,19 +2131,20 @@ public final class PocketController {
         if (!holdRequested) return;
         holdRequested = false;
         holdLive = false;
+        boolean writeFailed = false;
         try {
             if (heldOutput != null && !cancel && holdPackets >= 15) {
                 heldOutput.flush();
                 heldFileOutput.getFD().sync();
             }
         } catch (Exception failure) {
-            cancel = true;
+            writeFailed = true;
             lastError = "语音保存失败，请检查存储空间";
         } finally {
             try {
                 if (heldOutput != null) heldOutput.close();
             } catch (Exception failure) {
-                cancel = true;
+                writeFailed = true;
                 lastError = "语音保存失败，请检查存储空间";
             }
         }
@@ -2111,39 +2153,105 @@ public final class PocketController {
         if (!ambientWanted || ambientLinkPaused) stopCapture();
         for (JSONObject outgoing : ambientInput.press("phone", false)) send(outgoing);
         if (cancel || holdPackets < 15) {
-            if (heldFile != null) heldFile.delete();
+            cancelHeldVoice();
             if (!cancel) lastError = "按住说话，麦克风就绪后再松开";
         } else {
-            String id = UUID.randomUUID().toString();
-            Outbox.Item item =
-                    new Outbox.Item(
-                            id,
-                            "",
-                            true,
-                            heldFile.getPath(),
-                            "phone",
-                            holdPackets * 20L,
-                            Collections.<Attachment>emptyList(),
-                            interrupted ? Message.FAILED : Message.QUEUED,
-                            interrupted ? "录音被打断 · 轻点重试" : "",
-                            "",
-                            System.currentTimeMillis(),
-                            0);
-            repo.enqueue(
-                    Message.mine(
-                                    id,
-                                    "",
-                                    "phone",
-                                    holdPackets * 20L,
-                                    item.state,
-                                    Collections.<Attachment>emptyList())
-                            .withDelivery(item.state, item.error),
-                    item);
-            reload();
-            if (!interrupted) pump();
+            try {
+                VoiceInbox.Note note =
+                        heldInbox.seal(heldVoice, holdPackets, interrupted || writeFailed);
+                if (note == null) cancelHeldVoice();
+                else {
+                    VoiceAdmission admission = new VoiceAdmission(heldInbox, note);
+                    voiceAdmissions.put(note.id, admission);
+                    admitVoice(admission);
+                }
+            } catch (java.io.IOException failure) {
+                // The recording manifest still owns the bytes; recovery never auto-sends it.
+                log.event("voice", "seal_deferred");
+                lastError = "语音保存失败，请检查存储空间";
+            }
         }
+        heldVoice = null;
+        heldInbox = null;
         heldFile = null;
+        reload();
         publish();
+        if (!interrupted && !writeFailed) pump();
+    }
+
+    private void cancelHeldVoice() {
+        try {
+            if (heldOutput != null) heldOutput.close();
+        } catch (java.io.IOException ignored) {
+        }
+        heldOutput = null;
+        heldFileOutput = null;
+        try {
+            if (heldVoice != null) heldInbox.discard(heldVoice);
+        } catch (java.io.IOException failure) {
+            log.event("voice", "cancel_cleanup_deferred");
+            lastError = "录音未能删除，请稍后重试";
+        }
+        heldVoice = null;
+        heldInbox = null;
+        heldFile = null;
+    }
+
+    private boolean admitVoice(VoiceAdmission admission) {
+        if (!repo.roomIdentity().equals(admission.note.room)) return false;
+        try {
+            admission.inbox.remember(admission.note);
+            repo.enqueueVoice(admission.note);
+        } catch (java.io.IOException | RuntimeException failure) {
+            log.event("voice", "admission_deferred");
+            lastError = VoiceInbox.UNSAVED;
+            return false;
+        }
+        voiceAdmissions.remove(admission.note.id);
+        try {
+            admission.inbox.acknowledge(admission.note.id);
+            repo.acknowledgeVoice(admission.note.id);
+        } catch (java.io.IOException | RuntimeException failure) {
+            log.event("voice", "acknowledgement_deferred");
+        }
+        if (lastError.equals(VoiceInbox.UNSAVED)) lastError = "";
+        return true;
+    }
+
+    private void recoverVoiceNotes() {
+        recoverVoiceInbox(voiceInbox, realRepo);
+        if (trying) recoverVoiceInbox(tryVoiceInbox, repo);
+        for (VoiceAdmission admission : new ArrayList<>(voiceAdmissions.values()))
+            if (admission.note.room.equals(repo.roomIdentity())) admitVoice(admission);
+    }
+
+    private boolean discardVoiceAdmissions() {
+        for (VoiceAdmission admission : new ArrayList<>(voiceAdmissions.values()))
+            if (admission.note.room.equals(repo.roomIdentity()))
+                try {
+                    admission.inbox.discard(admission.note);
+                    voiceAdmissions.remove(admission.note.id);
+                } catch (java.io.IOException failure) {
+                    lastError = "录音未能删除，请稍后重试";
+                    return false;
+                }
+        return true;
+    }
+
+    private void recoverVoiceInbox(VoiceInbox inbox, RoomRepository repository) {
+        try {
+            java.util.Set<String> active = new java.util.HashSet<>(voiceAdmissions.keySet());
+            if (heldVoice != null) active.add(heldVoice.id);
+            java.util.Set<String> receipts = repository.voiceReceipts();
+            VoiceInbox.Scan scan = inbox.pending(receipts, active);
+            for (VoiceInbox.Note note : scan.notes)
+                voiceAdmissions.put(note.id, new VoiceAdmission(inbox, note));
+            for (String id : receipts) if (!inbox.awaiting(id)) repository.acknowledgeVoice(id);
+            if (scan.unreadable > 0) lastError = "有录音未能恢复，请检查存储空间后重新打开应用";
+        } catch (java.io.IOException | RuntimeException failure) {
+            log.event("voice", "recovery_deferred");
+            lastError = "有录音未能恢复，请检查存储空间后重新打开应用";
+        }
     }
 
     private void startCapture() {
@@ -2194,7 +2302,7 @@ public final class PocketController {
                                             boolean intentional = captureStopping;
                                             captureStopping = false;
                                             if (!reason.isEmpty() && !intentional) {
-                                                releaseOnState(true);
+                                                releaseOnState(false, true);
                                                 if (ambientWanted) {
                                                     ambient = Ambient.FAILED;
                                                     ambientWanted = false;
@@ -2226,6 +2334,7 @@ public final class PocketController {
                 heldOutput.write(packet.length >>> 8);
                 heldOutput.write(packet);
                 holdPackets++;
+                if (holdPackets % 50 == 0) heldOutput.flush();
                 if (holdPackets * 20 - lastHoldPublish >= 100) {
                     lastHoldPublish = holdPackets * 20;
                     publish();
@@ -2235,7 +2344,7 @@ public final class PocketController {
                     notice("语音已达到本机大小上限");
                 }
             } catch (Exception failure) {
-                releaseOnState(true);
+                releaseOnState(false, true);
                 notice("语音保存失败，请检查存储空间");
             }
         }
@@ -2824,6 +2933,7 @@ public final class PocketController {
                                                     passport.room(repo.roomIdentity());
                                                     restoreDraft();
                                                     imports.recover(false);
+                                                    recoverVoiceNotes();
                                                     for (Attachment attachment :
                                                             new ArrayList<>(chips))
                                                         if (attachment.sha256.isEmpty())
@@ -2882,6 +2992,11 @@ public final class PocketController {
                     if (trying) {
                         cleanupTry();
                         trying = false;
+                    }
+                    if (!discardVoiceAdmissions()) {
+                        reload();
+                        publish();
+                        return;
                     }
                     repo.clear();
                     if (PassportPolicy.ENABLED) passport.online(false);
@@ -2978,6 +3093,7 @@ public final class PocketController {
         passport.room(repo.roomIdentity());
         restoreDraft();
         imports.recover(false);
+        recoverVoiceNotes();
         if (resumeReal) refreshService();
         connection = settings.isComplete() ? Connection.CONNECTING : Connection.NEEDS_SETUP;
         reload();
@@ -3008,6 +3124,7 @@ public final class PocketController {
             repo = realRepo;
         }
         channel = transport;
+        voiceAdmissions.values().removeIf(admission -> admission.inbox == tryVoiceInbox);
         for (String name :
                 new String[] {"try-channel", "try-attachments", "try-downloads", "try-voice"})
             deleteTryFiles(new File(context.getCacheDir(), name));
@@ -3403,8 +3520,13 @@ public final class PocketController {
     private void reload() {
         cachedRows = repo.rows(visibleLimit);
         cachedRows.addAll(liveNotes);
-        cachedRows.sort(java.util.Comparator.comparingLong(row -> row.at));
         pending = repo.pending();
+        for (VoiceAdmission admission : voiceAdmissions.values())
+            if (admission.note.room.equals(repo.roomIdentity())) {
+                cachedRows.add(admission.note.row(true));
+                pending.add(admission.note.item(true));
+            }
+        cachedRows.sort(java.util.Comparator.comparingLong(row -> row.at));
         revision++;
     }
 

@@ -50,7 +50,8 @@ actual local-fault redial and room-microphone restoration. Server playback compl
 surrounding microphone bytes were replaced by silence. **Natural microphone recognition and audible
 playback remain unaccepted.** See [audio.md](docs/audio.md) and the full evidence matrix in
 [migration.md](docs/migration.md). Earlier process-death acceptance covers an unfinished system-picked
-file across actual force-stop/cold-launch cycles; sustained low-memory/standby acceptance remains.
+file across actual force-stop/cold-launch cycles; held-recording crash acceptance is documented
+below. Sustained low-memory/standby acceptance remains.
 
 The final location probe queried `passive,gps` with no enabled providers on the E2. It accepted the
 disabled-location explanation, retained coordinates and a reachable insertion button, and appended
@@ -164,6 +165,26 @@ screens were inspected. One earlier outage-release assertion failed without comp
 the original-deadline wait now observes both native lease release and the controller callback.
 Subsequent targeted and complete runs pass; the earlier trigger remains unlocated.
 
+The next P0/P1 update gives held recordings a durable file inbox before microphone acquisition.
+SQLite admission failures now retain one visible retryable note; retries preserve its original
+identity and bytes, and continued failure sends no HTTP. Actual force-stop/cold-launch checks
+recover an unfinished native hold as failed for explicit retry, acknowledge a committed handoff
+without replay, and prevent cancelled recordings from returning. The final targeted runs pass
+**14 native storage assertions**, **23 native crash assertions** and **15 host-controlled crash
+assertions**, with **275 host assertions**. The small-screen outgoing voice labels now retain
+readable contrast and the failed-note action has an actual 48 dp native button target. Prepared
+HTTP receives the captured bytes; no surrounding recording is uploaded to the actual service.
+Unflushed tails, full physical disk/power-loss recovery, legacy orphan files and natural acoustics
+remain separate limits. See [storage.md](docs/storage.md) and [audio.md](docs/audio.md).
+The same production APK then passed the complete **336-assertion** capture/camera/import/paired-try
+regression. Actual compact keyboard and 1.35-font conversation screenshots were inspected.
+The final isolated regressions pass **77 access-recovery**, **18 background-upload** and **eight
+actual-room read-only HTTP assertions**. The first background run reached a foreground check
+after Android's existing 60-second screen timer had put the device to sleep. The harness now
+explicitly exercises screen-off, then wakes/unlocks before the actual return and checks native
+focus within the original deadline. It passes without changing production code or device settings;
+this does not retroactively diagnose earlier background-test failures. See [audio.md](docs/audio.md).
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
@@ -247,6 +268,10 @@ POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_OUTAGE_ONLY=1 scripts/test-device.sh
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 scripts/test-device.sh
 # Explicitly force-stop/cold-start during a real system-picked provider copy:
 POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
+# Isolated real hold/SQLite admission failure and compact failed-note controls:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_STORAGE_ONLY=1 scripts/test-device.sh
+# Explicitly force-stop during real held capture and voice commit/acknowledgment:
+ANDROID_SERIAL=YOUR_E2_SERIAL POCKET_E2_TEST_VOICE_DEATH=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),

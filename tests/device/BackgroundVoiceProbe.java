@@ -98,6 +98,31 @@ final class BackgroundVoiceProbe {
         }
     }
 
+    private boolean awake() {
+        return context.getSystemService(android.os.PowerManager.class).isInteractive();
+    }
+
+    private void shell(String command) throws Exception {
+        try (java.io.InputStream input =
+                new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                        probe.getUiAutomation().executeShellCommand(command))) {
+            byte[] discard = new byte[256];
+            while (input.read(discard) != -1) {}
+        }
+    }
+
+    private void returnToApp() throws Exception {
+        // Starting an Activity while the screen is asleep does not model a user's return.
+        shell("input keyevent 224");
+        shell("wm dismiss-keyguard");
+        context.startActivity(
+                new Intent(Intent.ACTION_MAIN)
+                        .setClassName(context.getPackageName(), MainActivity.class.getName())
+                        .addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK
+                                        | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+    }
+
     private Outbox.Item pending(String id) throws Exception {
         return onState(() -> repository.findPending(id));
     }
@@ -311,14 +336,25 @@ final class BackgroundVoiceProbe {
                         field("context", originalContext);
                         return null;
                     });
-            context.startActivity(
-                    new Intent(Intent.ACTION_MAIN)
-                            .setClassName(context.getPackageName(), MainActivity.class.getName())
-                            .addFlags(
-                                    Intent.FLAG_ACTIVITY_NEW_TASK
-                                            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            shell("input keyevent 223");
+            await(() -> !awake(), 2000);
             check(
-                    deferred.started.await(5, TimeUnit.SECONDS),
+                    !awake() && background() && deferred.bodies.isEmpty(),
+                    "the actual display is asleep while the denied upload remains deferred without"
+                            + " HTTP");
+            returnToApp();
+            await(
+                    () ->
+                            deferred.started.getCount() == 0
+                                    && awake()
+                                    && !background()
+                                    && screen.hasWindowFocus(),
+                    5000);
+            check(
+                    deferred.started.getCount() == 0
+                            && awake()
+                            && !background()
+                            && screen.hasWindowFocus(),
                     "actual foreground return resumes deferred voice on the already-open live"
                             + " connection");
             await(this::service, 3000);
@@ -337,6 +373,8 @@ final class BackgroundVoiceProbe {
                             + deferred.bodies.size()
                             + ", upload="
                             + controller.snapshot().uploadingVoice
+                            + ", awake="
+                            + awake()
                             + ", bytes="
                             + Arrays.equals(deferred.bodies.get(0), body)
                             + ", id="
@@ -375,12 +413,7 @@ final class BackgroundVoiceProbe {
                         return null;
                     });
             context.deleteDatabase(DATABASE);
-            context.startActivity(
-                    new Intent(Intent.ACTION_MAIN)
-                            .setClassName(context.getPackageName(), MainActivity.class.getName())
-                            .addFlags(
-                                    Intent.FLAG_ACTIVITY_NEW_TASK
-                                            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            returnToApp();
         }
         await(() -> controller.snapshot().connection == PocketController.Connection.ONLINE, 30_000);
         check(

@@ -652,7 +652,7 @@ public final class ConversationPage implements PocketController.Listener {
                                             ? " · " + HoldToTalkView.duration(m.durationMs)
                                             : ""),
                             11,
-                            mine ? ui.palette.accent : ui.palette.secondary,
+                            mine ? ui.palette.mineText : ui.palette.secondary,
                             true);
             bubble.addView(voice);
         }
@@ -691,7 +691,7 @@ public final class ConversationPage implements PocketController.Listener {
                     ui.label(
                             m.delivery == Message.FAILED ? ui.t("语音未送达") : ui.t("正在识别…"),
                             15,
-                            ui.palette.secondary,
+                            mine ? ui.palette.mineText : ui.palette.secondary,
                             false));
         bubble.setMinimumWidth(ui.dp(66));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
@@ -723,7 +723,11 @@ public final class ConversationPage implements PocketController.Listener {
                             false);
             note.setPadding(ui.dp(3), ui.dp(5), ui.dp(3), 0);
             row.addView(note);
-            if (m.delivery == Message.FAILED) note.setOnClickListener(v -> messageActions(m));
+            if (m.delivery == Message.FAILED) {
+                note.setMinHeight(ui.dp(48));
+                note.setGravity(Gravity.CENTER_VERTICAL);
+                ui.clickable(note, 0, 8, () -> messageActions(m));
+            }
             if (s.readingId.equals(m.id)) note.setOnClickListener(v -> controller.readAloud(m));
         }
         row.setContentDescription((mine ? ui.t("我") : ui.t("回答")) + "，" + m.text + "，" + meta);

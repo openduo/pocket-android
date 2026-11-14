@@ -15,6 +15,7 @@ pure += [source / 'audio/PacketStream.java', source / 'sight/SightProtocol.java'
 pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.java', source / 'trymode/TryScript.java']
 pure += [source / 'net/RequestScope.java']
 pure += [source / 'net/RoomAccess.java']
+pure += [source / 'core/VoiceInbox.java']
 pure += [source / 'sight/PreviewFrame.java']
 pure += [source / 'sight/SightRecovery.java']
 pure += [source / 'text/TextCatalog.java']

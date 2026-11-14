@@ -53,6 +53,13 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && arguments.getString("voiceDeathPhase") != null) {
+                report.putAll(
+                        new VoiceDeathProbe(this)
+                                .run(context, arguments.getString("voiceDeathPhase")));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("backgroundVoiceOnly"))) {
                 report.putString("result", new BackgroundVoiceProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);
@@ -102,6 +109,7 @@ public final class Probe extends Instrumentation {
                     && ("1".equals(arguments.getString("voiceOnly"))
                             || "1".equals(arguments.getString("audioBurstOnly"))
                             || "1".equals(arguments.getString("accessibilityOnly"))
+                            || "1".equals(arguments.getString("voiceStorageOnly"))
                             || "1".equals(arguments.getString("locationOnly"))
                             || "1".equals(arguments.getString("sightOnly"))
                             || "1".equals(arguments.getString("arrivalOnly")))) {
@@ -117,21 +125,28 @@ public final class Probe extends Instrumentation {
                                                 : "1"
                                                                 .equals(
                                                                         arguments.getString(
-                                                                                "accessibilityOnly"))
-                                                        ? " accessibility assertions"
+                                                                                "voiceStorageOnly"))
+                                                        ? " voice storage assertions"
                                                         : "1"
                                                                         .equals(
                                                                                 arguments.getString(
-                                                                                        "sightOnly"))
-                                                                ? " Sight assertions"
+                                                                                        "accessibilityOnly"))
+                                                                ? " accessibility assertions"
                                                                 : "1"
                                                                                 .equals(
                                                                                         arguments
                                                                                                 .getString(
-                                                                                                        "arrivalOnly"))
-                                                                        ? " arrival assertions"
-                                                                        : " voice upload"
-                                                                                + " assertions"));
+                                                                                                        "sightOnly"))
+                                                                        ? " Sight assertions"
+                                                                        : "1"
+                                                                                        .equals(
+                                                                                                arguments
+                                                                                                        .getString(
+                                                                                                                "arrivalOnly"))
+                                                                                ? " arrival"
+                                                                                      + " assertions"
+                                                                                : " voice upload"
+                                                                                      + " assertions"));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -231,6 +246,8 @@ public final class Probe extends Instrumentation {
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if ("1".equals(arguments.getString("audioBurstOnly"))) {
                 assertions += new AudioBurstProbe(this, controller).run(context);
+            } else if ("1".equals(arguments.getString("voiceStorageOnly"))) {
+                assertions += new VoiceStorageProbe(this, controller).run(context, screen);
             } else if ("1".equals(arguments.getString("accessibilityOnly"))) {
                 assertions +=
                         new AccessibilityProbe(this)
