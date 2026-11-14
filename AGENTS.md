@@ -1,7 +1,9 @@
 # Pocket Android engineering rules
 
-Current milestone: finish actual microphone-to-room speech and audible replies, real Sight
-negotiation/uplink, and delivery of a notification to an explicitly selected test session.
+Current milestone handoff: actual microphone-to-room speech/audible replies and delivery to an
+explicitly selected test session have bounded acceptance below. On 2026-11-15 the user explicitly
+deferred Sight. Retain its implementation and remaining real negotiation/uplink check for later;
+do not poll releases, start Sight checks or change the room service unless the user resumes it.
 The multi-device architecture and public Preview 2 are already delivered. The user explicitly narrowed testing:
 run necessary builds and relevant contracts/short representative checks; do not expand rotation,
 accessibility or overnight matrices. Earlier acceptance plans are historical evidence, not a mandate
@@ -15,7 +17,7 @@ successful send without a relevant new failure/change. On the same date, one act
 hold-to-talk turn was recognized and delivered, and the user confirmed receiving the audible
 reply. The displayed recognition had a wording error. This accepts that bounded path on the local
 original-package E2 array build, not exact ASR accuracy, full hands-free ambient use or the public
-framework-audio APK. Do not repeat it without a relevant failure/change. Sight remains pending.
+framework-audio APK. Do not repeat it without a relevant failure/change. Sight is deferred by the user.
 
 The user confirmed on 2026-11-15 that no new room-service release is available. Actual Sight
 awaits a released media-capable service; do not assume the user missed an available update.

@@ -4,14 +4,15 @@ English · [简体中文](service-acceptance.zh-CN.md)
 
 The milestone covers natural microphone input with audible replies, actual Sight
 negotiation/uplink and receipt of a session notification. One human voice-note/audible-reply turn
-and notification receipt now have actual original-package E2 evidence; Sight remains pending.
+and notification receipt now have actual original-package E2 evidence. The user explicitly deferred
+Sight on 2026-11-15; retain the remaining check for a later request without automatic release polling.
 Use one short check per path and fix observed failures. The earlier window matrices and overnight
 background task are outside this milestone.
 
 | Path | Actual result |
 | --- | --- |
 | 1. Microphone and audible reply | Passed one human hold-to-talk turn on the local original-package E2: actual recognition/delivery, room reply and user-confirmed audible output; recognition had a wording error |
-| 2. Sight | Waiting for a released media-capable room service and its actual negotiation/uplink |
+| 2. Sight | Deferred by the user on 2026-11-15; actual negotiation/uplink remains unaccepted and requires a released media-capable room service |
 | 3. Session notification | Passed on the original-package E2: correlated server success and exactly one marked notification row in the selected dedicated recipient |
 
 On 2026-11-15 the user confirmed that no new room-service release is available. Actual Sight is
@@ -86,6 +87,9 @@ hardware path.
 
 ## Sight
 
+Deferred at the user's request. The following is a future acceptance procedure, not an active
+test or release-monitoring task. Resume only when requested and the room service offers media support.
+
 Confirm `media=1` and the actual host's capture parameters, explicitly enable the camera, then
 confirm a real first key frame and subsequent uplink frames. Keep a brief viewfinder/scene check.
 When a master connection omits media support, the client reports that the room service does not
@@ -130,5 +134,5 @@ remove journals to obtain another passing run.
 Record the APK identity, service capability, selected path and actual outcome in private ignored
 `.build/` evidence. Publish only a sanitized result and update [status](status.md) and the
 [migration gaps](migration.md). Track each path independently: one human voice-note/audible-reply
-turn and notification receipt are accepted for the recorded local build; Sight awaits its actual
-result after the required service release.
+turn and notification receipt are accepted for the recorded local build; Sight is explicitly
+deferred and its missing actual result is retained for later.

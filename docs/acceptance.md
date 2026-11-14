@@ -27,7 +27,7 @@ Earlier `top.kuaner.pockete2` builds had actual text/history/files/session readi
 
 The user-reported Wi-Fi incident was reproduced: tsnet retained a cached all-links-down state after Wi-Fi returned. Recovery now injects a netmon event before rebind/restun. One real E2 background outage/return recovered Online in about 2.7 seconds with the same process and an online peer observed from the computer. That evidence does not establish overnight stability.
 
-One human voice-note/audible-reply turn and selected-session notification receipt now pass on the local original-package E2 build. Actual Sight media negotiation, full hands-free ambient conversation, physical arrival, target smart-speaker acoustics and long-term background behavior remain open. Push and Passport are deferred. See [status](status.md) and [migration gaps](migration.md).
+One human voice-note/audible-reply turn and selected-session notification receipt now pass on the local original-package E2 build. Sight was explicitly deferred by the user on 2026-11-15, with its actual media negotiation/uplink unaccepted. Full hands-free ambient conversation, physical arrival, target smart-speaker acoustics and long-term background behavior remain open. Push and Passport are also deferred. See [status](status.md) and [migration gaps](migration.md).
 
 The unreleased client follow-up passes 331 JVM contracts, 618-entry localization/source checks
 and a signed Release build. It enforces device scope independently of recipient capability,
@@ -54,4 +54,5 @@ date the user completed a human hold-to-talk turn: actual UI evidence shows a fo
 note, recognition, delivery and a room reply; the user confirmed receiving the audible reply.
 Recognition had a wording error, so exact transcription accuracy is not accepted. These results
 apply to the local E2 array build, not the public Preview 2 framework-audio APK. No further audio
-or notification run was needed to record them; Sight still awaits the required service release.
+or notification run was needed to record them. Sight is now deferred by the user; its later actual
+check requires a media-capable room service and an explicit request to resume.

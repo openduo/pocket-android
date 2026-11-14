@@ -46,8 +46,9 @@ The local signed Release build, 331 JVM contracts and 618-entry localization/sou
 One API 35 prepared-camera UI run passes 14 targeted assertions with capture disabled, including
 the no-camera-frame warning and its removal when media support is declared.
 These changes are not included in the published Preview 2. One human voice-note/audible-reply
-turn and actual notification receipt now pass on the local original-package E2 build; Sight
-remains pending. [Short service checks](service-acceptance.md) record the prerequisites and bounded
+turn and actual notification receipt now pass on the local original-package E2 build. The user
+explicitly deferred Sight on 2026-11-15; release polling and actual Sight checks are no longer active.
+[Short service checks](service-acceptance.md) record the prerequisites and bounded
 results.
 
 On 2026-11-15 the user confirmed there is no new room-service release to install. Sight is
@@ -89,7 +90,8 @@ recording or replay was run to document the result.
 | Priority | Remaining or unverified | What a next milestone needs |
 | --- | --- | --- |
 | P0 actual use | Full hands-free ambient conversation and long-term background recovery remain unaccepted | One actual human voice-note/audible-reply turn now passes on the local original-package E2; do not repeat or expand this check without a relevant need |
-| P1 actual services | Sight awaits a released media-capable room service; physical visits remain unverified; selected-session notification receipt now passes on the local original-package E2 build | Resume Sight after the required service release; visits need a device with location/geocoder; notification disconnect uncertainty and broader target/platform coverage remain future work |
+| P1 actual services | Physical visits remain unverified; selected-session notification receipt now passes on the local original-package E2 build | Visits need a device with location/geocoder; notification disconnect uncertainty and broader target/platform coverage remain future work |
+| Deferred: Sight | Explicitly deferred by the user on 2026-11-15; implementation retained, actual negotiation/uplink unaccepted | Resume only at the user's request with a media-capable room service; no automatic release polling or service changes |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |
