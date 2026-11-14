@@ -37,13 +37,16 @@ Both services pass camera/microphone/notification rotation; TalkBack also passes
 cancellation with deferred recreation. Switch location rotation failed at the generic full-grant
 retry notice after approximate-only authorization; the rest of that flow remains unaccepted.
 TalkBack location rotation and the new APK's Switch picker recreation were not run. Existing
-passed checks are not being repeated to fill a matrix. The eight-hour E2 run retains the prior APK.
+passed checks are not being repeated to fill a matrix. The terminated eight-hour E2 run used the prior APK.
 
 The actual-service Sight recheck reaches a capture master seat with native-paced silence, but the
 server does not confirm `media=1`: NOT_RUN, zero video frames. Nine setup/restoration guards pass;
 they do not accept negotiation. The paired room remains ineligible for session notification, with
-no send attempted. An independent eight-hour E2 background run is active and has no final result
-yet. See [acceptance](acceptance.md) for evidence and the exact conditions required to continue.
+no send attempted. The independent eight-hour E2 background run terminated after about 98 minutes:
+the app was detected in the foreground. All 387 process samples were present; no four-hour trim or
+final Online check was reached. This is not an eight-hour pass, and the cause of foreground return
+is unknown. The run is not being restarted. See [acceptance](acceptance.md) for evidence and the
+exact conditions required to continue.
 
 ## Scope and historical checkpoints
 
@@ -482,7 +485,8 @@ forbid controller geometry and business imports in the adaptation classes. The p
 is one compact window, alongside the 22-case API 35 matrix and actual window/accessibility runs
 summarised above. See [ui.md](ui.md). The completed idle-background baseline observes 900 seconds on
 the real E2, requests RUNNING_CRITICAL and accepts actual Online on foreground return. The separate
-eight-hour run remains active without a final result; neither trial accepts natural LMK, energy
+eight-hour run terminated at about 98 minutes when the app returned to the foreground; it did not
+reach trim or final recovery, and is not being restarted. Neither trial accepts natural LMK, energy
 behaviour or sustained ambient capture.
 
 | Upstream area | Android owner and current implementation | Remaining parity / acceptance work |

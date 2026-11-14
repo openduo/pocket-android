@@ -45,9 +45,9 @@ scenarios also remain open. Prepared Try replies never count as real server resp
 | Actual system permissions | Both services pass camera, microphone, location and notification dialogs, denial/retry, precision upgrade and return/cancellation; exact counts and limits in accessibility evidence |
 | Actual external document picker | Both services: 25 checks each; real DocumentsUI opening, two platform Back cancellations, retained draft/selection and no residual import/send |
 | Permission/activity recreation fix | Both services pass camera, microphone and notification rotation; TalkBack passes document-picker cancellation/recreation; location rotation remains unaccepted |
-| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest permission fix is emulator-only while the eight-hour E2 run retains its prior APK |
+| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest permission fix is emulator-only; the terminated eight-hour run used the prior APK |
 | Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
-| Physical E2 lifetime | 900 seconds idle background, process present at 60 samples, trim request and actual foreground Online; not natural LMK/overnight/ambient acceptance |
+| Physical E2 lifetime | 900-second idle/trim/Online checkpoint passed; separate eight-hour attempt terminated after about 98 minutes on foreground return, without reaching trim/final recovery, and will not be restarted |
 
 Reports retain separate APK digests and exact conditions in ignored `.build/acceptance/`. See
 [acceptance](docs/acceptance.md), [UI architecture](docs/ui.md) and

@@ -73,7 +73,7 @@ transport 和持久层不需要依赖新的窗口组件；验收脚本和差距�
   原始证据和一次性/永久拒绝/外部操作重建等未覆盖边界见 [`accessibility.md`](accessibility.md)。
 - 325 项 host contracts、架构/本地化、Go vet/test 和 Android 构建通过。上一 APK 检查点的 E2 完整采集/相机/Try
   回归 342 项通过；移除重复 feed 朗读节点后，当时 APK 无障碍专项重新通过 27 项。最新权限重建修复仅装到
-  模拟器，E2 8 小时后台任务保留旧包。真实 E2 的显示密度、
+  模拟器，已终止的 E2 8 小时后台任务使用旧包。真实 E2 的显示密度、
   overscan、launcher 和 E2Studio 配置保持原状。
 - 后续修复重建后实际完整授权被误报拒绝的问题；两服务相机/麦克风/通知旋转和 TalkBack 文件取消重建通过。
   定位旋转未通过，其余未跑组合继续开放；详细 APK 身份与边界见 [`accessibility.md`](accessibility.md)。

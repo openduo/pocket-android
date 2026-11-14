@@ -107,7 +107,7 @@ Switch Access 扩展运行 **113 项全部通过**：A/B 为 next/select，C/D �
 DocumentsUI 两次取消及返回重建。Switch 定位旋转在粗略授权后的通用提示断言失败，未完成精度升级；
 TalkBack 定位旋转、新 APK 的 Switch 文件重建未运行。没有为补齐组合继续复跑。
 
-新 APK 只安装到模拟器；E2 8 小时后台任务保留旧 APK，不能把旧 E2/UI 完整回归归到最新产物。
+新 APK 只安装到模拟器；已终止的 E2 8 小时后台任务使用旧 APK，不能把旧 E2/UI 完整回归归到最新产物。
 具体摘要、失败记录、ADB 中断后的清理恢复和复现方式见 [`accessibility.md`](accessibility.md)。
 
 ## 真 E2 与真实 Geocoder
@@ -167,7 +167,10 @@ ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_SIGHT_ROOM_ONLY=1 POCKET_E2_TEST_CAPT
 证据：`.build/acceptance/sight-room/result.json`、`sight-room-run.txt`；通知资格复查在
 `.build/acceptance/notify-room-recheck.txt`。没有为验证通知而改选其他人的会话。
 
-8 小时真实 E2 idle 后台观察已开始，独立证据在 `.build/acceptance/lifetime-8h/`，**尚未通过**；
+8 小时真实 E2 idle 后台观察**提前终止、未通过，不重启**，独立证据在 `.build/acceptance/lifetime-8h/`。
+387 次采样进程均存在；最后一次在 5,887.24 秒（约 98 分钟）检测到 App 前台 Activity，runner 以 exit 1
+结束。上一次后台样本为 5,871.97 秒；尚未请求计划中的 4 小时 trim，也未执行 8 小时末 Online 检查。
+原始 `result.json` 不含完成结果，终止输出另存 `terminal-status.json`；没有回填通过或猜测回前台的原因。
 每个样本同时检查进程和实际 Activity 后台状态，不干扰真实 E2 显示设置。这是连接 USB/ADB 的定时观察，
 不能等同拔线能耗、自然 LMK 或持续收音。首次启动时 UIAutomator 没有生成快照，探针现于原 40 秒期限内
 重试并仍要求真实 Online 节点；该失败保留为 `initial-launch-failure.json`。
