@@ -5,6 +5,7 @@ package top.kuaner.pockete2.qa;
 
 import android.Manifest;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.app.Instrumentation.ActivityMonitor;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.content.Intent;
@@ -14,6 +15,7 @@ import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.EditText;
 
@@ -48,6 +50,12 @@ final class PermissionServiceProbe {
     private String service, keyboard, flow;
     private Context context;
     private PocketController controller;
+    private boolean recreate;
+    private ActivityMonitor deferredMonitor;
+    private MainActivity deferredPrevious;
+    private Rect deferredBefore;
+    private String deferredName;
+    private final List<String> notices = java.util.Collections.synchronizedList(new ArrayList<>());
     private File directory;
     private final JSONArray pages = new JSONArray(), failures = new JSONArray();
     private int assertions;
@@ -125,6 +133,7 @@ final class PermissionServiceProbe {
             throw new AssertionError("Select an actual accessibility service");
         keyboard = arguments.getString("switchKeyboard", "");
         flow = arguments.getString("permissionFlow", "camera");
+        recreate = "1".equals(arguments.getString("recreateExternal"));
         if (!java.util.Arrays.asList("camera", "microphone", "location", "notifications", "picker")
                 .contains(flow)) throw new AssertionError("Select a supported native flow");
         if (service.equals("switch") && !keyboard.matches("/dev/input/event[0-9]+"))
@@ -135,6 +144,14 @@ final class PermissionServiceProbe {
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
                         | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
         automation.setServiceInfo(info);
+        automation.setOnAccessibilityEventListener(
+                event -> {
+                    if (event.getEventType() == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED
+                            && event.getPackageName() != null
+                            && context.getPackageName().contentEquals(event.getPackageName()))
+                        for (CharSequence text : event.getText())
+                            if (text != null) notices.add(text.toString());
+                });
         android.view.accessibility.AccessibilityManager manager =
                 context.getSystemService(android.view.accessibility.AccessibilityManager.class);
         String component = service.equals("talkback") ? "TalkBackService" : "SwitchAccessService";
@@ -196,6 +213,18 @@ final class PermissionServiceProbe {
                                             .setClass(context, MainActivity.class)
                                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             navigate(flow.equals("camera") ? "pairing" : trial ? "conversation" : "settings");
+            if (recreate && flow.equals("camera"))
+                main(
+                        () -> {
+                            EditText code = screen.findViewById(top.kuaner.pockete2.R.id.pair_code);
+                            code.setText("QA recreation form");
+                            EditText link = screen.findViewById(top.kuaner.pockete2.R.id.pair_link);
+                            link.setText("QA recreation draft");
+                            link.requestFocus();
+                            link.setSelection(3, 9);
+                            screen.ui().hideKeyboard(link);
+                            return null;
+                        });
             Thread.sleep(400);
             if (flow.equals("picker")) picker();
             else permissions();
@@ -219,8 +248,10 @@ final class PermissionServiceProbe {
                                 .put("complete", complete)
                                 .put("service", service)
                                 .put("flow", flow)
+                                .put("recreateExternal", recreate)
                                 .put("assertions", assertions)
                                 .put("pages", pages)
+                                .put("notices", new JSONArray(notices))
                                 .put("failures", failures)
                                 .put(
                                         "driver",
@@ -230,6 +261,11 @@ final class PermissionServiceProbe {
                         new File(directory, "result.json").toPath(),
                         report.toString(2).getBytes(StandardCharsets.UTF_8));
             } finally {
+                automation.setOnAccessibilityEventListener(null);
+                if (deferredMonitor != null) {
+                    probe.removeMonitor(deferredMonitor);
+                    deferredMonitor = null;
+                }
                 if (trial) controller.stopTrying();
                 controller.settings.language(language);
                 if (trial) {
@@ -257,12 +293,12 @@ final class PermissionServiceProbe {
                                 if (controller.arrivalsEnabled())
                                     throw new AssertionError(
                                             "Arrival monitoring did not stop before preference"
-                                                + " restoration");
+                                                    + " restoration");
                                 restore(arrivals, arrivalValues);
                                 if (!arrivals.getAll().equals(arrivalValues))
                                     throw new AssertionError(
                                             "Native flow cleanup did not restore arrival"
-                                                + " preferences");
+                                                    + " preferences");
                             });
                 }
                 if (screen != null)
@@ -323,6 +359,7 @@ final class PermissionServiceProbe {
         require(
                 activate(node -> label(node).startsWith(entry), this::permissionVisible),
                 "actual service opens the system " + flow + " permission dialog");
+        if (recreate) rotateExternal(flow + "-deny-rotation");
         scanPermission(flow + "-deny");
         require(
                 activate(
@@ -349,6 +386,7 @@ final class PermissionServiceProbe {
         require(
                 activate(node -> label(node).startsWith(retry), this::permissionVisible),
                 "actual service can request again after a single denial");
+        if (recreate) rotateExternal(flow + "-allow-rotation");
         scanPermission(flow + "-allow");
         if (flow.equals("location")) {
             require(
@@ -361,8 +399,20 @@ final class PermissionServiceProbe {
         require(
                 activate(node -> id(node).equals(allow), () -> !permissionVisible()),
                 "actual service grants the selected native permission");
+        if (recreate) {
+            await(() -> main(() -> screen.hasWindowFocus()), 3000);
+            await(() -> notices.contains("Permission allowed. Try the action again."), 2000);
+            require(
+                    notices.contains("Permission allowed. Try the action again."),
+                    "the recreated Activity exposes a retry prompt after an actual permission"
+                        + " grant");
+            require(
+                    !contains("Permission is needed for this feature"),
+                    "a real grant delivered to the replacement Activity is not reported as a"
+                        + " denial");
+        }
         if (flow.equals("location")) {
-            await(() -> contains("Open app permissions"), 3000);
+            if (!recreate) await(() -> contains("Open app permissions"), 3000);
             check(
                     granted(Manifest.permission.ACCESS_COARSE_LOCATION)
                             && !granted(Manifest.permission.ACCESS_FINE_LOCATION),
@@ -371,11 +421,13 @@ final class PermissionServiceProbe {
                     controller.arrivalsNeedPermission(),
                     "arrival remains paused because its accurate dwell rule requires precise and"
                             + " background access");
-            require(
-                    activate(
-                            node -> label(node).equals("Close panel"),
-                            () -> !contains("Open app permissions")),
-                    "the approximate-only decision returns to settings without starting visits");
+            if (!recreate)
+                require(
+                        activate(
+                                node -> label(node).equals("Close panel"),
+                                () -> !contains("Open app permissions")),
+                        "the approximate-only decision returns to settings without starting"
+                            + " visits");
             check(!controller.configured(), "the unpaired location test cannot send a room visit");
             recordReturn("location-approximate-return");
             require(
@@ -421,6 +473,17 @@ final class PermissionServiceProbe {
             check(granted(permission()), "Android records the actual " + flow + " grant");
         }
         if (flow.equals("camera")) {
+            if (recreate) {
+                check(
+                        !contains("Room pairing QR camera view"),
+                        "recreation does not resume the old scanner activation");
+                require(
+                        activate(
+                                node -> label(node).equals("Scan pairing QR"),
+                                () -> contains("Room pairing QR camera view")),
+                        "the actual service can retry scanning after the old Activity's permission"
+                                + " intent is cancelled");
+            }
             await(() -> contains("Room pairing QR camera view"), 3000);
             require(
                     contains("Room pairing QR camera view"),
@@ -473,6 +536,11 @@ final class PermissionServiceProbe {
             check(
                     !contains("Open app permissions"),
                     "the successful retry does not leave a stale denial sheet");
+            if (recreate)
+                check(
+                        !contains("System notifications are off"),
+                        "settings refreshes the permission status after the replacement Activity"
+                            + " receives the grant");
         }
         recordReturn(flow + "-return");
     }
@@ -541,6 +609,7 @@ final class PermissionServiceProbe {
             require(
                     activate(node -> label(node).equals("File"), this::documentsVisible),
                     "actual service launches the real external DocumentsUI picker");
+            if (recreate) rotateExternal("picker-rotation-" + round);
             recordReturn("picker-open-" + round);
             check(
                     controller.draft().equals("QA native flow draft"),
@@ -553,11 +622,18 @@ final class PermissionServiceProbe {
                 while (input.read() != -1) {}
             }
             await(() -> !documentsVisible() && contains("QA native flow draft"), 5000);
+            finishDeferredRotation();
             require(
                     !documentsVisible() && contains("QA native flow draft"),
                     "system Back returns from DocumentsUI to the existing composer");
             check(
-                    main(() -> editor.getSelectionStart() == 3 && editor.getSelectionEnd() == 9),
+                    main(
+                            () -> {
+                                EditText current =
+                                        screen.findViewById(top.kuaner.pockete2.R.id.composer);
+                                return current.getSelectionStart() == 3
+                                        && current.getSelectionEnd() == 9;
+                            }),
                     "external cancellation preserves the native editor selection");
             check(
                     controller.draft().equals("QA native flow draft")
@@ -590,6 +666,124 @@ final class PermissionServiceProbe {
                     && root.getPackageName().toString().endsWith("documentsui");
         } finally {
             root.recycle();
+        }
+    }
+
+    private void rotateExternal(String name) throws Exception {
+        ActivityMonitor monitor = probe.addMonitor(MainActivity.class.getName(), null, false);
+        MainActivity previous = screen;
+        Rect before = main(() -> previous.getWindowManager().getMaximumWindowMetrics().getBounds());
+        int rotation = main(() -> previous.getWindowManager().getDefaultDisplay().getRotation());
+        try {
+            try (android.os.ParcelFileDescriptor output =
+                            automation.executeShellCommand(
+                                    "settings put system user_rotation " + ((rotation + 1) % 4));
+                    FileInputStream input = new FileInputStream(output.getFileDescriptor())) {
+                while (input.read() != -1) {}
+            }
+            MainActivity replacement =
+                    (MainActivity)
+                            monitor.waitForActivityWithTimeout(flow.equals("picker") ? 1500 : 7000);
+            if (replacement == null && flow.equals("picker")) {
+                Bitmap image = automation.takeScreenshot();
+                require(image != null, name + " has an actual external display screenshot");
+                try {
+                    require(
+                            (before.width() > before.height())
+                                    != (image.getWidth() > image.getHeight()),
+                            name + " rotates the actual external display before returning");
+                } finally {
+                    image.recycle();
+                }
+                require(documentsVisible(), name + " keeps the real document picker visible");
+                deferredMonitor = monitor;
+                deferredPrevious = previous;
+                deferredBefore = before;
+                deferredName = name;
+                pages.put(new JSONObject().put("page", name).put("deferredUntilReturn", true));
+                return;
+            }
+            require(
+                    replacement != null && replacement != previous,
+                    name + " creates a replacement shipping Activity behind the external window");
+            screen = replacement;
+            probe.waitForIdleSync();
+            Thread.sleep(400);
+            Rect display =
+                    main(() -> screen.getWindowManager().getMaximumWindowMetrics().getBounds());
+            Rect window =
+                    main(() -> screen.getWindowManager().getCurrentWindowMetrics().getBounds());
+            check(main(previous::isDestroyed), name + " destroys the previous Activity");
+            require(
+                    (before.width() > before.height()) != (display.width() > display.height()),
+                    name + " rotates the actual display");
+            check(
+                    display.width() == window.width() && display.height() == window.height(),
+                    name + " fills the rotated display without letterboxing");
+            require(
+                    flow.equals("picker") ? documentsVisible() : permissionVisible(),
+                    name + " preserves the actual unanswered external window");
+            if (flow.equals("camera"))
+                check(
+                        main(
+                                () -> {
+                                    EditText code =
+                                            screen.findViewById(top.kuaner.pockete2.R.id.pair_code);
+                                    EditText link =
+                                            screen.findViewById(top.kuaner.pockete2.R.id.pair_link);
+                                    return code.getText().toString().equals("QA recreation form")
+                                            && link.getText()
+                                                    .toString()
+                                                    .equals("QA recreation draft")
+                                            && link.getSelectionStart() == 3
+                                            && link.getSelectionEnd() == 9;
+                                }),
+                        name + " retains the native unsent pairing value and selection");
+            pages.put(
+                    new JSONObject()
+                            .put("page", name)
+                            .put("display", display.toShortString())
+                            .put("window", window.toShortString())
+                            .put("rotation", (rotation + 1) % 4));
+        } finally {
+            if (monitor != deferredMonitor) probe.removeMonitor(monitor);
+        }
+    }
+
+    private void finishDeferredRotation() throws Exception {
+        if (deferredMonitor == null) return;
+        try {
+            MainActivity replacement =
+                    (MainActivity) deferredMonitor.waitForActivityWithTimeout(7000);
+            require(
+                    replacement != null && replacement != deferredPrevious,
+                    deferredName
+                            + " recreates the background Activity when the external picker"
+                            + " returns");
+            screen = replacement;
+            probe.waitForIdleSync();
+            Rect display =
+                    main(() -> screen.getWindowManager().getMaximumWindowMetrics().getBounds());
+            Rect window =
+                    main(() -> screen.getWindowManager().getCurrentWindowMetrics().getBounds());
+            check(
+                    main(deferredPrevious::isDestroyed),
+                    deferredName + " destroys the prior Activity");
+            check(
+                    (deferredBefore.width() > deferredBefore.height())
+                            != (display.width() > display.height()),
+                    deferredName + " returns in the rotated display orientation");
+            check(
+                    display.width() == window.width() && display.height() == window.height(),
+                    deferredName + " fills the actual returned display");
+            pages.put(
+                    new JSONObject()
+                            .put("page", deferredName + "-returned")
+                            .put("display", display.toShortString())
+                            .put("window", window.toShortString()));
+        } finally {
+            probe.removeMonitor(deferredMonitor);
+            deferredMonitor = null;
         }
     }
 
@@ -693,10 +887,19 @@ final class PermissionServiceProbe {
     }
 
     private AccessibilityNodeInfo next() throws Exception {
-        if (service.equals("talkback")) raw("/dev/input/event1 right");
+        return next(false);
+    }
+
+    private AccessibilityNodeInfo next(boolean backwards) throws Exception {
+        if (service.equals("talkback"))
+            raw("/dev/input/event1 " + (backwards ? "left " : "right ") + rotation());
         else raw(keyboard + " key 30");
         Thread.sleep(200);
         return focused();
+    }
+
+    private int rotation() {
+        return main(() -> screen.getWindowManager().getDefaultDisplay().getRotation());
     }
 
     private AccessibilityNodeInfo focused() {
@@ -748,6 +951,14 @@ final class PermissionServiceProbe {
         pages.put(new JSONObject().put("page", "activation-" + assertions).put("trace", trace));
         for (int step = 0; step < 100; step++) {
             if (service.equals("switch")
+                    && flow.equals("camera")
+                    && (step == 30 || step == 60)
+                    && !permissionVisible()
+                    && !contains("Close panel")) {
+                raw(keyboard + " key 32");
+                Thread.sleep(200);
+            }
+            if (service.equals("switch")
                     && (flow.equals("location") || flow.equals("notifications"))
                     && (step == 30 || step == 60)
                     && !permissionVisible()
@@ -755,7 +966,8 @@ final class PermissionServiceProbe {
                 raw(keyboard + " key 46");
                 Thread.sleep(200);
             }
-            AccessibilityNodeInfo node = step == 0 ? focused() : next();
+            AccessibilityNodeInfo node =
+                    step == 0 ? focused() : next(step >= 50 && !permissionVisible());
             if (node == null) continue;
             try {
                 if (visited.add(id(node) + ":" + label(node)))
@@ -778,7 +990,9 @@ final class PermissionServiceProbe {
                             "/dev/input/event1 activate "
                                     + (bounds.centerX() * 32767 / display.width())
                                     + " "
-                                    + (bounds.centerY() * 32767 / display.height()));
+                                    + (bounds.centerY() * 32767 / display.height())
+                                    + " "
+                                    + rotation());
                 } else raw(keyboard + " key 48");
                 await(completed, 1500);
                 if (service.equals("switch") && !completed.getAsBoolean()) {

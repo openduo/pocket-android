@@ -95,7 +95,7 @@ Android 第二次请求把拒绝控件改为 `permission_deny_and_dont_ask_again
 同一新构建随后完整页面回归再次通过 113 项，旧完整结果另存 `switch-before-tool-metadata/`。
 
 扩展 `PermissionServiceProbe` 共通过下列专项。检查数包含实际扫描的系统焦点，随一次遍历稍有变化，
-不能据此推导覆盖率。生产 APK 没有变化。
+不能据此推导覆盖率。下面这批正常流程检查没有修改生产 APK。
 
 | 实际流程 | TalkBack | Switch Access | 已执行边界 |
 | --- | --- | --- | --- |
@@ -137,6 +137,41 @@ app，并可再次打开和关闭附件菜单。选择文件、相机外部 Acti
 在 controller 自身状态队列中等待停用到达检测、原样恢复偏好并核对全部键值。该队列访问只用于 QA 收尾，
 系统权限决定仍全部通过实际服务输入完成。
 
+## 权限与外部窗口中的实际旋转
+
+后续 `--recreate` 专项在真实 Permission Controller 或 DocumentsUI 打开时旋转实际显示，核对替换后的
+Activity、旧实例销毁、窗口边界及未发送表单状态。DocumentsUI 下的后台 Activity 可能延后到返回时重建，
+按实际生命周期核对，不要求后台立即重建。
+
+这次发现并修复产品问题：完整授权返回重建后的 Activity 时，旧的 `permissionAction` 已不存在，原实现
+因此显示拒绝说明。现在刷新设置状态并提示“权限已允许，请再次操作”，由新页面重新激活操作，避免复活
+引用旧 View 的扫码或录音回调。新 APK 的摘要为
+`ac81daba246f9291feda24fbff27685fa5bac03e3de4225a992502a6a9e93642`。
+
+| 重建流程 | TalkBack | Switch Access | 实际边界 |
+| --- | --- | --- | --- |
+| 相机拒绝/重试/授权 | 63 项通过 | 53 项通过 | 授权提示、无错误拒绝说明、重新激活扫码、表单/选区保留 |
+| 麦克风拒绝/重试/授权 | 64 项通过 | 54 项通过 | 旧采集意图不复活，新激活采集和取消保留草稿 |
+| 通知拒绝/重试/授权 | 57 项通过 | 46 项通过 | 实际授权提示、设置状态刷新、偏好保留 |
+| DocumentsUI 两次取消 | 39 项通过 | 新 APK 未运行 | 实际显示旋转、返回重建、草稿/选区保留 |
+| 定位粗略授权/精度升级 | 未运行 | 未通过 | 未收到通用完整授权重试提示，后续升级断言未执行 |
+
+定位失败保留于 `switch-permissions-location-recreation/`：初次实际选择粗略授权，fine 仍拒绝，产品
+按“全部所需权限获准”判断，因此不进入完整授权提示分支。这份失败不计为通过，也不推导后续精确升级
+或 visit 可用。旧 APK 的 `switch-picker-recreation/` 曾通过 39 项，不能归到新 APK。
+各目录清理均已完成，恢复原权限/标记、服务和旋转策略。当前停止扩展和复跑，不把此表补成完整组合。
+
+TalkBack 另有两次 instrumentation 后 ADB 短暂断开：一次采集报告失败，一次检查本身通过但拉取/清理失败。
+原运行均保留失败，恢复后按原值完成清理，另写 `cleanup-recovery.json`；最终成功运行不覆盖这些证据。
+目录为 `talkback-permissions-recreation-transport-failure/` 和
+`talkback-picker-recreation-collection-failure/`。runner 仅对明确设备暂不可用的 ADB 命令做有限重试并记录，
+不重试 instrumentation；失败或清理不全仍判失败。
+
+E2 未安装这次修复，后台任务仍使用旧 APK
+`4c5adef70e036b9ec7b768809532564a5bab69dd190c35d341f36e5074652e72`。
+旧包和身份说明在 ignored `.build/acceptance/pre-permission-recreation/`。以前的完整页面遍历、E2 回归和
+正常权限流程均保留各自 APK 身份，不能合并为最新 APK 的完整回归。
+
 ## 真 E2 原生专项
 
 ```sh
@@ -149,7 +184,7 @@ ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_ACCESSIBILITY_ONLY=1 POCKET_E2_TEST_C
 
 权限 callback 由 adapter 准备，旧授权/detach 拒绝在 controller owner barrier 后检查；它不是系统权限
 对话框测试。完整 E2 采集/相机/paired-Try 回归在上一 APK 检查点通过 342 项；移除重复 feed 朗读节点后，
-当前 APK 的原生无障碍专项重新通过 27 项，没有把此前 342 项归到新摘要下。
+当时 APK 的原生无障碍专项重新通过 27 项，没有把此前 342 项归到新摘要下。最新权限重建修复未在 E2 复跑。
 
 ## 复现
 
@@ -173,6 +208,9 @@ python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULAT
 # Native external picker cancellation with either service.
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene picker
 python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch --scene picker
+# Rotate the real display while the native dialog or picker is open.
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene permissions --recreate
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback --scene picker --recreate
 ```
 
 runner 拒绝真实设备，共享 UI 验收锁，保存/恢复原无障碍服务和临时授予的 TalkBack 通知权限。服务源码和

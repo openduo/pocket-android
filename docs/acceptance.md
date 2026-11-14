@@ -6,7 +6,7 @@ Passport 暂缓。已通过只针对下列实际条件，不以断言数量替�
 | 范围 | 当前结果 | 仍开放的范围 |
 | --- | --- | --- |
 | UI 窗口和字体 | 22 组截图/真实 IME，9,616 项检查通过；真实显示旋转 20 项、自由窗口 8 项、系统双应用分屏 12 项通过 | OEM、刘海/折叠/外接显示器、所有外部操作中的配置变化及权限弹窗的字体/窗口完整组合 |
-| 无障碍 | 实际 TalkBack 15.0 扩展运行 12 个场景、404 项；Google 源码 Switch Access 6.1.1 扫描/滚动/激活 113 项；两种服务的四类系统权限及 DocumentsUI 取消返回通过；当前 E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、其余动态消息/滚动层级、一次性/永久拒绝/设置撤权及外部 Activity 重建等组合 |
+| 无障碍 | 实际 TalkBack 15.0 扩展运行 12 个场景、404 项；Google 源码 Switch Access 6.1.1 扫描/滚动/激活 113 项；两种服务的四类系统权限及 DocumentsUI 取消返回通过；E2 既有专项 27 项通过；新 APK 相机/麦克风/通知旋转和 TalkBack 文件取消重建通过 | 当前 Play 版 Switch Access、其余动态消息/滚动层级、一次性/永久拒绝/设置撤权；定位旋转未通过，其他外部 Activity 重建组合仍开放 |
 | 真实服务 | 既有实际历史/文本/文件/会话读取、合成语音 ASR/brain/tool/静音播放；新增 API 35 实际 Geocoder 搜索/反查通过 | 自然人声 ASR 和可听回复、真实 Sight 协商、session notify 收件、physical visit 和 E2 geocoder |
 | 身份、网络和生命周期 | 既有短 Wi-Fi 断开恢复、前后台、force-stop/cold-launch；新增 900 秒真 E2 idle 后台和 trim 请求后恢复 Online | 实际 logout/relogin、revoke/re-pair、两条真实网络切换、外部音频路由、过夜/长期 ambient、自然 LMK |
 
@@ -100,10 +100,20 @@ Switch Access 扩展运行 **113 项全部通过**：A/B 为 next/select，C/D �
 相机扩展脚本另行复跑，早期相机报告单独保留。一次性授权实际选择、永久拒绝、设置撤权、其他系统弹窗、
 外部操作中的配置变化仍开放；这些结果不接受真实 Sight、visit 或通知收件。
 
+### 实际旋转后的权限回调修复
+
+新 APK 修复系统完整授权返回重建 Activity 后被误报为拒绝的问题：回调已随旧页面失效时，刷新设置并
+提示重新操作。两种实际服务均通过相机、麦克风和通知的拒绝/重试/授权旋转流程；TalkBack 还通过真实
+DocumentsUI 两次取消及返回重建。Switch 定位旋转在粗略授权后的通用提示断言失败，未完成精度升级；
+TalkBack 定位旋转、新 APK 的 Switch 文件重建未运行。没有为补齐组合继续复跑。
+
+新 APK 只安装到模拟器；E2 8 小时后台任务保留旧 APK，不能把旧 E2/UI 完整回归归到最新产物。
+具体摘要、失败记录、ADB 中断后的清理恢复和复现方式见 [`accessibility.md`](accessibility.md)。
+
 ## 真 E2 与真实 Geocoder
 
-上一 APK 检查点的采集/相机/paired-Try 完整回归通过 342 项；移除 feed 重复朗读节点后，当前 APK 的
-无障碍专项重新通过 27 项。两份报告保留各自 APK 摘要。使用真实 E2 microphone、
+较早 APK 检查点的采集/相机/paired-Try 完整回归通过 342 项；移除 feed 重复朗读节点后，当时 APK 的
+无障碍专项重新通过 27 项。两份报告保留各自 APK 摘要，最新权限重建修复未在 E2 复跑。使用真实 E2 microphone、
 JNI Opus、Camera2、Activity/SQLite；业务失败场景中的准备响应保持单独标注。完整回归曾发现音频测试在
 Listening 早于首包到达时提前断言的竞态，现等待其原断言的两个条件，原 7 秒期限未变，随后完整运行通过。
 

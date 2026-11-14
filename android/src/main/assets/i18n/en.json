@@ -572,6 +572,7 @@
   "麦克风就绪、取消和发送时轻震": "Vibrate when the mic is ready, and on cancel or send",
   "麦克风就绪后轻震 · 移出按钮取消": "Vibrates when the mic is ready · Slide out to cancel",
   "麦克风已允许，请再次按住说话": "Microphone allowed. Hold to talk again.",
+  "权限已允许，请再次操作": "Permission allowed. Try the action again.",
   "麦克风打开或读取失败，请先结束其他录音": "Could not open or read the microphone. Finish other recordings first.",
   "麦克风未开始录音": "The microphone has not started recording",
   "麦克风正在释放或被占用，请稍后再试": "The microphone is busy or closing. Try again shortly.",

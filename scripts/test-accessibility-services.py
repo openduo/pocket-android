@@ -26,11 +26,24 @@ def main():
     parser.add_argument('--scene', choices=['full', 'message-actions', 'permissions', 'picker'], default='full')
     parser.add_argument('--permission', choices=['camera', 'microphone', 'location', 'notifications'],
                         default='camera')
+    parser.add_argument('--recreate', action='store_true',
+                        help='Rotate the actual display while a native permission dialog or picker is open.')
     args = parser.parse_args()
+    transport_retries = []
 
     def adb(*command, timeout=30, check=True):
-        return subprocess.run(['adb', '-s', args.serial, *map(str, command)], check=check,
-                              capture_output=True, text=True, timeout=timeout).stdout.strip()
+        for attempt in range(7):
+            run = subprocess.run(['adb', '-s', args.serial, *map(str, command)],
+                                 capture_output=True, text=True, timeout=timeout)
+            transient = any(message in run.stderr for message in [
+                f"device '{args.serial}' not found", 'device offline',
+                'device still connecting', 'no devices/emulators found'])
+            if run.returncode == 0 or not transient or attempt == 6:
+                if check:
+                    run.check_returncode()
+                return run.stdout.strip()
+            transport_retries.append({'command': list(map(str, command)), 'error': run.stderr.strip()})
+            time.sleep(min(0.5 * (attempt + 1), 2))
 
     def installed_digest(package):
         paths = [line.removeprefix('package:') for line in adb('shell', 'pm', 'path', package).splitlines()]
@@ -52,9 +65,12 @@ def main():
         raise SystemExit('The focused message-action scene currently uses TalkBack.')
     if args.scene != 'permissions' and args.permission != 'camera':
         raise SystemExit('--permission selects a flow within --scene permissions.')
+    if args.recreate and args.scene not in ['permissions', 'picker']:
+        raise SystemExit('--recreate requires a native permissions or picker scene.')
     directory = ROOT / '.build/acceptance/accessibility' / (
         args.service if args.scene == 'full' else args.service + '-' + args.scene
-        + ('-' + args.permission if args.scene == 'permissions' and args.permission != 'camera' else ''))
+        + ('-' + args.permission if args.scene == 'permissions' and args.permission != 'camera' else '')
+        + ('-recreation' if args.recreate else ''))
     directory.mkdir(parents=True, exist_ok=True)
     lock = (ROOT / '.build' / f'ui-{args.serial}.lock').open('w')
     try:
@@ -83,11 +99,24 @@ def main():
         r'android.permission.POST_NOTIFICATIONS: granted=true', talkback_permissions))
     keyboard = None
     original_permissions = {}
+    orientation = None
     report = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
               'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk'),
               'passed': False}
     (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
     try:
+        if args.recreate:
+            ignored = re.search(r'\b(true|false)\b', adb('shell', 'wm', 'get-ignore-orientation-request'))
+            fixed = adb('shell', 'wm', 'fixed-to-user-rotation')
+            if ignored is None or fixed not in ['default', 'enabled', 'disabled', 'enabled_if_no_auto_rotation']:
+                raise RuntimeError('Could not preserve the emulator rotation policy.')
+            orientation = {'ignored': ignored[1], 'fixed': fixed,
+                           'settings': {key: adb('shell', 'settings', 'get', 'system', key)
+                                        for key in ['accelerometer_rotation', 'user_rotation']}}
+            report['originalOrientation'] = orientation
+            adb('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
+            adb('shell', 'wm', 'set-ignore-orientation-request', 'false')
+            adb('shell', 'wm', 'fixed-to-user-rotation', 'disabled')
         report['installedApkSha256'] = installed_digest(PACKAGE)
         report['probeApkSha256'] = installed_digest(PACKAGE + '.qa')
         if report['installedApkSha256'] != report['apkSha256'] or report['probeApkSha256'] != hashlib.sha256(
@@ -168,7 +197,8 @@ def main():
             for permission in reversed(original_permissions):
                 adb('shell', 'pm', 'revoke', PACKAGE, permission)
                 adb('shell', 'pm', 'clear-permission-flags', PACKAGE, permission, 'user-set', 'user-fixed')
-            options += ['-e', 'accessibilityService', args.service, '-e', 'permissionFlow', report['flow']]
+            options += ['-e', 'accessibilityService', args.service, '-e', 'permissionFlow', report['flow'],
+                        '-e', 'recreateExternal', '1' if args.recreate else '0']
             mode, cache = 'permissionOnly', 'permission-service'
         adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', component)
         adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1')
@@ -210,7 +240,9 @@ def main():
             try:
                 adb(*command)
             except (subprocess.SubprocessError, OSError) as failure:
-                cleanup_errors.append(type(failure).__name__ + ': ' + ' '.join(map(str, command)))
+                details = getattr(failure, 'stderr', '') or str(failure)
+                cleanup_errors.append(type(failure).__name__ + ': ' + ' '.join(map(str, command))
+                                      + ': ' + details.strip()[:500])
 
         clean('shell', 'am', 'force-stop', PACKAGE)
         # Restore foreground location before background, as required by Android's grant rules.
@@ -222,6 +254,12 @@ def main():
         for key, value in original.items():
             clean('shell', 'settings', 'delete' if value == 'null' else 'put', 'secure', key,
                   *([] if value == 'null' else [value]))
+        if orientation is not None:
+            clean('shell', 'wm', 'set-ignore-orientation-request', orientation['ignored'])
+            clean('shell', 'wm', 'fixed-to-user-rotation', orientation['fixed'])
+            for key, value in orientation['settings'].items():
+                clean('shell', 'settings', 'delete' if value == 'null' else 'put', 'system', key,
+                      *([] if value == 'null' else [value]))
         if keyboard is not None:
             try:
                 keyboard.stdin.close()
@@ -239,6 +277,7 @@ def main():
         if not args.installed:
             clean('uninstall', PACKAGE + '.qa')
         report['cleanup'] = {'complete': not cleanup_errors, 'errors': cleanup_errors}
+        report['transportRetries'] = transport_retries
         if cleanup_errors:
             report['passed'] = False
         (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))

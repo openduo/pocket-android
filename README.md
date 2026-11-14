@@ -39,12 +39,13 @@ scenarios also remain open. Prepared Try replies never count as real server resp
 
 | Verification | Accepted scope |
 | --- | --- |
-| Host / source checks | 325 contracts, architecture boundaries, 616-entry localization catalog, Go vet/test and Android build |
+| Host / source checks | 325 contracts, architecture boundaries, 617-entry localization catalog and Android build; Go vet/test retained from the unchanged transport checkpoint |
 | Emulator UI | 22 API 35 window/font/language/theme cases, 9,616 checks; actual display rotation 20, freeform 8 and system split 12 checks |
 | Actual accessibility services | TalkBack 15.0 expanded runner: 12 scenes, 404 checks; legacy Google source Switch Access 6.1.1 scan/order/scroll/activation 113 checks |
 | Actual system permissions | Both services pass camera, microphone, location and notification dialogs, denial/retry, precision upgrade and return/cancellation; exact counts and limits in accessibility evidence |
 | Actual external document picker | Both services: 25 checks each; real DocumentsUI opening, two platform Back cancellations, retained draft/selection and no residual import/send |
-| Physical E2 | Previous APK checkpoint: complete capture/camera/paired-Try regression 342 checks; current APK after feed accessibility fix: native accessibility/capture target 27 checks |
+| Permission/activity recreation fix | Both services pass camera, microphone and notification rotation; TalkBack passes document-picker cancellation/recreation; location rotation remains unaccepted |
+| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest permission fix is emulator-only while the eight-hour E2 run retains its prior APK |
 | Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
 | Physical E2 lifetime | 900 seconds idle background, process present at 60 samples, trim request and actual foreground Online; not natural LMK/overnight/ambient acceptance |
 

@@ -427,8 +427,14 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         permissionAction = null;
         boolean ok = grants.length > 0;
         for (int grant : grants) ok &= grant == PackageManager.PERMISSION_GRANTED;
-        if (ok && action != null) action.run();
-        else
+        if (ok) {
+            if (action != null) action.run();
+            // A recreated Activity must not revive a lambda that belongs to its old views.
+            else {
+                if (settings != null) settings.changed();
+                toast(ui.t("权限已允许，请再次操作"));
+            }
+        } else
             Sheets.actions(
                     ui,
                     ui.t("需要权限才能使用此功能"),
