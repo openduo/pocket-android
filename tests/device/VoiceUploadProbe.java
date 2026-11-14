@@ -95,6 +95,10 @@ final class VoiceUploadProbe {
     }
 
     private String queue(Exchange exchange) throws Exception {
+        return queue(exchange, false);
+    }
+
+    private String queue(Exchange exchange, boolean rejectTransition) throws Exception {
         String id = UUID.randomUUID().toString();
         ids.add(id);
         File dir = new File(context.getCacheDir(), "try-voice");
@@ -128,8 +132,19 @@ final class VoiceUploadProbe {
                                             Message.QUEUED,
                                             Collections.emptyList()),
                                     item);
-                    invoke("reload");
-                    invoke("pump");
+                    if (rejectTransition)
+                        repo().getWritableDatabase()
+                                .execSQL(
+                                        "CREATE TEMP TRIGGER qa_send_transition BEFORE INSERT ON"
+                                            + " pending BEGIN SELECT RAISE(ABORT, 'Prepared pending"
+                                            + " write failure'); END");
+                    try {
+                        invoke("reload");
+                        invoke("pump");
+                    } finally {
+                        if (rejectTransition)
+                            repo().getWritableDatabase().execSQL("DROP TRIGGER qa_send_transition");
+                    }
                     return null;
                 });
         return id;
@@ -164,6 +179,9 @@ final class VoiceUploadProbe {
                         field("channel", source);
                         return null;
                     });
+            nativeRequestLifetime();
+            failedTransition();
+            cancelledQueue();
             lateCleaned();
             earlyCleaned();
             earlyRow();
@@ -177,7 +195,10 @@ final class VoiceUploadProbe {
         } finally {
             controller.releaseHold(true);
             controller.onForeground(true);
-            for (Exchange exchange : source.exchanges.values()) exchange.release.countDown();
+            for (Exchange exchange : source.exchanges.values()) {
+                exchange.release.countDown();
+                exchange.cancelReturn.countDown();
+            }
             for (String id : ids) controller.discard(id);
             onState(
                     () -> {
@@ -186,6 +207,143 @@ final class VoiceUploadProbe {
                     });
             controller.clearNotice();
         }
+    }
+
+    private void nativeRequestLifetime() throws Exception {
+        long base = 900_000;
+        try {
+            for (long id = base; id < base + 8; id++) tsbridge.Tsbridge.requestBegin(id);
+            boolean bounded = false;
+            try {
+                tsbridge.Tsbridge.requestBegin(base + 8);
+            } catch (Exception expected) {
+                bounded = true;
+            }
+            check(bounded, "the actual JNI request registry bounds active lifetimes");
+        } finally {
+            for (long id = base; id <= base + 8; id++) tsbridge.Tsbridge.requestEnd(id);
+        }
+        long began = android.os.SystemClock.elapsedRealtime();
+        boolean retired = false;
+        try {
+            tsbridge.Tsbridge.doAtRequest(
+                    base,
+                    "example.test",
+                    443,
+                    true,
+                    "",
+                    "POST",
+                    "/api/messages",
+                    "{}",
+                    new byte[0],
+                    5000);
+        } catch (Exception expected) {
+            retired = expected.getMessage().contains("context canceled");
+        }
+        check(
+                retired && android.os.SystemClock.elapsedRealtime() - began < 1000,
+                "a retired JNI request is rejected before node readiness or HTTP without sending a"
+                        + " message");
+    }
+
+    private void failedTransition() throws Exception {
+        Exchange exchange = new Exchange(202);
+        String id = queue(exchange, true);
+        Outbox.Item retained = pending(id);
+        check(
+                retained != null
+                        && retained.state == Message.QUEUED
+                        && source.groups.isEmpty()
+                        && exchange.bodies.isEmpty()
+                        && Arrays.equals(
+                                Files.readAllBytes(new File(retained.voiceFile).toPath()), body)
+                        && controller.snapshot().lastError.equals("无法保存待发送消息"),
+                "a native SQLite sending-state failure retains exact queued bytes, closes its"
+                        + " request scope and starts no HTTP");
+        controller.onForeground(true);
+        check(
+                exchange.started.await(1500, TimeUnit.MILLISECONDS),
+                "foreground recovery can resume after the native storage fault is removed");
+        exchange.release.countDown();
+        await(
+                () ->
+                        controller.snapshot().outbox.stream()
+                                .anyMatch(
+                                        item ->
+                                                item.id.equals(id)
+                                                        && item.state == Outbox.ACCEPTED),
+                2000);
+        check(
+                pending(id).state == Outbox.ACCEPTED
+                        && source.groups.isEmpty()
+                        && controller.snapshot().lastError.isEmpty()
+                        && exchange.headers.get(0).optString("Idempotency-Key").equals(id),
+                "recovered storage preserves the original send identity and clears its temporary"
+                        + " error");
+        failed(id, "empty_transcript");
+    }
+
+    private void cancelledQueue() throws Exception {
+        Exchange first = new Exchange(202);
+        first.cancellable = true;
+        first.holdCancelled = true;
+        String firstId = queue(first);
+        check(
+                first.started.await(1500, TimeUnit.MILLISECONDS),
+                "the send worker owns the initial in-flight request");
+        controller.discard(firstId);
+        check(
+                first.cancelled.await(1500, TimeUnit.MILLISECONDS),
+                "discard retires a running request without waiting for its HTTP outcome");
+        Exchange skipped = new Exchange(202);
+        String skippedId = queue(skipped);
+        check(
+                onState(
+                                () ->
+                                        ((java.util.concurrent.ThreadPoolExecutor)
+                                                        field("sendNetwork"))
+                                                .getQueue()
+                                                .size())
+                        == 1,
+                "the independent send worker has one bounded pending preparation while cancellation"
+                        + " returns");
+        controller.discard(skippedId);
+        onState(() -> null);
+        Exchange next = new Exchange(202);
+        String nextId = queue(next);
+        first.cancelReturn.countDown();
+        check(
+                next.started.await(1500, TimeUnit.MILLISECONDS) && skipped.bodies.isEmpty(),
+                "discarded queued work never starts HTTP and the next retained send starts as"
+                        + " cancellation returns");
+        check(
+                source.groups.size() == 1
+                        && next.headers.get(0).optString("Idempotency-Key").equals(nextId)
+                        && Arrays.equals(next.bodies.get(0), body)
+                        && onState(
+                                        () ->
+                                                ((java.util.concurrent.ThreadPoolExecutor)
+                                                                field("sendNetwork"))
+                                                        .getLargestPoolSize())
+                                == 1,
+                "the next request keeps its original key/body without accumulating request groups"
+                        + " or sender threads");
+        next.release.countDown();
+        await(
+                () ->
+                        controller.snapshot().outbox.stream()
+                                .anyMatch(
+                                        item ->
+                                                item.id.equals(nextId)
+                                                        && item.state == Outbox.ACCEPTED),
+                2000);
+        check(
+                pending(nextId).state == Outbox.ACCEPTED
+                        && source.groups.isEmpty()
+                        && controller.snapshot().connection == PocketController.Connection.ONLINE,
+                "a cancelled request's late error cannot replace the next acceptance or reconnect a"
+                        + " healthy socket");
+        failed(nextId, "empty_transcript");
     }
 
     private void deadline(boolean transport) throws Exception {
@@ -575,6 +733,9 @@ final class VoiceUploadProbe {
         final List<byte[]> bodies = new CopyOnWriteArrayList<>();
         final List<JSONObject> headers = new CopyOnWriteArrayList<>();
         final List<Long> timeouts = new CopyOnWriteArrayList<>();
+        final CountDownLatch cancelled = new CountDownLatch(1),
+                cancelReturn = new CountDownLatch(1);
+        volatile boolean cancellable, holdCancelled, wasCancelled;
 
         Exchange(int... statuses) {
             this.statuses = statuses;
@@ -582,6 +743,7 @@ final class VoiceUploadProbe {
 
         ChannelConnection.Response request(JSONObject header, byte[] body, long timeout)
                 throws Exception {
+            if (wasCancelled) throw new java.io.IOException("Prepared request retired");
             headers.add(new JSONObject(header.toString()));
             timeouts.add(timeout);
             bodies.add(body.clone());
@@ -589,6 +751,12 @@ final class VoiceUploadProbe {
             started.countDown();
             if (!release.await(5, TimeUnit.SECONDS))
                 throw new AssertionError("Voice HTTP release timed out");
+            if (wasCancelled) {
+                cancelled.countDown();
+                if (holdCancelled && !cancelReturn.await(5, TimeUnit.SECONDS))
+                    throw new AssertionError("Cancelled request return timed out");
+                throw new java.io.IOException("Prepared request retired");
+            }
             int status = statuses[Math.min(index, statuses.length - 1)];
             if (status < 0) throw new java.io.IOException("Prepared lost voice response");
             return new ChannelConnection.Response(
@@ -606,9 +774,58 @@ final class VoiceUploadProbe {
     private static final class Delayed implements ChannelConnection {
         final ChannelConnection delegate;
         final Map<String, Exchange> exchanges = new ConcurrentHashMap<>();
+        final Map<Long, Group> groups = new ConcurrentHashMap<>();
+
+        private static final class Group {
+            boolean ended;
+            Exchange running;
+        }
 
         Delayed(ChannelConnection delegate) {
             this.delegate = delegate;
+        }
+
+        public void beginRequest(long id) {
+            groups.put(id, new Group());
+        }
+
+        public void endRequest(long id) {
+            Group group = groups.remove(id);
+            if (group == null) return;
+            synchronized (group) {
+                group.ended = true;
+                if (group.running != null && group.running.cancellable) {
+                    group.running.wasCancelled = true;
+                    group.running.release.countDown();
+                }
+            }
+        }
+
+        public Response requestScoped(
+                long id,
+                Endpoint endpoint,
+                String token,
+                String method,
+                String path,
+                JSONObject headers,
+                byte[] body,
+                long timeout)
+                throws Exception {
+            Group group = groups.get(id);
+            if (group == null)
+                throw new java.io.IOException("Prepared request retired before start");
+            synchronized (group) {
+                if (group.ended)
+                    throw new java.io.IOException("Prepared request retired before start");
+                group.running = exchanges.get(headers.optString("Idempotency-Key"));
+            }
+            try {
+                return request(endpoint, token, method, path, headers, body, timeout);
+            } finally {
+                synchronized (group) {
+                    group.running = null;
+                }
+            }
         }
 
         public Response request(

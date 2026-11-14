@@ -11,6 +11,15 @@ voice path, duration, attachments and original display/spoken/place surface. Acc
 pending until a server row or failure settles them. Admission writes the row, removes its matching
 outbox item and advances the cursor in one transaction. Repeating a committed row is idempotent.
 
+The sender now also handles a failed transition from queued to sending. A native request scope is
+registered before I/O can enter its worker, but if SQLite rejects that transition, the controller
+retires the scope, releases upload-service intent and leaves the rolled-back queued row and packet
+file intact. No HTTP starts. It shows the existing pending-save error; a later successful pump
+retains the original id/body/surface and clears that temporary error. The isolated voice probe
+introduces an actual SQLite abort trigger for this boundary, removes it and verifies foreground
+recovery, exact retained bytes and an empty request registry. This accepts the sending-transition
+boundary under a prepared database fault, not every disk-full or storage-error path.
+
 Owned voice/attachment files need a separate filesystem operation. Before this change, a process
 ending after database commit or a failed delete could leave those bytes with no remaining outbox
 owner and no subsequent cleanup attempt. Deletion during an enclosing transaction could also

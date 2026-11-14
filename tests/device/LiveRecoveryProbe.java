@@ -7,7 +7,10 @@ import org.json.JSONObject;
 
 import top.kuaner.pockete2.core.Endpoint;
 import top.kuaner.pockete2.core.Json;
+import top.kuaner.pockete2.core.Message;
+import top.kuaner.pockete2.core.Outbox;
 import top.kuaner.pockete2.core.PocketController;
+import top.kuaner.pockete2.core.RoomRepository;
 import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.lang.reflect.Field;
@@ -281,6 +284,68 @@ final class LiveRecoveryProbe {
                         && source.opens.get() == foregroundOpened
                         && online(),
                 "foreground rebind and live ping do not wait behind occupied HTTP workers");
+        onState(
+                () -> {
+                    RoomRepository repo = (RoomRepository) field("repo");
+                    String id = source.fixtureId;
+                    repo.enqueue(
+                            Message.mine(
+                                    id,
+                                    "Prepared isolated send",
+                                    "",
+                                    0,
+                                    Message.QUEUED,
+                                    java.util.Collections.emptyList()),
+                            new Outbox.Item(
+                                    id,
+                                    "Prepared isolated send",
+                                    false,
+                                    "",
+                                    "",
+                                    0,
+                                    java.util.Collections.emptyList(),
+                                    Message.QUEUED,
+                                    "",
+                                    "",
+                                    System.currentTimeMillis(),
+                                    0));
+                    invoke("reload");
+                    invoke("pump");
+                    return null;
+                });
+        check(
+                source.messageEntered.await(1500, TimeUnit.MILLISECONDS),
+                "a queued message reaches HTTP while all ordinary workers remain held");
+        onState(
+                () -> {
+                    Method frame =
+                            PocketController.class.getDeclaredMethod(
+                                    "frame", String.class, boolean.class);
+                    frame.setAccessible(true);
+                    frame.invoke(
+                            controller,
+                            Json.object(
+                                            "type",
+                                            "row",
+                                            "seq",
+                                            controller.snapshot().cursor + 1,
+                                            "row",
+                                            Json.object(
+                                                    "kind",
+                                                    "typed",
+                                                    "utt_id",
+                                                    source.fixtureId,
+                                                    "text",
+                                                    "Prepared isolated send",
+                                                    "at",
+                                                    java.time.Instant.now().toString()))
+                                    .toString(),
+                            true);
+                    return null;
+                });
+        check(
+                controller.snapshot().outbox.isEmpty(),
+                "a prepared log row settles the independent send before metadata is released");
         source.metadataRelease.countDown();
         source.workerRelease.countDown();
         await(() -> source.states.get() >= 2, 3000);
@@ -401,6 +466,8 @@ final class LiveRecoveryProbe {
         final AtomicBoolean blockText = new AtomicBoolean(), failedWhileOpen = new AtomicBoolean();
         final AtomicBoolean blockRestore = new AtomicBoolean();
         final AtomicBoolean blockHealth = new AtomicBoolean(), blockState = new AtomicBoolean();
+        final String fixtureId = java.util.UUID.randomUUID().toString();
+        final CountDownLatch messageEntered = new CountDownLatch(1);
         final CountDownLatch metadataEntered = new CountDownLatch(2);
         final CountDownLatch metadataRelease = new CountDownLatch(1);
         final CountDownLatch workerRelease = new CountDownLatch(1);
@@ -423,6 +490,16 @@ final class LiveRecoveryProbe {
                 byte[] body,
                 long timeout)
                 throws Exception {
+            if (method.equals("POST")
+                    && path.startsWith("/api/messages?")
+                    && headers.optString("Idempotency-Key").equals(fixtureId)) {
+                messageEntered.countDown();
+                return new Response(
+                        202,
+                        Json.object("message_id", fixtureId)
+                                .toString()
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
             boolean heldState =
                     path.startsWith("/api/state") && blockState.compareAndSet(true, false);
             if (heldState || path.equals("/healthz") && blockHealth.compareAndSet(true, false)) {

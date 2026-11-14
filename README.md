@@ -112,6 +112,20 @@ lost and physical handover remain separate. A broader no-capture/no-camera paire
 Added diagnostics keep the original condition/deadline; that first failure remains unlocated, and
 the full capture/camera/import suite was not repeated. See [history.md](docs/history.md).
 
+The following P0 fix gives outbox sends their own bounded worker, after the preceding APK reproduced
+a send blocked behind occupied ordinary HTTP workers. Native request scopes now cancel retired
+sends during node readiness, headers or body reads, and prevent queued work from starting late.
+Readiness/HTTP share the remaining deadline; retries preserve the original key/body/surface. A
+failed SQLite transition keeps voice queued with its original bytes and can resume on foreground
+return. The final APK passed **21 live-recovery**, **43 voice-upload**, **17 background-upload** and
+**eight actual-room read-only HTTP assertions**, with **234 host assertions** and Go vet/race checks.
+The actual-room checks send no message; cancellation faults use prepared transport or a local Go
+server. This independently reproduced send blockage does not diagnose the earlier intermittent
+first-reply failure. See [connection.md](docs/connection.md) and [audio.md](docs/audio.md).
+The complete capture/camera/import/paired-try regression then passed **311 device assertions** on
+this APK. Actual keyboard and 1.35-font conversation screenshots were inspected. The previous
+first-reply assertion passed in this run; its earlier intermittent failure remains unlocated.
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual

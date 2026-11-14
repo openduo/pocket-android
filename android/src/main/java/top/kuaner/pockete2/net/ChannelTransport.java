@@ -28,4 +28,23 @@ public interface ChannelTransport {
             byte[] body,
             long timeoutMs)
             throws Exception;
+
+    /** Registers a send before it enters an I/O queue, so retirement also prevents a late start. */
+    default void beginRequest(long id) throws Exception {}
+
+    default Response requestScoped(
+            long id,
+            Endpoint endpoint,
+            String token,
+            String method,
+            String path,
+            JSONObject headers,
+            byte[] body,
+            long timeoutMs)
+            throws Exception {
+        return request(endpoint, token, method, path, headers, body, timeoutMs);
+    }
+
+    /** Retires registration and cancels startup, headers or body reads already in progress. */
+    default void endRequest(long id) {}
 }

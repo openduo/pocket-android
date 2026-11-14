@@ -11,6 +11,10 @@ import android.os.SystemClock;
 
 import top.kuaner.pockete2.app.MainActivity;
 import top.kuaner.pockete2.core.PocketController;
+import top.kuaner.pockete2.net.ChannelClient;
+import top.kuaner.pockete2.net.ChannelTransport;
+import top.kuaner.pockete2.net.GoTransport;
+import top.kuaner.pockete2.net.RequestScope;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.Executor;
@@ -18,7 +22,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
-/** Read-only actual-room acceptance; the host restores Wi-Fi after a deliberate short outage. */
+/** Read-only actual-room HTTP and lifecycle acceptance; only the outage mode changes Wi-Fi. */
 final class NetworkRoomProbe {
     private final Probe probe;
     private PocketController controller;
@@ -86,6 +90,71 @@ final class NetworkRoomProbe {
                                         android.view.WindowManager.LayoutParams
                                                 .FLAG_KEEP_SCREEN_ON));
         return screen;
+    }
+
+    String scopedRun(Context context) throws Exception {
+        Activity screen = open(context);
+        controller = PocketController.get(context);
+        try {
+            await(this::online, 35_000);
+            check(
+                    online() && controller.configured(),
+                    "scoped HTTP starts in the actual paired room");
+            PocketController.Snapshot initial = controller.snapshot();
+            check(
+                    !initial.trying
+                            && !initial.ambientActive
+                            && !initial.holdRecording
+                            && !initial.uploadingVoice
+                            && !initial.cameraOn
+                            && initial.readingId.isEmpty()
+                            && initial.imports.isEmpty()
+                            && initial.outbox.isEmpty(),
+                    "scoped HTTP acceptance requires an idle actual room");
+            ChannelTransport transport = (ChannelTransport) field("channel");
+            check(transport instanceof GoTransport, "actual HTTP uses the embedded native node");
+            RequestScope retired = new RequestScope(transport);
+            ChannelClient client = new ChannelClient(controller.settings, retired);
+            try {
+                int elapsed = client.health();
+                check(elapsed >= 0, "the registered JNI request reaches actual room health");
+                check(
+                        client.state().room.equals(controller.settings.room()),
+                        "the same scope reads the paired room through actual authenticated HTTP");
+                checkpoint("scoped-http", elapsed);
+            } finally {
+                retired.close();
+            }
+            long started = SystemClock.elapsedRealtime();
+            boolean cancelled = false;
+            try {
+                client.health();
+            } catch (ChannelClient.Failure failure) {
+                cancelled = failure.transport;
+            }
+            check(
+                    cancelled && SystemClock.elapsedRealtime() - started < 1000,
+                    "a retired scope fails promptly before another actual request starts");
+            try (RequestScope replacement = new RequestScope(transport)) {
+                check(
+                        new ChannelClient(controller.settings, replacement)
+                                .state()
+                                .room
+                                .equals(controller.settings.room()),
+                        "retirement does not prevent the next actual request lifetime");
+            }
+            check(
+                    online()
+                            && controller.snapshot().importTarget.equals(initial.importTarget)
+                            && controller.draft().equals(initial.draft)
+                            && controller.snapshot().quote.equals(initial.quote)
+                            && controller.snapshot().chips.size() == initial.chips.size()
+                            && controller.snapshot().outbox.isEmpty(),
+                    "read-only scoped HTTP preserves pairing, live connection and the composer");
+            return "PASS " + assertions + " actual scoped HTTP assertions";
+        } finally {
+            probe.runOnMainSync(screen::finish);
+        }
     }
 
     String run(Context context) throws Exception {

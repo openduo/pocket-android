@@ -395,6 +395,12 @@ func DoAt(host string, port int, tls bool, token, method, path, headersJSON stri
 }
 
 func doTarget(t chanTarget, method, path, headersJSON string, body []byte, timeoutMs int64) (*Response, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	return doTargetContext(ctx, t, method, path, headersJSON, body)
+}
+
+func doTargetContext(ctx context.Context, t chanTarget, method, path, headersJSON string, body []byte) (*Response, error) {
 	mu.Lock()
 	c := client
 	mu.Unlock()
@@ -404,8 +410,6 @@ func doTarget(t chanTarget, method, path, headersJSON string, body []byte, timeo
 	if t.Host == "" {
 		return nil, errors.New("tsbridge: no target host")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, t.origin()+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

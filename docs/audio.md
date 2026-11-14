@@ -171,6 +171,27 @@ the E2's real hold path: cancellation, foreground-callback cancellation, indepen
 loss, preserved Opus and retry under the same key. Those injected recognition outcomes are not
 actual ASR of the captured microphone audio.
 
+The next sender correction passed **43 voice-upload assertions** in the isolated room. It uses
+the actual JNI registry to check its eight-lifetime bound and pre-start cancellation, then prepared
+cancellable HTTP to exercise discard while a worker is returning, discard of its queued successor,
+and delivery of the next retained note without changing its key/body or growing sender threads.
+Late cancellation errors cannot replace that acceptance or reconnect a healthy live socket.
+An actual temporary SQLite trigger rejects the transition to Sending: the original queued bytes
+remain intact, no HTTP starts and the registered scope is released. Removing the fault and returning
+to the foreground resumes the same message and clears the temporary storage error. The earlier
+live/HTTP ordering, retry bytes and real 25-second expiry checks also pass. These are prepared
+transport/recognition outcomes with silent Opus; they do not establish natural speech recognition.
+The existing **17 native background-upload assertions** also pass on this APK, retaining the
+service-start ordering, background retry, denied-start deferral and actual foreground recovery.
+See `connection.md` for sender isolation and actual read-only scoped HTTP evidence.
+
+`POCKET_E2_TEST_AUDIO_BURST_ONLY=1` measures a native downlink burst without capture or audible
+output. The bundled first English reply's 989 packets (19.78 seconds at 20 ms per packet) were
+decoded on the real controller's state owner and stopped in 151 ms on the preceding APK. Real
+PCM was pending before stop. This isolated measurement did not reproduce the earlier four-second
+first-reply timeout and does not diagnose it; no audio scheduling behaviour was changed on that
+basis.
+
 `POCKET_E2_TEST_VOICE_ROOM_ONLY=1` is a distinct explicit real-service test. It synthesizes one
 clearly marked known-speech fixture through the actual service and sends that synthetic body through
 the normal controller/outbox/client. A gate delays dispatch while the real Activity moves to the

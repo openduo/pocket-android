@@ -233,6 +233,14 @@ public final class PocketController {
             Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Pocket E2 state"));
     private final ExecutorService network =
             Executors.newFixedThreadPool(3, r -> new Thread(r, "Pocket E2 network"));
+    private final java.util.concurrent.ThreadPoolExecutor sendNetwork =
+            new java.util.concurrent.ThreadPoolExecutor(
+                    1,
+                    1,
+                    0,
+                    TimeUnit.MILLISECONDS,
+                    new java.util.concurrent.ArrayBlockingQueue<>(1),
+                    r -> new Thread(r, "Pocket E2 send"));
     private final ExecutorService liveConnector =
             new java.util.concurrent.ThreadPoolExecutor(
                     1,
@@ -321,15 +329,22 @@ public final class PocketController {
         final ChannelClient client;
         final String identity;
         final long ticket;
+        final top.kuaner.pockete2.net.RequestScope requests;
         final VoiceRetry retry = new VoiceRetry();
         byte[] body;
         ChannelClient.Failure error;
 
-        SendOperation(Outbox.Item item, ChannelClient client, String identity, long ticket) {
+        SendOperation(
+                Outbox.Item item,
+                ChannelClient client,
+                String identity,
+                long ticket,
+                top.kuaner.pockete2.net.RequestScope requests) {
             this.item = item;
             this.client = client;
             this.identity = identity;
             this.ticket = ticket;
+            this.requests = requests;
         }
     }
 
@@ -843,9 +858,13 @@ public final class PocketController {
     }
 
     private ChannelClient client() {
+        return client(channel);
+    }
+
+    private ChannelClient client(top.kuaner.pockete2.net.ChannelTransport via) {
         return trying
-                ? new ChannelClient(TryChannel.ENDPOINT, TryChannel.TOKEN, TryChannel.ROOM, channel)
-                : new ChannelClient(settings, channel);
+                ? new ChannelClient(TryChannel.ENDPOINT, TryChannel.TOKEN, TryChannel.ROOM, via)
+                : new ChannelClient(settings, via);
     }
 
     private void connect() {
@@ -1526,14 +1545,36 @@ public final class PocketController {
             voiceUploadDeferred = false;
             if (lastError.equals(UPLOAD_BACKGROUND_PAUSED)) lastError = "";
         }
+        top.kuaner.pockete2.net.RequestScope requests;
+        try {
+            requests = new top.kuaner.pockete2.net.RequestScope(channel);
+        } catch (Exception failure) {
+            log.event("send", "request_scope_failed");
+            uploadForeground = false;
+            refreshService();
+            linkClosed("Unable to prepare send", connectionEpoch);
+            return;
+        }
         SendOperation operation =
-                new SendOperation(item, client(), repo.roomIdentity(), ++sendEpoch);
+                new SendOperation(
+                        item, client(requests), repo.roomIdentity(), ++sendEpoch, requests);
         sending = operation;
-        repo.transition(item.state(Message.SENDING, ""));
+        try {
+            repo.transition(item.state(Message.SENDING, ""));
+        } catch (RuntimeException storageFailure) {
+            retireSend();
+            uploadForeground = false;
+            refreshService();
+            reload();
+            notice("无法保存待发送消息");
+            return;
+        }
+        if (lastError.equals("无法保存待发送消息")) lastError = "";
         reload();
         publish();
         ChannelClient.State room = roomState;
-        network.execute(
+        sendWork(
+                operation,
                 () -> {
                     byte[] body = null;
                     ChannelClient.Failure error = null;
@@ -1578,10 +1619,30 @@ public final class PocketController {
     }
 
     private void finishSend() {
-        sending = null;
-        sendEpoch++;
+        retireSend();
         uploadForeground = false;
         refreshService();
+    }
+
+    private void retireSend() {
+        SendOperation retired = sending;
+        sending = null;
+        sendEpoch++;
+        sendNetwork.getQueue().clear();
+        if (retired != null) retired.requests.close();
+    }
+
+    private void sendWork(SendOperation operation, Runnable work) {
+        if (!currentSend(operation)) return;
+        try {
+            sendNetwork.execute(
+                    () -> {
+                        if (operation.ticket == sendEpoch) work.run();
+                    });
+        } catch (java.util.concurrent.RejectedExecutionException occupied) {
+            // A cancelled request is returning. Retain the current send while its one slot clears.
+            state.schedule(() -> sendWork(operation, work), 25, TimeUnit.MILLISECONDS);
+        }
     }
 
     private void sendAttempt(SendOperation operation) {
@@ -1602,7 +1663,8 @@ public final class PocketController {
         Outbox.Item item = operation.item;
         byte[] body = operation.body;
         ChannelClient.Failure previousError = operation.error;
-        network.execute(
+        sendWork(
+                operation,
                 () -> {
                     if (operation.ticket != sendEpoch) return;
                     ChannelClient.Failure problem = null;
@@ -2555,10 +2617,9 @@ public final class PocketController {
                         return;
                     }
                     connectionEpoch++;
-                    sendEpoch++;
+                    retireSend();
                     final long pairTicket = ++pairingEpoch;
                     pairingActive = true;
-                    sending = null;
                     uploadForeground = false;
                     repo.select(repo.roomIdentity());
                     reload();
@@ -2600,8 +2661,7 @@ public final class PocketController {
                                                             value.optString("scope"),
                                                             value.optString("token"));
                                                     trying = false;
-                                                    sending = null;
-                                                    sendEpoch++;
+                                                    retireSend();
                                                     viewer.reset();
                                                     turn.reset();
                                                     resetRoomTransient();
@@ -2657,9 +2717,8 @@ public final class PocketController {
                     pairingActive = false;
                     connectionEpoch++;
                     opening = false;
-                    sending = null;
+                    retireSend();
                     uploadForeground = false;
-                    sendEpoch++;
                     viewer.reset();
                     channel.closeLive();
                     releaseOnState(true);
@@ -2710,9 +2769,8 @@ public final class PocketController {
         pairingActive = false;
         releaseOnState(true);
         saveDraft();
-        sendEpoch++;
+        retireSend();
         connectionEpoch++;
-        sending = null;
         opening = uploadForeground = false;
         channel.closeLive();
         socketWriter.getQueue().clear();
@@ -2749,8 +2807,7 @@ public final class PocketController {
         if (!trying) return;
         releaseOnState(true);
         connectionEpoch++;
-        sendEpoch++;
-        sending = null;
+        retireSend();
         opening = uploadForeground = false;
         stopPlayback();
         stopCapture();

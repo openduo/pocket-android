@@ -72,3 +72,34 @@ but failed to wait for asynchronous Activity stopping; the revised probe waits f
 owner and uses a real task-background transition. These are bounded observations in the current
 environment, not a latency guarantee or prolonged lockscreen/cross-network acceptance. The original
 cold-launch incident's exact trigger remains unproven.
+
+Outbox sends now have an independent single-worker executor with one waiting slot. Occupied
+health/state/history/download workers cannot prevent a queued text or voice note from starting.
+Voice-body preparation and all HTTP retries use that sender; the ordinary three-worker HTTP pool
+is unchanged. The preceding APK reproduced a prepared send waiting behind three deliberately held
+ordinary workers despite an Online socket. The fixed APK passed **21 live-recovery assertions**,
+including that same held-worker case. This is a separately reproduced defect; it does not establish
+the cause of the earlier intermittent first-reply assertion in `history.md`.
+
+Each send registers a native request lifetime before queuing work. Settlement by a live result/log
+row, discard, room replacement or try-mode switch retires that lifetime and removes queued work.
+The Go bridge cancels node readiness, response-header waits and response-body reads. Registration
+before dispatch prevents cancellation racing a late start; immediate removal avoids accumulating
+cancellation records. Retries retain the immutable endpoint/token, message id, original body and
+surface. Node readiness and HTTP use one remaining timeout budget; the voice operation's overall
+25-second retry budget remains unchanged. Go vet and race-enabled tests cover readiness/header/body
+cancellation, the shared deadline, retries and separation of successive lifetimes. Java contracts
+cover the dispatch boundary, idempotent retirement and retained request parameters.
+
+`POCKET_E2_TEST_REQUEST_ROOM_ONLY=1 scripts/test-device.sh` performs only GET requests through this
+new JNI/Tailscale path. The actual paired E2 passed **eight assertions**: health/state access, room
+identity, immediate refusal after retirement, a successful replacement request and preserved live
+connection/composer. Observed health time was 93 ms for that run. No message, notification,
+microphone input or Wi-Fi change is involved. In-flight cancellation on real HTTP is covered by a
+local Go test server; this actual-room probe does not interrupt a real send or prove physical
+handover/standby behaviour.
+
+The same APK then passed the complete **311-assertion** capture/camera/import/paired-try regression,
+including the held-worker send case alongside native capture, camera, file-provider and compact
+UI paths. The earlier intermittent first-reply assertion passed in this run; its exact earlier
+trigger remains unlocated. This successful full run does not establish prolonged stability.

@@ -122,6 +122,44 @@ public final class GoTransport implements ChannelConnection {
         return new Response((int) result.getStatus(), result.getBody());
     }
 
+    @Override
+    public void beginRequest(long id) throws Exception {
+        Tsbridge.requestBegin(id);
+    }
+
+    @Override
+    public Response requestScoped(
+            long id,
+            Endpoint endpoint,
+            String token,
+            String method,
+            String path,
+            JSONObject headers,
+            byte[] body,
+            long timeoutMs)
+            throws Exception {
+        if (!started) throw new java.io.IOException("网络节点尚未启动");
+        tsbridge.Response response =
+                Tsbridge.doAtRequest(
+                        id,
+                        endpoint.host,
+                        endpoint.port,
+                        endpoint.tls,
+                        token,
+                        method,
+                        path,
+                        headers.toString(),
+                        body,
+                        timeoutMs);
+        if (response == null) throw new java.io.IOException("通道没有返回响应");
+        return new Response((int) response.getStatus(), response.getBody());
+    }
+
+    @Override
+    public void endRequest(long id) {
+        Tsbridge.requestEnd(id);
+    }
+
     public void cancelStream(long id) {
         Tsbridge.streamCancel(id);
     }

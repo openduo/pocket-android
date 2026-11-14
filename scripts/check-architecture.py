@@ -13,6 +13,7 @@ pure = [source / 'core' / (name + '.java') for name in
 pure += [source / 'passport' / (name + '.java') for name in ('PassportPolicy', 'PocketProtocol', 'PressAssembler', 'ReplyTracker')]
 pure += [source / 'audio/PacketStream.java', source / 'sight/SightProtocol.java', source / 'pairing/QrCode.java']
 pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.java', source / 'trymode/TryScript.java']
+pure += [source / 'net/RequestScope.java']
 pure += [source / 'sight/PreviewFrame.java']
 pure += [source / 'sight/SightRecovery.java']
 pure += [source / 'text/TextCatalog.java']
