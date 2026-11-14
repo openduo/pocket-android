@@ -35,6 +35,25 @@ executor delays and the final clamped wait consume that same budget. Neither the
 delayed network worker may start a new request after expiry. Transport exhaustion retains a queued
 note for reconnection; exhausted service errors stay failed with a specific retry action.
 
+Every real voice dispatch requests the data-sync foreground service, including automatic retries
+that start after the Activity has stopped. The previous foreground-only gate left background
+reconnection uploads unprotected. If Android rejects the service start, the note stays queued with
+an explicit return-to-app explanation; no HTTP upload starts, and passive pumps do not repeatedly
+ask for a denied start. Returning to the actual foreground clears the deferral and pumps even if
+the live socket is already healthy. The original bytes, message id and request surface remain.
+Finishing, live settlement or discarding releases the service as before. Generic modern-Android
+foreground-service limits still require hardware acceptance.
+
+`POCKET_E2_TEST_BACKGROUND_VOICE_ONLY=1` reproduced the missing service on the previous APK, then
+passed **15 targeted assertions** on the fixed APK. It moves the real Activity to the background,
+exhausts the actual 25-second retry budget with prepared transport errors, reconnects and verifies
+the native foreground service for the new upload while the Activity remains stopped. An injected
+service-start restriction retains the note without HTTP; returning the actual Activity resumes
+with the same id/body and settles/releases the service. The disposable SQLite repository and
+transport have no network delegate, the fixture is silent Opus and no microphone is acquired.
+The actual paired room/composer/online state are restored. This is native Android Activity/service
+acceptance with prepared HTTP/live outcomes, not another real ASR or natural voice test.
+
 Live results outrank HTTP completion. Only sending/accepted notes accept `cleaned`; a late cleaned
 event cannot revive a queued/failed item. A failure, authoritative row or user discard releases the
 current send slot and invalidates its timers/callbacks. Thus a lost HTTP response cannot downgrade

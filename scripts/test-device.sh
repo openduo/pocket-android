@@ -77,6 +77,7 @@ probe_args=(
   -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}"
   -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}"
   -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}"
+  -e backgroundVoiceOnly "${POCKET_E2_TEST_BACKGROUND_VOICE_ONLY:-0}"
   -e locationOnly "${POCKET_E2_TEST_LOCATION_ONLY:-0}"
   -e sightOnly "${POCKET_E2_TEST_SIGHT_ONLY:-0}"
   -e arrivalOnly "${POCKET_E2_TEST_ARRIVAL_ONLY:-0}"

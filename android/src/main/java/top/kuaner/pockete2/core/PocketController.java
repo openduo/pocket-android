@@ -42,6 +42,8 @@ import java.util.concurrent.TimeUnit;
 
 /** Single-writer application state; network and capture callbacks are admitted on this executor. */
 public final class PocketController {
+    private static final String UPLOAD_BACKGROUND_PAUSED = "后台发送受系统限制，回到 Pocket E2 后会继续";
+
     public enum Connection {
         NEEDS_SETUP,
         CONNECTING,
@@ -304,7 +306,7 @@ public final class PocketController {
     private volatile long readRequest;
     private long nextReadRequest;
     private boolean readInFlight;
-    private boolean uploadForeground, serviceRunning;
+    private boolean uploadForeground, serviceRunning, voiceUploadDeferred;
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
@@ -620,6 +622,7 @@ public final class PocketController {
         state.execute(
                 () -> {
                     foreground = value;
+                    if (value) voiceUploadDeferred = false;
                     notifications.foreground(value);
                     log.event("foreground", String.valueOf(value));
                     arrivals.refresh();
@@ -657,6 +660,7 @@ public final class PocketController {
                         if (ambientWanted && capture == null) startCapture();
                         updateSight();
                     }
+                    if (value && connection == Connection.ONLINE) pump();
                     publish();
                 });
     }
@@ -1517,6 +1521,7 @@ public final class PocketController {
                 break;
             }
         if (next == null) return;
+        if (!trying && next.voice && voiceUploadDeferred && !foreground) return;
         if (next.display.isEmpty())
             next =
                     next.surface(
@@ -1524,15 +1529,24 @@ public final class PocketController {
                             ambientWanted || foreground && settings.ambientOutput(),
                             trying ? "" : arrivals.pending());
         final Outbox.Item item = next;
+        uploadForeground = !trying && item.voice;
+        if (uploadForeground) {
+            refreshService();
+            if (!serviceRunning) {
+                uploadForeground = false;
+                voiceUploadDeferred = true;
+                repo.transition(item.state(Message.QUEUED, UPLOAD_BACKGROUND_PAUSED));
+                lastError = UPLOAD_BACKGROUND_PAUSED;
+                reload();
+                publish();
+                return;
+            }
+            voiceUploadDeferred = false;
+            if (lastError.equals(UPLOAD_BACKGROUND_PAUSED)) lastError = "";
+        }
         SendOperation operation =
                 new SendOperation(item, client(), repo.roomIdentity(), ++sendEpoch);
         sending = operation;
-        uploadForeground =
-                !trying
-                        && item.voice
-                        && (foreground
-                                || PassportPolicy.ENABLED && passport.snapshot().link.remembered);
-        if (uploadForeground) refreshService();
         repo.transition(item.state(Message.SENDING, ""));
         reload();
         publish();

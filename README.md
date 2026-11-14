@@ -77,6 +77,14 @@ outcomes without changing actual location settings or sending a message; real vi
 background relaunch acceptance remains. See [location.md](docs/location.md). The complete device
 suite was not repeated for this arrival update.
 
+The next P0 fix restores the data-sync foreground service when a retained voice note starts retrying
+after the Activity has stopped. A denied service start now keeps voice queued without HTTP until
+foreground return, preserving its original id/body/surface. The same isolated probe reproduced
+the previous APK's missing service, then passed **15 native background-upload assertions** on the
+fixed APK using actual Activity/service transitions and prepared transport outcomes. No real
+message or microphone audio is sent by this test. Modern Android restrictions and process-death
+acceptance remain separate. See [audio.md](docs/audio.md).
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual

@@ -19,6 +19,9 @@ before the 202 and retain precedence. Only sending/accepted items accept cleaned
 failure cannot override a live result or logged row. Discard and live settlement invalidate scheduled
 retries and release the send slot. Exhausted transport errors keep voice queued and replace the old
 live socket for reconnect; a healthy socket stays open after an HTTP service failure.
+Each real voice dispatch requests its data-sync foreground service, including background retries.
+A denied service start retains the queued item and its surface without starting HTTP; actual
+foreground return resumes it without needing a live reconnect. See `audio.md`.
 
 Voice bodies are `[u16 little-endian length][20 ms 16 kHz mono Opus packet]…`. `hello` follows actual
 input capture, `mute.on=true` means the room microphone is ON, and downlink speech declarations
