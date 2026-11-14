@@ -15,7 +15,7 @@ The current milestone uses necessary build/contracts and short representative ch
 | E2 adapter | Local optional native adapter compiled; proprietary payload excluded from public APK |
 | Documentation captures | English prepared-content screenshots on physical E2 and emulators; no actual room/audio/camera operation, not feature acceptance |
 
-The window run preceded a theme-aware icon/legal-assets update; the native smoke was repeated on the final APK. No business behavior changed in that final asset update. Exact local APK hashes/results remain in ignored `.build/`. Screenshot provenance is public in [screens](screens/README.md).
+The window run preceded a theme-aware icon/legal-assets update; the native smoke was repeated on the icon-updated release candidate. A final launcher-label fallback change was build-checked; the native smoke was not repeated for that resource-only change. No business behavior changed in that final asset update. Exact local APK hashes/results remain in ignored `.build/`. Screenshot provenance is public in [screens](screens/README.md).
 
 Earlier `top.kuaner.pockete2` builds had actual text/history/files/session reading, native E2 array/camera capture, prepared-ASR-to-brain/tool/muted-playback, short network recovery, storage/force-stop and extensive window/accessibility evidence. Each has its own APK identity and limits; do not combine them into acceptance of one release binary. Detailed records are in [the Chinese archive](acceptance.zh-CN.md), [historical status](status-2026-11-14-history.md) and feature documents.
 
