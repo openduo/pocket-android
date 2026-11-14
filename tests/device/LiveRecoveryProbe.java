@@ -1,0 +1,395 @@
+// Copyright 2026 pocket-e2 contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+
+package top.kuaner.pockete2.qa;
+
+import org.json.JSONObject;
+
+import top.kuaner.pockete2.core.Endpoint;
+import top.kuaner.pockete2.core.Json;
+import top.kuaner.pockete2.core.PocketController;
+import top.kuaner.pockete2.net.ChannelConnection;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
+
+/** Prepared transport faults on the shipping controller, restricted to the disposable room. */
+final class LiveRecoveryProbe {
+    private final PocketController controller;
+    private final Executor state;
+    private final ChannelConnection original;
+    private final Observed source;
+    private int assertions;
+
+    LiveRecoveryProbe(PocketController controller) throws Exception {
+        this.controller = controller;
+        state = (Executor) field("state");
+        original = (ChannelConnection) field("channel");
+        source = new Observed(original);
+    }
+
+    private Object field(String name) throws Exception {
+        Field field = PocketController.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(controller);
+    }
+
+    private void channel(ChannelConnection value) throws Exception {
+        Field field = PocketController.class.getDeclaredField("channel");
+        field.setAccessible(true);
+        field.set(controller, value);
+    }
+
+    private <T> T onState(Callable<T> action) throws Exception {
+        FutureTask<T> work = new FutureTask<>(action);
+        state.execute(work);
+        return work.get(5, TimeUnit.SECONDS);
+    }
+
+    private void invoke(String name) throws Exception {
+        Method method = PocketController.class.getDeclaredMethod(name);
+        method.setAccessible(true);
+        method.invoke(controller);
+    }
+
+    private void send() throws Exception {
+        Method method = PocketController.class.getDeclaredMethod("send", JSONObject.class);
+        method.setAccessible(true);
+        method.invoke(controller, Json.object("type", "qa_live_pressure"));
+    }
+
+    private void await(BooleanSupplier condition, long timeout) throws Exception {
+        long until = android.os.SystemClock.elapsedRealtime() + timeout;
+        while (!condition.getAsBoolean() && android.os.SystemClock.elapsedRealtime() < until)
+            Thread.sleep(20);
+    }
+
+    private void check(boolean value, String label) {
+        assertions++;
+        if (!value) throw new AssertionError(label);
+    }
+
+    private boolean online() {
+        return controller.snapshot().connection == PocketController.Connection.ONLINE;
+    }
+
+    int run(boolean nativeCapture) throws Exception {
+        check(
+                controller.snapshot().trying && online(),
+                "live fault injection starts only in an online disposable room");
+        String draft = controller.draft();
+        int pending = controller.snapshot().outbox.size();
+        try {
+            onState(
+                    () -> {
+                        channel(source);
+                        invoke("reconnect");
+                        return null;
+                    });
+            await(() -> source.opens.get() == 1 && online(), 5000);
+            check(source.opens.get() == 1 && online(), "the observed live connection is ready");
+            int opened = source.opens.get(), closed = source.closes.get();
+            ChannelConnection.LiveListener stale = source.listeners.get(0);
+            source.failText.set(true);
+            onState(
+                    () -> {
+                        send();
+                        return null;
+                    });
+            final int textOpened = opened;
+            await(() -> source.opens.get() > textOpened && online(), 6000);
+            check(
+                    source.failedWhileOpen.get()
+                            && source.closes.get() == closed + 1
+                            && source.opens.get() == opened + 1
+                            && online(),
+                    "a text write failure retires a still-open socket and actually redials");
+
+            stale.closed("Prepared late callback from the replaced socket");
+            Thread.sleep(1200);
+            check(
+                    source.opens.get() == opened + 1 && online(),
+                    "a replaced socket's delayed close cannot tear down the new connection");
+
+            opened = source.opens.get();
+            closed = source.closes.get();
+            source.failBinary.set(true);
+            onState(
+                    () -> {
+                        Method method =
+                                PocketController.class.getDeclaredMethod(
+                                        "sendBinary", byte[].class);
+                        method.setAccessible(true);
+                        method.invoke(controller, (Object) new byte[] {1});
+                        return null;
+                    });
+            final int binaryOpened = opened;
+            await(() -> source.opens.get() > binaryOpened && online(), 6000);
+            check(
+                    !source.failBinary.get()
+                            && source.closes.get() == closed + 1
+                            && source.opens.get() == opened + 1
+                            && online(),
+                    "a failed binary write uses the same recovery path without a reader close: "
+                            + "opens="
+                            + source.opens.get()
+                            + "/"
+                            + opened
+                            + ", closes="
+                            + source.closes.get()
+                            + "/"
+                            + closed
+                            + ", state="
+                            + controller.snapshot().connection);
+
+            opened = source.opens.get();
+            closed = source.closes.get();
+            source.blockText.set(true);
+            onState(
+                    () -> {
+                        send();
+                        return null;
+                    });
+            check(
+                    source.blocked.await(2, TimeUnit.SECONDS),
+                    "a prepared blocked write occupies the normal bounded socket writer");
+            int queued =
+                    onState(
+                            () -> {
+                                for (int i = 0; i < 160; i++) send();
+                                return ((ThreadPoolExecutor) field("socketWriter"))
+                                        .getQueue()
+                                        .size();
+                            });
+            final int pressureOpened = opened;
+            await(() -> source.opens.get() > pressureOpened && online(), 6000);
+            check(
+                    queued == 128
+                            && source.closes.get() == closed + 1
+                            && source.opens.get() == opened + 1
+                            && source.pressureDelivered.get() == 0
+                            && online(),
+                    "queue overflow closes once, drops old queued writes and recovers without"
+                            + " leaking them onto the replacement socket");
+            if (nativeCapture) ambientExit();
+            check(
+                    controller.draft().equals(draft)
+                            && controller.snapshot().outbox.size() == pending,
+                    "live transport recovery preserves the composer and sends no messages");
+            return assertions;
+        } finally {
+            source.release.countDown();
+            source.restoreRelease.countDown();
+            controller.releaseHold(true);
+            controller.endAmbient();
+            controller.onForeground(true);
+            onState(
+                    () -> {
+                        channel(original);
+                        invoke("reconnect");
+                        return null;
+                    });
+        }
+    }
+
+    private void ambientExit() throws Exception {
+        controller.ambientToggle();
+        await(
+                () ->
+                        controller.snapshot().ambientActive
+                                && source.binary.get() > 0
+                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                7000);
+        check(
+                controller.snapshot().ambientActive
+                        && source.binary.get() > 0
+                        && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                "ambient recovery uses actual native capture and ordinary hello/uplink");
+        controller.beginHold();
+        await(() -> controller.snapshot().holdLive && source.events.contains("mute:false"), 2000);
+        check(
+                controller.snapshot().holdLive && source.events.contains("mute:false"),
+                "holding a native note actually turns the room microphone switch off");
+        source.events.clear();
+        int opened = source.opens.get();
+        String releaseState =
+                onState(
+                        () -> {
+                            top.kuaner.pockete2.core.AmbientInput input =
+                                    (top.kuaner.pockete2.core.AmbientInput) field("ambientInput");
+                            return "hello="
+                                    + input.helloSent()
+                                    + ", muted="
+                                    + input.pressMuted()
+                                    + ", restore="
+                                    + (input.releaseMicrophone() != null);
+                        });
+        controller.endAmbient();
+        await(
+                () ->
+                        !controller.snapshot().ambientActive
+                                && source.opens.get() > opened
+                                && online(),
+                6000);
+        List<String> events = new java.util.ArrayList<>(source.events);
+        int restore = events.indexOf("mute:true"), close = events.indexOf("close");
+        check(
+                restore >= 0 && close > restore && !controller.snapshot().ambientActive && online(),
+                "leaving ambient during a hold restores the room mic before releasing its socket: "
+                        + releaseState
+                        + "; events="
+                        + events);
+        controller.releaseHold(true);
+        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        check(
+                !controller.snapshot().holdRecording
+                        && !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                "cancelled overlap releases native capture without creating a voice message");
+
+        controller.ambientToggle();
+        await(
+                () ->
+                        controller.snapshot().ambientActive
+                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                6000);
+        controller.beginHold();
+        await(() -> controller.snapshot().holdLive && source.events.contains("mute:false"), 2000);
+        onState(() -> null);
+        source.events.clear();
+        source.blockRestore.set(true);
+        int previousOpened = source.opens.get();
+        controller.onForeground(false);
+        check(
+                source.restoreEntered.await(3, TimeUnit.SECONDS),
+                "background cancellation retains a final unmute on the normal socket writer");
+        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 3000);
+        check(
+                !controller.snapshot().ambientActive
+                        && !controller.snapshot().holdRecording
+                        && !top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                        && !source.events.contains("close"),
+                "capture and the hold end promptly while socket teardown waits off the state"
+                        + " owner");
+        source.restoreRelease.countDown();
+        await(() -> source.events.contains("close"), 3000);
+        events = new java.util.ArrayList<>(source.events);
+        check(
+                events.indexOf("mute:true") >= 0
+                        && events.indexOf("close") > events.indexOf("mute:true")
+                        && source.opens.get() == previousOpened,
+                "the background callback restores the mic before close and does not redial an idle"
+                        + " room");
+        controller.onForeground(true);
+        await(() -> source.opens.get() > previousOpened && online(), 5000);
+        check(online(), "foregrounding reconnects normally after the deferred final write");
+    }
+
+    private static final class Observed implements ChannelConnection {
+        final ChannelConnection delegate;
+        final AtomicInteger opens = new AtomicInteger(), closes = new AtomicInteger();
+        final AtomicInteger pressureDelivered = new AtomicInteger();
+        final AtomicInteger binary = new AtomicInteger();
+        final AtomicBoolean failText = new AtomicBoolean(), failBinary = new AtomicBoolean();
+        final AtomicBoolean blockText = new AtomicBoolean(), failedWhileOpen = new AtomicBoolean();
+        final AtomicBoolean blockRestore = new AtomicBoolean();
+        final CountDownLatch blocked = new CountDownLatch(1), release = new CountDownLatch(1);
+        final CountDownLatch restoreEntered = new CountDownLatch(1),
+                restoreRelease = new CountDownLatch(1);
+        final List<LiveListener> listeners = new CopyOnWriteArrayList<>();
+        final List<String> events = new CopyOnWriteArrayList<>();
+
+        Observed(ChannelConnection delegate) {
+            this.delegate = delegate;
+        }
+
+        public Response request(
+                Endpoint endpoint,
+                String token,
+                String method,
+                String path,
+                JSONObject headers,
+                byte[] body,
+                long timeout)
+                throws Exception {
+            return delegate.request(endpoint, token, method, path, headers, body, timeout);
+        }
+
+        public Response stream(
+                Endpoint endpoint,
+                String token,
+                long id,
+                String path,
+                byte[] body,
+                StreamListener listener,
+                BooleanSupplier current)
+                throws Exception {
+            return delegate.stream(endpoint, token, id, path, body, listener, current);
+        }
+
+        public void cancelStream(long id) {
+            delegate.cancelStream(id);
+        }
+
+        public void live(
+                Endpoint endpoint,
+                String token,
+                String path,
+                JSONObject headers,
+                LiveListener listener,
+                BooleanSupplier current)
+                throws Exception {
+            opens.incrementAndGet();
+            listeners.add(listener);
+            delegate.live(endpoint, token, path, headers, listener, current);
+        }
+
+        public void send(JSONObject frame) throws Exception {
+            if (frame.optString("type").equals("mute")
+                    && frame.optBoolean("on")
+                    && blockRestore.compareAndSet(true, false)) {
+                restoreEntered.countDown();
+                if (!restoreRelease.await(5, TimeUnit.SECONDS))
+                    throw new AssertionError("Final-unmute probe was not released");
+            }
+            if (frame.optString("type").equals("qa_live_pressure")) {
+                if (failText.compareAndSet(true, false)) {
+                    failedWhileOpen.set(delegate.isOpen());
+                    throw new java.io.IOException("Prepared write failure while still open");
+                }
+                if (blockText.compareAndSet(true, false)) {
+                    blocked.countDown();
+                    if (!release.await(6, TimeUnit.SECONDS))
+                        throw new AssertionError("Blocked write was not closed");
+                    throw new java.io.IOException("Prepared close unblocked the write");
+                }
+                pressureDelivered.incrementAndGet();
+            }
+            delegate.send(frame);
+            if (frame.optString("type").equals("mute"))
+                events.add("mute:" + frame.optBoolean("on"));
+        }
+
+        public void sendBinary(byte[] bytes) throws Exception {
+            if (failBinary.compareAndSet(true, false))
+                throw new java.io.IOException("Prepared binary write failure");
+            delegate.sendBinary(bytes);
+            binary.incrementAndGet();
+        }
+
+        public boolean isOpen() {
+            return delegate.isOpen();
+        }
+
+        public void closeLive() {
+            events.add("close");
+            closes.incrementAndGet();
+            delegate.closeLive();
+            if (blocked.getCount() == 0) release.countDown();
+        }
+    }
+}

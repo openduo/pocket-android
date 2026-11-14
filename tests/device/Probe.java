@@ -51,9 +51,20 @@ public final class Probe extends Instrumentation {
                 finish(Activity.RESULT_OK, report);
                 return;
             }
+            if (arguments != null && "1".equals(arguments.getString("ambientRoomOnly"))) {
+                report.putString("result", new AmbientRoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("voiceOnly"))) {
                 voiceOnly(context);
                 report.putString("result", "PASS " + assertions + " voice upload assertions");
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("liveOnly"))) {
+                liveOnly(context);
+                report.putString("result", "PASS " + assertions + " live recovery assertions");
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -154,6 +165,57 @@ public final class Probe extends Instrumentation {
                     controller.snapshot().importTarget.equals(target)
                             && controller.draft().equals(draft),
                     "voice-only probe restores the actual room and composer");
+        }
+    }
+
+    private void liveOnly(Context context) throws Exception {
+        Activity screen =
+                startActivitySync(
+                        new Intent(Intent.ACTION_MAIN)
+                                .setClassName(
+                                        context.getPackageName(),
+                                        "top.kuaner.pockete2.app.MainActivity")
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        runOnMainSync(
+                () ->
+                        screen.getWindow()
+                                .addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                                .FLAG_KEEP_SCREEN_ON));
+        PocketController controller = PocketController.get(context);
+        long until = android.os.SystemClock.elapsedRealtime() + 6000;
+        while (controller.snapshot() == null && android.os.SystemClock.elapsedRealtime() < until)
+            Thread.sleep(20);
+        check(
+                controller.snapshot() != null
+                        && !controller.snapshot().trying
+                        && !controller.snapshot().ambientActive
+                        && !controller.snapshot().holdRecording
+                        && !controller.snapshot().uploadingVoice
+                        && !controller.snapshot().cameraOn
+                        && controller.snapshot().outbox.isEmpty(),
+                "live-only probe requires the actual room idle");
+        String target = controller.snapshot().importTarget, draft = controller.draft();
+        try {
+            controller.startTrying();
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while ((!controller.snapshot().trying
+                            || controller.snapshot().connection
+                                    != PocketController.Connection.ONLINE)
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            assertions +=
+                    new LiveRecoveryProbe(controller)
+                            .run(arguments != null && "1".equals(arguments.getString("capture")));
+        } finally {
+            controller.stopTrying();
+            until = android.os.SystemClock.elapsedRealtime() + 5000;
+            while (controller.snapshot().trying && android.os.SystemClock.elapsedRealtime() < until)
+                Thread.sleep(20);
+            check(
+                    controller.snapshot().importTarget.equals(target)
+                            && controller.draft().equals(draft),
+                    "live-only probe restores the actual room and composer");
+            runOnMainSync(screen::finish);
         }
     }
 
@@ -958,6 +1020,11 @@ public final class Probe extends Instrumentation {
                         new VoiceUploadProbe(controller)
                                 .run(
                                         context,
+                                        arguments != null
+                                                && "1".equals(arguments.getString("capture")));
+                assertions +=
+                        new LiveRecoveryProbe(controller)
+                                .run(
                                         arguments != null
                                                 && "1".equals(arguments.getString("capture")));
                 until = android.os.SystemClock.elapsedRealtime() + 8000;

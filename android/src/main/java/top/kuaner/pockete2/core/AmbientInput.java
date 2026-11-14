@@ -10,7 +10,7 @@ import java.util.*;
 /** The uplink rules of PocketCore.AmbientEdge, without capture or socket ownership. */
 public final class AmbientInput {
     private String conn = "", role = "", roomState = "";
-    private boolean capturing, hello, media, echo, metaSeen;
+    private boolean capturing, hello, media, echo, metaSeen, micMayBeOff;
     private final Set<String> presses = new HashSet<>();
 
     public String role() {
@@ -43,7 +43,7 @@ public final class AmbientInput {
 
     public void socketOpened() {
         conn = role = roomState = "";
-        hello = media = metaSeen = false;
+        hello = media = metaSeen = micMayBeOff = false;
     }
 
     public void captureStopped() {
@@ -90,7 +90,15 @@ public final class AmbientInput {
     }
 
     public JSONObject micFrame() {
+        // A queued unmute can be discarded by socket teardown. Retain this obligation until
+        // the socket ends, even after the last local press has already been released.
+        if (pressMuted()) micMayBeOff = true;
         return Json.object("type", "mute", "on", !pressMuted());
+    }
+
+    /** Best-effort room-control restoration, to be written before releasing this socket. */
+    public JSONObject releaseMicrophone() {
+        return hello && micMayBeOff ? Json.object("type", "mute", "on", true) : null;
     }
 
     private List<JSONObject> hello(String room) {

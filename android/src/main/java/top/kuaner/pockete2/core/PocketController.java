@@ -250,6 +250,7 @@ public final class PocketController {
     private final AmbientOutput ambientOutput = new AmbientOutput();
     private int latencyMs, visibleLimit = 200, reconnectAttempt;
     private volatile int connectionEpoch;
+    private volatile int closingEpoch = -1, closingSourceEpoch = -1;
     private volatile long sendEpoch;
     private long revision, holdPackets, lastHoldPublish;
     private long draftGeneration, draftEditAck;
@@ -376,6 +377,7 @@ public final class PocketController {
                         focus -> {
                             log.event("audio", "focus=" + focus);
                             if (focus <= 0) {
+                                JSONObject restoreMic = ambientInput.releaseMicrophone();
                                 audioSuspended = true;
                                 releaseOnState(false, true);
                                 stopCapture();
@@ -383,7 +385,7 @@ public final class PocketController {
                                 if (ambientWanted) {
                                     ambient = Ambient.PAUSED;
                                 }
-                                reconnect();
+                                reconnect(restoreMic);
                                 notifications.interrupted();
                                 notice("音频被系统打断，收音已暂停");
                             } else {
@@ -559,7 +561,10 @@ public final class PocketController {
                         updateSight();
                         releaseOnState(true);
                         if (trying || !settings.keepListening()) ambientOff();
-                        if (!ambientWanted && pending.isEmpty() && !passport.snapshot().waiting) {
+                        if (!ambientWanted
+                                && pending.isEmpty()
+                                && !passport.snapshot().waiting
+                                && closingEpoch != connectionEpoch) {
                             stopPlayback();
                             channel.closeLive();
                             connectionEpoch++;
@@ -828,7 +833,12 @@ public final class PocketController {
                                         state.execute(() -> linkClosed(reason, epoch));
                                     }
                                 },
-                                () -> epoch == connectionEpoch);
+                                // Keep only the retiring transport valid for its final control
+                                // write. Its listener still uses the original epoch above.
+                                () ->
+                                        epoch == connectionEpoch
+                                                || closingEpoch == connectionEpoch
+                                                        && epoch == closingSourceEpoch);
                         state.execute(
                                 () -> {
                                     if (epoch == connectionEpoch) {
@@ -856,13 +866,51 @@ public final class PocketController {
     }
 
     private void reconnect() {
+        reconnect(null);
+    }
+
+    private void reconnect(JSONObject closingFrame) {
         sightSession.connectionReset();
-        connectionEpoch++;
+        int sourceEpoch = connectionEpoch;
+        int epoch = ++connectionEpoch;
+        closingEpoch = closingSourceEpoch = -1;
         opening = false;
         ambientInput.socketOpened();
         socketWriter.getQueue().clear();
-        channel.closeLive();
         stopPlayback();
+        ChannelConnection target = channel;
+        if (closingFrame == null) {
+            target.closeLive();
+            connect();
+            return;
+        }
+        // Room controls outlive their socket. Give the final unmute one bounded writer turn
+        // before closing; never wait for a network write on the state owner.
+        closingEpoch = epoch;
+        closingSourceEpoch = sourceEpoch;
+        opening = true;
+        try {
+            socketWriter.execute(
+                    () -> {
+                        if (epoch != connectionEpoch) return;
+                        try {
+                            target.send(closingFrame);
+                        } catch (Exception failure) {
+                            log.event("live", "release_failed");
+                        } finally {
+                            state.execute(() -> finishReconnect(epoch, target));
+                        }
+                    });
+        } catch (java.util.concurrent.RejectedExecutionException failure) {
+            finishReconnect(epoch, target);
+        }
+    }
+
+    private void finishReconnect(int epoch, ChannelConnection target) {
+        if (epoch != connectionEpoch) return;
+        closingEpoch = closingSourceEpoch = -1;
+        opening = false;
+        target.closeLive();
         connect();
     }
 
@@ -872,6 +920,11 @@ public final class PocketController {
             unauthorized();
             return;
         }
+        // A failed write or a full writer queue need not produce a reader-close callback.
+        // Retire the whole generation before redialling, even if the bridge still holds it.
+        int retryEpoch = ++connectionEpoch;
+        socketWriter.getQueue().clear();
+        channel.closeLive();
         sightSession.connectionReset();
         passport.online(false);
         viewer.dropPending();
@@ -889,7 +942,7 @@ public final class PocketController {
         int delay = delays[Math.min(reconnectAttempt++, delays.length - 1)];
         state.schedule(
                 () -> {
-                    if (epoch == connectionEpoch) connect();
+                    if (retryEpoch == connectionEpoch) connect();
                 },
                 delay,
                 TimeUnit.MILLISECONDS);
@@ -1472,10 +1525,7 @@ public final class PocketController {
         }
         reload();
         if (error != null && error.transport) {
-            int epoch = ++connectionEpoch;
-            socketWriter.getQueue().clear();
-            channel.closeLive();
-            linkClosed("发送连接中断", epoch);
+            linkClosed("发送连接中断", connectionEpoch);
         }
         publish();
         if (error == null || !error.transport) pump();
@@ -1870,6 +1920,8 @@ public final class PocketController {
     }
 
     private void ambientOff() {
+        if (!ambientWanted) return;
+        JSONObject restoreMic = ambientInput.releaseMicrophone();
         ambientWanted = false;
         setOutputMuted(false);
         ambient = Ambient.OFF;
@@ -1878,7 +1930,7 @@ public final class PocketController {
         stopCapture();
         stopPlayback();
         refreshService();
-        if (channel.isOpen()) reconnect();
+        if (channel.isOpen()) reconnect(restoreMic);
         publish();
     }
 

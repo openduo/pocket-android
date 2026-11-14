@@ -151,6 +151,9 @@ public final class Contracts {
                 "unknown speaker label stays hidden");
         AmbientInput edge = new AmbientInput();
         check(
+                edge.releaseMicrophone() == null,
+                "an edge without hello cannot change a room's microphone on exit");
+        check(
                 edge.meta(Json.object("conn", "first", "media", 1), "room").isEmpty(),
                 "seat is not claimed before an encoded packet");
         List<JSONObject> hello = edge.packet("room", true);
@@ -166,15 +169,24 @@ public final class Contracts {
         edge.press("phone", true);
         edge.press("passport", true);
         check(
+                edge.releaseMicrophone().getBoolean("on"),
+                "a muted capture edge restores the room mic before releasing its seat");
+        check(
                 edge.press("phone", false).isEmpty() && edge.pressMuted(),
                 "phone release cannot unmute an overlapping Passport press");
         check(
                 edge.press("passport", false).get(0).getBoolean("on"),
                 "last press restores microphone capture switch");
+        check(
+                edge.releaseMicrophone().getBoolean("on"),
+                "teardown retains mic restoration when the queued press release can be discarded");
         edge.socketOpened();
         check(
                 !edge.helloSent() && edge.meta(Json.object("conn", "next"), "room").size() == 2,
                 "new socket reclaims capture after meta");
+        check(
+                edge.releaseMicrophone() == null,
+                "the fresh unmuted hello does not inherit a former socket's restore obligation");
         edge.captureStopped();
         check(
                 !edge.sendsAudio() && edge.meta(Json.object("conn", "third"), "room").isEmpty(),

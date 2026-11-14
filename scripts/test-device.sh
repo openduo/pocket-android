@@ -37,7 +37,7 @@ jar cf "$build/tests.jar" -C "$build/classes" .
 (cd "$build/dex" && zip -q "$build/base.apk" ./*.dex)
 "$tools/zipalign" -f -p 4 "$build/base.apk" "$build/aligned.apk"
 "$tools/apksigner" sign --ks "$sign_dir/pocket-e2.p12" --ks-key-alias pocket-e2 --ks-pass "file:$sign_dir/password" --out "$build/probe.apk" "$build/aligned.apk"
-if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 ]]; then
+if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 || "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" == 1 ]]; then
   if adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then echo 'E2Studio is recording or working; capture probe refused.' >&2; exit 1; fi
   adb shell pm grant top.kuaner.pockete2 android.permission.RECORD_AUDIO
 fi
@@ -70,7 +70,7 @@ if [[ "${POCKET_E2_TEST_PROCESS_DEATH:-0}" == 1 ]]; then
   exit
 fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
-adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}" -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
+adb shell am instrument -w -r -e capture "${POCKET_E2_TEST_CAPTURE:-0}" -e camera "${POCKET_E2_TEST_CAMERA:-0}" -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}" -e loginOnly "${POCKET_E2_TEST_LOGIN_ONLY:-0}" -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}" -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}" -e voiceRoomOnly "${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}" -e ambientRoomOnly "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" -e liveOnly "${POCKET_E2_TEST_LIVE_ONLY:-0}" -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"
 adb pull /sdcard/Android/data/top.kuaner.pockete2/cache/qa "$build/screenshots" >/dev/null

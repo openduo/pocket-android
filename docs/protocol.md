@@ -25,6 +25,11 @@ input capture, `mute.on=true` means the room microphone is ON, and downlink spee
 reset decoder state without discarding prior queued PCM. Playback watermarks come from AudioTrack's
 hardware head and are cumulative per speech id. Read aloud streams incrementally and detects cut
 packets. Outgoing JSON/audio/video share an ordered bounded writer.
+Writer failure or queue rejection retires the current connection before retrying, even when the
+transport still reports open. Old queued frames and delayed close callbacks stay invalid. Ambient
+teardown retains a best-effort room microphone restoration through one asynchronous bounded writer
+turn before closing; local capture stops immediately. The retiring transport remains current for
+that write while its old listener is excluded by the connection generation.
 `AmbientOutput` keeps the current speech's hardware and immediately skipped muted samples separate
 until forming one monotonic watermark. Hardware receipts retain their playback generation through
 the state-executor hop. Local presses/read can report an interruption; remote `stop_audio` and local

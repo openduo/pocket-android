@@ -17,15 +17,19 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **189 host contract assertions and 227 E2 device assertions**,
+The latest local checkpoint passed **193 host contract assertions and 243 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
 and streamed synthesis/completion/cancellation with muted hardware playback. A further **15 real-voice
 assertions** verified one marked synthetic note through actual ASR/delivery/reply and native background
-upload. **11 cold-restart assertions** reused its journal without sending again. Acoustic recognition
-from the E2 microphone and ambient server audio remain unverified. These checks are regression evidence,
-not a parity-completion claim.
+upload. **11 cold-restart assertions** reused its journal without sending again. A separate
+**18-assertion actual ambient run** accepted marked synthetic speech, the requested service reply,
+real synthesized downlink/playback completion, redial after an injected local write failure, and
+actual server mic restoration on held-note exit. **18 isolated live-recovery assertions** cover
+writer failures, queue overflow
+and restoring the room microphone before teardown. Acoustic recognition from the E2 microphone
+remains unverified. These checks are regression evidence, not a parity-completion claim.
 An independent process-death run passed **27 host-controlled and 12 native-phase assertions**, including
 two actual force-stop/cold-launch cycles around an unfinished system-picked document copy.
 
@@ -55,6 +59,10 @@ the state queue, and local press/hush events are distinct from remote stops. Foc
 ambient intent while releasing capture and reopening without room audio. A native competing focus
 request verifies pause, foreground gating, gain and renewed uplink. Ownership and the precise
 verification limits are recorded in [audio.md](docs/audio.md).
+Text/audio writer failures now retire even a still-open socket before redialling; old queued writes
+and delayed close callbacks cannot cross into the replacement connection. Ambient exit and focus
+loss give a pending room-microphone restoration one bounded writer turn before closing, without
+blocking the state executor or delaying local capture release.
 
 For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
 The native login sheet displays an authorization QR, copyable link and live backend state. Its QR
@@ -80,6 +88,10 @@ POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
 # Explicitly send one marked synthetic voice fixture to the actual ASR/brain:
 POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
+# Isolated live write/queue faults, optionally including native hold/ambient exit:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_LIVE_ONLY=1 scripts/test-device.sh
+# Explicit actual ambient recognition/speech/redial with known synthetic audio only:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 scripts/test-device.sh
 # Explicitly force-stop/cold-start during a real system-picked provider copy:
 POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
 ```
@@ -117,6 +129,23 @@ the original key across repeats/restarts; keep it to verify the same message wit
 This proves the actual API path for known synthetic speech. Acoustic recognition from the E2's
 microphone, real ASR failure outcomes and prolonged background/process-death handling remain separate
 acceptance work. See [audio.md](docs/audio.md).
+
+`POCKET_E2_TEST_LIVE_ONLY=1` stays inside the disposable room. It fails text and binary writes while
+the transport still reports open, delays a superseded close and fills the bounded writer behind a
+stalled write. With capture enabled it checks an actual held note/ambient exit and a background
+callback, including a delayed final unmute while the state owner and capture teardown remain free.
+The separate `POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1` run requires an unoccupied real room and ready
+services. Every outgoing microphone packet is replaced by silence or a single marked known fixture;
+no surrounding audio is uploaded. Actual synthesis is decoded and re-encoded to native 20 ms packets
+before it is paced by real capture. The test accepts ASR, the requested `环境模式连通成功` service reply,
+actual speech and hardware playback reports at zero local AudioTrack volume. The observed reply is
+a server `reflex`; this does not establish a brain/tool turn. A local write fault then exercises real
+server redial, a new capture seat and resumed silence. It also checks the actual server microphone
+switch before and after ending ambient during a cancelled native hold. Its private
+`ambient-room-20ms-once.json` journal retains completion through restart; repeat runs verify the same
+server row without replay.
+Keep both it and any older failed ambient journal. Physical network outages and microphone acoustics
+remain separate acceptance work.
 
 `POCKET_E2_TEST_PROCESS_DEATH=1` selects one small synthetic document through the real file picker,
 force-stops Pocket E2 after a separate-UID provider emits partial bytes, then cold-starts it twice.

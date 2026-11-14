@@ -18,6 +18,15 @@ packet file before entering the transactional outbox with a stable id and origin
 audio interruption retains a long-enough note as failed and retryable; cancelling or backgrounding
 an unfinished hold removes it. A note shorter than fifteen 20 ms packets is not sent.
 
+The room microphone switch outlives its capture socket. `AmbientInput` remembers that a socket may
+have turned it off, even after the last press releases: its queued unmute might otherwise be cleared
+by immediate teardown. Ambient exit and focus interruption freeze a final `mute{on:true}` before
+clearing capture state. The writer attempts it before close on a bounded asynchronous turn. Capture
+and the state owner do not wait for that write. The retiring transport stays valid only for this
+control; its listener's old generation still cannot admit frames. A later state transition invalidates
+the final-close callback, so it cannot close a replacement socket. A lost network can still prevent
+this best-effort final write; every new capture hello restates the current microphone switch.
+
 One state-owned upload operation retains the message, room, client and retry generation. It loads
 and validates the framed body once on the network executor, observes the server's upload limit,
 and reuses the exact bytes/key/display/spoken/place on every attempt. `VoiceRetry` uses monotonic
@@ -33,6 +42,14 @@ recognized text, reopen an already delivered note, trigger a false reconnect, or
 removed by row settlement. A real transport failure replaces the old live socket before reconnecting,
 even if that socket still reports itself open. Empty recognition removes the pending note and its
 file; ASR/service failures preserve the recording and show the corresponding retry reason.
+
+All live-reader errors, text/binary writer errors, queue rejection and exhausted HTTP transport errors
+use the same retirement path. It invalidates the connection generation, clears the bounded old writer
+queue and closes the transport before scheduling a retry, including when `isOpen()` still returns true.
+A delayed close/error from that generation cannot break a newer connection. `LiveRecoveryProbe`
+reproduced the former stuck-open failure on the shipping controller before the fix. Its prepared
+transport cases stay inside try mode; its native capture cases verify mute restoration on held-note
+exit and a background callback, including a stalled final write while local capture releases promptly.
 
 `AmbientOutput` is an Android-independent output policy with one current declaration or local read.
 It implements these upstream behaviours:
@@ -100,13 +117,44 @@ actual ASR of the captured microphone audio.
 clearly marked known-speech fixture through the actual service and sends that synthetic body through
 the normal controller/outbox/client. A gate delays dispatch while the real Activity moves to the
 background; Android's foreground upload service remains active. Actual ASR recognizes the marked
-speech, the delivered log retains its voice duration, the brain replies with the requested
+speech, the delivered log retains its advertised voice duration, the service replies with the requested
 `语音链路验证成功`, and the service/file/outbox settle. A server-log query checks exactly one copy.
 The private app-files journal retains this fixture's key across repeats/restarts, so verification
 reuses the message instead of creating another. Preserve that journal when repeating acceptance.
 No surrounding microphone recording is uploaded by this test, and no system volume changes occur.
 
+Actual synthesis uses 60 ms Opus packets on the observed service. `KnownSpeech` decodes arbitrary
+synthesis packets and re-encodes 320-sample/20 ms native packets for new synthetic voice/ambient fixtures.
+Only those normalized packets can use native capture ticks or `packetCount * 20` as a duration. The
+earlier retained voice fixture verified its advertised duration round trip, not its acoustic duration;
+its existing journal and server row are preserved rather than resent or relabelled.
+
+`POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1` verifies a distinct actual ambient path. It first checks
+`/api/state` for ready services and an empty capture owner; it never uses a takeover action. The E2
+owns the real capture lease and supplies the clock, but the test boundary replaces every outgoing
+microphone packet with silence or one canonical known-speech fixture. After three seconds of silence,
+342 native packets carry one clearly marked utterance. Actual ASR produced a human log row and the
+requested `环境模式连通成功` reply. The server logged that reply as `reflex`, not a brain answer; a brain/tool
+turn remains separate acceptance. The actual synthesized downlink contained 37 packets, decoded and
+played on AudioTrack at zero local volume. Actual server playback receipts reached `done` at 2220 ms.
+No prepared transcript, reply, downlink audio or playback receipt was supplied by this test.
+
+A deliberate local write exception then retired the actual open socket, redialled the actual
+Tailscale server, acquired a fresh capture seat and resumed native-paced silence. The normalized
+fixture was not sent again. A separate restart passed 18 acceptance checks using the retained actual
+rows and output evidence, confirmed one matching server-log row and verified cleanup. A real native
+hold switched the actual server microphone off; ending ambient and cancelling the note restored it
+to on, confirmed by independent state requests before and after teardown. No voice note was sent.
+Its private app-files `ambient-room-20ms-once.json` journal persists before dispatch and retains completion;
+an incomplete attempt cannot be automatically replayed. Retained completed speech/playback observations
+can settle acceptance after a test interruption without synthesizing another response. Preserve that
+journal and the earlier failed fixture journal. The earlier unnormalized attempt is not ASR evidence.
+
 Remaining acceptance includes acoustic microphone-to-room recognition and actual empty/failure outcomes,
-ambient ASR/TTS and reconnect against the actual server, long streams, actual calls and external
-route changes, prolonged background/process death and energy trials. Native protocol fault tests and
-muted hardware watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.
+ambient brain/tool turns, physical network outages, long streams, actual calls and external route
+changes, prolonged background/process death and energy trials. The upstream 1/2/4/8/16/30-second redial
+and sustained-outage microphone policy still need porting: Android currently stops capture on the
+first failure and resumes on ready, including in the background. Upstream preserves short outages,
+then pauses at its 30-second cap and waits for foreground before restarting. Policy-refusal (1008)
+presentation also remains. Native protocol faults, synthetic API speech and zero-volume hardware
+watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.

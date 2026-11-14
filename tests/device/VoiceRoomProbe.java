@@ -147,7 +147,7 @@ final class VoiceRoomProbe {
                         initial.outbox.isEmpty() && initial.voiceAvailable,
                         "a new marked fixture starts only with an idle outbox and available voice"
                                 + " service");
-                byte[] body = client.readAloud(TEXT);
+                byte[] body = KnownSpeech.nativePackets(client.readAloud(TEXT));
                 PacketStream stream = new PacketStream();
                 int count = 0;
                 for (int offset = 0; offset < body.length; offset += 4096)
@@ -324,7 +324,7 @@ final class VoiceRoomProbe {
                                             answer.kind == Message.DUODUO
                                                     && answer.at >= record.optLong("at")
                                                     && answer.text.contains(EXPECTED)),
-                    "the actual brain supplies the requested voice-test reply");
+                    "the actual service supplies the requested voice-test reply");
             ChannelClient.Rows rows = client.rows(record.getLong("since"));
             check(
                     rows.messages.stream()
