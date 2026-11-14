@@ -4,6 +4,10 @@ English · [简体中文](status.zh-CN.md)
 
 Updated 2026-11-14. The milestone delivers a maintainable `openduo/pocket-android` project and Android preview, with E2 as an adapter example. Full 1:1 parity remains a future comparison. Testing is deliberately limited to relevant checks, with older expanded evidence retained separately.
 
+Published: [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)
+([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk),
+version code 2). This adds the localization follow-up to the first preview and can update it in place.
+
 ## Delivered
 
 | Area | Concrete result |
@@ -25,7 +29,7 @@ Updated 2026-11-14. The milestone delivers a maintainable `openduo/pocket-androi
 - Three representative API35 windows pass: 320×640dp, 1280×800dp and 740×360dp. The final asset update did not change layout/business behavior; the native smoke was repeated on the icon-updated release candidate. The last launcher-label fallback change was build-checked only.
 - Five native smoke assertions pass for explicit opt-in, Opus JNI, actual standard capture/packets and microphone release. Optional local E2 JNI compilation passes.
 - English documentation captures use prepared Try content on a physical E2 and phone/tablet/landscape emulators. They do not exercise microphone/camera or send real room content. See [screenshot provenance](screens/README.md).
-- The first public preview and [remote CI](https://github.com/openduo/pocket-android/actions/runs/43608819152) passed. The internationalization follow-up also checks all 117 production Java sources, catches direct untranslated English labels and covers E2 array read-error translation. The follow-up release is build/contract-checked; audio/window smoke evidence remains attached to the first candidate.
+- [Remote CI for Preview 2](https://github.com/openduo/pocket-android/actions/runs/43609534160) passes, including host contracts, source/localization checks, Go checks and the dual-ABI APK build. Localization checks cover all 117 production Java sources, direct untranslated English labels, native resources and E2 array read-error translation. The signed release is build/contract-checked; audio/window smoke evidence remains attached to the first candidate. Published APK/checksum asset SHA-256 values match the local release.
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
 

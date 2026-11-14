@@ -17,6 +17,12 @@ The current milestone uses necessary build/contracts and short representative ch
 
 The window run preceded a theme-aware icon/legal-assets update; the native smoke was repeated on the icon-updated release candidate. A final launcher-label fallback change was build-checked; the native smoke was not repeated for that resource-only change. No business behavior changed in that final asset update. Exact local APK hashes/results remain in ignored `.build/`. Screenshot provenance is public in [screens](screens/README.md).
 
+Preview 2 (version code 2) adds an E2 error-translation fix and broader build-time localization checks.
+Its host contracts, source checks, signed Release build and public-payload check pass. The window,
+audio and screenshot evidence above belongs to the earlier candidates; those probes were not rerun
+for this patch. [Remote CI](https://github.com/openduo/pocket-android/actions/runs/43609534160) also
+passes. The downloadable release includes its own SHA-256 checksum, verified against the published assets.
+
 Earlier `top.kuaner.pockete2` builds had actual text/history/files/session reading, native E2 array/camera capture, prepared-ASR-to-brain/tool/muted-playback, short network recovery, storage/force-stop and extensive window/accessibility evidence. Each has its own APK identity and limits; do not combine them into acceptance of one release binary. Detailed records are in [the Chinese archive](acceptance.zh-CN.md), [historical status](status-2026-11-14-history.md) and feature documents.
 
 The user-reported Wi-Fi incident was reproduced: tsnet retained a cached all-links-down state after Wi-Fi returned. Recovery now injects a netmon event before rebind/restun. One real E2 background outage/return recovered Online in about 2.7 seconds with the same process and an online peer observed from the computer. That evidence does not establish overnight stability.

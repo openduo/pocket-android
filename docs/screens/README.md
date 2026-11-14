@@ -12,6 +12,11 @@ The public gallery uses English, prepared Try content. The messages are fixed ex
 
 The E2 gallery shows the actual device screen. Other device layouts are identified as emulator captures. The landscape example demonstrates the shared window policy; no target smart speaker was used or accepted. The generic APK was installed alongside the old E2 test app, whose login/pairing/data were preserved.
 
+The capture APK is identified in `provenance.json`; it predates the public previews. Later changes
+adjusted launcher-language fallback and an E2 error translation, plus build/documentation checks.
+The illustrated scenes/layout are unchanged. These images remain documentation of that candidate,
+not acceptance evidence for every subsequently published APK.
+
 ## Reproduce
 
 Build `dist/Pocket.apk` first. Captures use a separately signed, temporary instrumentation package and refuse an already-paired app. They run documentation capture only, with no regression matrix. Device selection is explicit; emulator window presets are restored afterward. A physical device's display settings are never changed.

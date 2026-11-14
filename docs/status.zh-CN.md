@@ -1,6 +1,10 @@
 # 当前状态：已做、未做与后续优先级
 
+[English](status.md) · 简体中文
+
 更新：2026-11-14。当前交付是可继续维护的 `openduo/pocket-android` 与 Android 预览版，E2 随项目作为适配案例。完整 1:1 保留为后续对照，本阶段不扩大回归矩阵。本文区分实现与真实服务验证；早期详细测试证据放在[历史检查点](status-2026-11-14-history.md)和[验收记录](acceptance.md)。
+
+已发布 [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk)，versionCode 2），包含首版后的国际化收尾，可直接更新首个预览版。
 
 ## 本阶段已做
 
@@ -22,7 +26,7 @@
 - Gradle Release 构建、Go vet/test 通过，APK 包含 arm64-v8a 和 x86_64，公开 payload 检查通过。
 - 新包通过 320×640dp、1280×800dp、740×360dp 三种代表性窗口；更新图标后的 Release 候选包通过 Opus JNI、标准录音/编码和麦克风释放的 5 项 smoke；最后仅调整启动器名称的语言回退，已构建检查，未为该资源改动重跑录音。未重跑旧矩阵。
 - 公开 README 和主要技术文档提供英文入口及中文版本；英文截图覆盖 E2 真机与手机/平板/横向模拟器，标注预设内容和真实硬件边界。
-- 首个公开预览包的[远端 CI](https://github.com/openduo/pocket-android/actions/runs/43608819152) 已通过。国际化收尾将文案检查覆盖到全部 117 个生产 Java 源文件，防止直接写入英文界面文案，并补齐 E2 阵列读取错误的转换；后续包仅做相关构建与契约检查，音频/窗口 smoke 仍以首个候选包记录为准。
+- Preview 2 的[远端 CI](https://github.com/openduo/pocket-android/actions/runs/43609534160) 已通过，包含契约、源码/国际化、Go 检查与双 ABI 构建。文案检查覆盖全部 117 个生产 Java 源文件、直接写入的英文界面文案和原生资源，并补齐 E2 阵列读取错误的转换；该包仅做相关构建与契约检查，音频/窗口 smoke 仍以首个候选包记录为准。GitHub APK 与校验文件的 SHA-256 均已核对，与本地发布文件一致。
 
 旧包曾通过实际房间文字/历史/文件/会话读取，E2 原生阵列/相机，以及实际服务合成语音 ASR → brain/tool → 静音硬件播放。历史记录有不同 APK 身份，不能作为本次新包相同字节的全面验收。本轮不再重跑全部旧测试，不重启八小时任务。
 
