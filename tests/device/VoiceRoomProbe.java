@@ -1,19 +1,19 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.PacketStream;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.PacketStream;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -29,7 +29,7 @@ import java.util.function.BooleanSupplier;
  */
 final class VoiceRoomProbe {
     private static final String EXPECTED = "语音链路验证成功";
-    private static final String TEXT = "这是 Pocket E2 集成测试的语音消息。请只回复：" + EXPECTED + "。";
+    private static final String TEXT = "这是 DuoDuo Pocket 集成测试的语音消息。请只回复：" + EXPECTED + "。";
     private final Probe probe;
     private PocketController controller;
     private Executor state;
@@ -84,9 +84,7 @@ final class VoiceRoomProbe {
     private boolean uploadService(Context context) {
         for (android.app.ActivityManager.RunningServiceInfo service :
                 context.getSystemService(android.app.ActivityManager.class).getRunningServices(40))
-            if (service.service
-                            .getClassName()
-                            .equals("top.kuaner.pockete2.app.PocketSessionService")
+            if (service.service.getClassName().equals("dev.openduo.pocket.app.PocketSessionService")
                     && service.foreground) return true;
         return false;
     }
@@ -137,7 +135,12 @@ final class VoiceRoomProbe {
         if (!journal.exists() && prior.exists() && !prior.renameTo(journal))
             throw new java.io.IOException("Could not retain the original voice-test journal");
         ChannelConnection original = onState(() -> (ChannelConnection) field("channel"));
-        ChannelClient client = new ChannelClient(controller.settings, original);
+        ChannelClient client =
+                new ChannelClient(
+                        controller.settings.endpoint(),
+                        controller.settings.token(),
+                        controller.settings.room(),
+                        original);
         Gate gate = null;
         boolean fresh = !journal.exists();
         try {

@@ -1,11 +1,11 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.JSONObject;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.net.*;
 
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.net.*;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

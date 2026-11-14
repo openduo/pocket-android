@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.Manifest;
 import android.accessibilityservice.AccessibilityServiceInfo;
@@ -19,11 +19,11 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.EditText;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -216,9 +216,9 @@ final class PermissionServiceProbe {
             if (recreate && flow.equals("camera"))
                 main(
                         () -> {
-                            EditText code = screen.findViewById(top.kuaner.pockete2.R.id.pair_code);
+                            EditText code = screen.findViewById(dev.openduo.pocket.R.id.pair_code);
                             code.setText("QA recreation form");
-                            EditText link = screen.findViewById(top.kuaner.pockete2.R.id.pair_link);
+                            EditText link = screen.findViewById(dev.openduo.pocket.R.id.pair_link);
                             link.setText("QA recreation draft");
                             link.requestFocus();
                             link.setSelection(3, 9);
@@ -405,11 +405,11 @@ final class PermissionServiceProbe {
             require(
                     notices.contains("Permission allowed. Try the action again."),
                     "the recreated Activity exposes a retry prompt after an actual permission"
-                        + " grant");
+                            + " grant");
             require(
                     !contains("Permission is needed for this feature"),
                     "a real grant delivered to the replacement Activity is not reported as a"
-                        + " denial");
+                            + " denial");
         }
         if (flow.equals("location")) {
             if (!recreate) await(() -> contains("Open app permissions"), 3000);
@@ -427,7 +427,7 @@ final class PermissionServiceProbe {
                                 node -> label(node).equals("Close panel"),
                                 () -> !contains("Open app permissions")),
                         "the approximate-only decision returns to settings without starting"
-                            + " visits");
+                                + " visits");
             check(!controller.configured(), "the unpaired location test cannot send a room visit");
             recordReturn("location-approximate-return");
             require(
@@ -540,7 +540,7 @@ final class PermissionServiceProbe {
                 check(
                         !contains("System notifications are off"),
                         "settings refreshes the permission status after the replacement Activity"
-                            + " receives the grant");
+                                + " receives the grant");
         }
         recordReturn(flow + "-return");
     }
@@ -587,7 +587,7 @@ final class PermissionServiceProbe {
     }
 
     private void picker() throws Exception {
-        EditText editor = main(() -> screen.findViewById(top.kuaner.pockete2.R.id.composer));
+        EditText editor = main(() -> screen.findViewById(dev.openduo.pocket.R.id.composer));
         main(
                 () -> {
                     editor.requestFocus();
@@ -630,7 +630,7 @@ final class PermissionServiceProbe {
                     main(
                             () -> {
                                 EditText current =
-                                        screen.findViewById(top.kuaner.pockete2.R.id.composer);
+                                        screen.findViewById(dev.openduo.pocket.R.id.composer);
                                 return current.getSelectionStart() == 3
                                         && current.getSelectionEnd() == 9;
                             }),
@@ -728,9 +728,9 @@ final class PermissionServiceProbe {
                         main(
                                 () -> {
                                     EditText code =
-                                            screen.findViewById(top.kuaner.pockete2.R.id.pair_code);
+                                            screen.findViewById(dev.openduo.pocket.R.id.pair_code);
                                     EditText link =
-                                            screen.findViewById(top.kuaner.pockete2.R.id.pair_link);
+                                            screen.findViewById(dev.openduo.pocket.R.id.pair_link);
                                     return code.getText().toString().equals("QA recreation form")
                                             && link.getText()
                                                     .toString()

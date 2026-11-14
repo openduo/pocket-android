@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.app.Instrumentation;
@@ -9,10 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.audio.*;
+import dev.openduo.pocket.core.*;
 
-import top.kuaner.pockete2.audio.*;
-import top.kuaner.pockete2.core.*;
+import org.json.JSONObject;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -41,6 +41,35 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("showcaseOnly"))) {
+                report.putString("result", new ShowcaseCapture(this).run(context, arguments));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("hardwareSmokeOnly"))) {
+                check(
+                        "1".equals(arguments.getString("capture")),
+                        "capture requires explicit opt-in");
+                Activity activity =
+                        startActivitySync(
+                                new Intent(context, dev.openduo.pocket.app.MainActivity.class)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                try {
+                    waitForIdleSync();
+                    codec();
+                    capture(context);
+                } finally {
+                    runOnMainSync(activity::finish);
+                }
+                report.putString(
+                        "result",
+                        "PASS "
+                                + assertions
+                                + " hardware smoke assertions; adapter="
+                                + dev.openduo.pocket.device.DeviceRuntime.current().id());
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("permissionOnly"))) {
                 report.putString(
                         "result", new PermissionServiceProbe(this).run(context, arguments));
@@ -205,7 +234,7 @@ public final class Probe extends Instrumentation {
             assertions += ImportProbe.run(context);
             assertions += ImageImportProbe.run(context);
             codec();
-            assertions += top.kuaner.pockete2.core.SecretProbe.run(context);
+            assertions += dev.openduo.pocket.core.SecretProbe.run(context);
             images(context);
             notifications(context);
             playback();
@@ -223,7 +252,7 @@ public final class Probe extends Instrumentation {
             report.putString("stack", android.util.Log.getStackTraceString(failure));
             finish(Activity.RESULT_CANCELED, report);
         } finally {
-            context.deleteDatabase("pocket-e2-qa.db");
+            context.deleteDatabase("duoduo-pocket-qa.db");
         }
     }
 
@@ -248,7 +277,7 @@ public final class Probe extends Instrumentation {
                         new Intent(Intent.ACTION_MAIN)
                                 .setClassName(
                                         context.getPackageName(),
-                                        "top.kuaner.pockete2.app.MainActivity")
+                                        "dev.openduo.pocket.app.MainActivity")
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         runOnMainSync(
                 () ->
@@ -299,7 +328,7 @@ public final class Probe extends Instrumentation {
                 if ("1".equals(arguments.getString("camera"))) sightSession(context);
                 assertions += new SightUiProbe(this).run(context, screen, controller);
             } else if ("1".equals(arguments.getString("arrivalOnly"))) {
-                assertions += top.kuaner.pockete2.location.ArrivalMonitorProbe.run(context);
+                assertions += dev.openduo.pocket.location.ArrivalMonitorProbe.run(context);
             } else {
                 assertions +=
                         new VoiceUploadProbe(controller)
@@ -328,7 +357,7 @@ public final class Probe extends Instrumentation {
                         new Intent(Intent.ACTION_MAIN)
                                 .setClassName(
                                         context.getPackageName(),
-                                        "top.kuaner.pockete2.app.MainActivity")
+                                        "dev.openduo.pocket.app.MainActivity")
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         runOnMainSync(
                 () ->
@@ -383,8 +412,8 @@ public final class Probe extends Instrumentation {
     }
 
     private void database(Context context) {
-        context.deleteDatabase("pocket-e2-qa.db");
-        RoomRepository repo = new RoomRepository(context, "pocket-e2-qa.db");
+        context.deleteDatabase("duoduo-pocket-qa.db");
+        RoomRepository repo = new RoomRepository(context, "duoduo-pocket-qa.db");
         repo.select("qa-room");
         Outbox.Item item =
                 new Outbox.Item(
@@ -417,7 +446,7 @@ public final class Probe extends Instrumentation {
                 item);
         repo.metadata("draft", "retained");
         repo.close();
-        repo = new RoomRepository(context, "pocket-e2-qa.db");
+        repo = new RoomRepository(context, "duoduo-pocket-qa.db");
         repo.select("qa-room");
         check(
                 repo.pending().size() == 1
@@ -511,7 +540,7 @@ public final class Probe extends Instrumentation {
     private void images(Context context) throws Exception {
         java.io.File file = imageFile(context);
         android.graphics.Bitmap bitmap =
-                top.kuaner.pockete2.ui.components.ImageBitmaps.decode(file, 128);
+                dev.openduo.pocket.ui.components.ImageBitmaps.decode(file, 128);
         try {
             check(
                     bitmap.getHeight() <= 128 && bitmap.getHeight() > bitmap.getWidth(),
@@ -531,8 +560,8 @@ public final class Probe extends Instrumentation {
         for (android.service.notification.StatusBarNotification n :
                 manager.getActiveNotifications()) before.add(n.getKey());
         String text = "QA notice " + System.nanoTime();
-        top.kuaner.pockete2.app.AnswerNotifications notices =
-                new top.kuaner.pockete2.app.AnswerNotifications(context, settings);
+        dev.openduo.pocket.app.AnswerNotifications notices =
+                new dev.openduo.pocket.app.AnswerNotifications(context, settings);
         try {
             notices.frame(
                     Json.object(
@@ -725,16 +754,19 @@ public final class Probe extends Instrumentation {
                                 stopped.countDown();
                             }
                         });
-        check(started.await(8, TimeUnit.SECONDS), "real input starts");
-        long until = android.os.SystemClock.elapsedRealtime() + 2500;
-        while (packets.get() < 25 && android.os.SystemClock.elapsedRealtime() < until)
-            Thread.sleep(10);
-        capture.stop();
+        try {
+            check(started.await(8, TimeUnit.SECONDS), "real input starts");
+            long until = android.os.SystemClock.elapsedRealtime() + 2500;
+            while (packets.get() < 25 && android.os.SystemClock.elapsedRealtime() < until)
+                Thread.sleep(10);
+        } finally {
+            capture.stop();
+        }
         check(
                 stopped.await(4, TimeUnit.SECONDS) && error[0].isEmpty() && packets.get() >= 15,
-                "real array frames and bounded teardown");
+                "real input frames and bounded teardown");
         check(
-                !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                !dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 "microphone lease released");
     }
 
@@ -751,28 +783,28 @@ public final class Probe extends Instrumentation {
                         256000,
                         "key_interval_ms",
                         1000);
-        top.kuaner.pockete2.sight.SightProtocol.Ask ask =
-                new top.kuaner.pockete2.sight.SightProtocol.Ask(
+        dev.openduo.pocket.sight.SightProtocol.Ask ask =
+                new dev.openduo.pocket.sight.SightProtocol.Ask(
                         Json.object("width", 640, "height", 480, "video", video));
         CountDownLatch frames = new CountDownLatch(3);
         CountDownLatch preview = new CountDownLatch(1);
-        top.kuaner.pockete2.sight.PreviewFrame[] viewfinder = {null};
+        dev.openduo.pocket.sight.PreviewFrame[] viewfinder = {null};
         String[] failure = {""};
         java.util.concurrent.atomic.AtomicBoolean key =
                 new java.util.concurrent.atomic.AtomicBoolean();
-        top.kuaner.pockete2.sight.SightCapture camera =
-                new top.kuaner.pockete2.sight.SightCapture(
+        dev.openduo.pocket.sight.SightCapture camera =
+                new dev.openduo.pocket.sight.SightCapture(
                         context,
                         ask,
                         false,
-                        new top.kuaner.pockete2.sight.SightCapture.Listener() {
+                        new dev.openduo.pocket.sight.SightCapture.Listener() {
                             public void started() {}
 
                             public boolean wantsPreview() {
                                 return true;
                             }
 
-                            public void preview(top.kuaner.pockete2.sight.PreviewFrame frame) {
+                            public void preview(dev.openduo.pocket.sight.PreviewFrame frame) {
                                 viewfinder[0] = frame;
                                 preview.countDown();
                             }
@@ -825,7 +857,7 @@ public final class Probe extends Instrumentation {
                         new Intent()
                                 .setClassName(
                                         context.getPackageName(),
-                                        "top.kuaner.pockete2.app.MainActivity")
+                                        "dev.openduo.pocket.app.MainActivity")
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         waitForIdleSync();
         check(screen != null, "Activity cold start");
@@ -853,7 +885,7 @@ public final class Probe extends Instrumentation {
         check(controller.snapshot() != null, "asynchronous initial snapshot available");
         boolean passportThread =
                 Thread.getAllStackTraces().keySet().stream()
-                        .anyMatch(thread -> "Pocket E2 BLE".equals(thread.getName()));
+                        .anyMatch(thread -> "DuoDuo Pocket BLE".equals(thread.getName()));
         check(
                 !controller.snapshot().accessoryActive && !passportThread,
                 "standalone E2 keeps Passport routing and BLE work disabled");
@@ -882,7 +914,7 @@ public final class Probe extends Instrumentation {
                 throw new AssertionError(
                         "Paired-room UI probe requires this app's recording, camera and outbox to"
                                 + " be idle");
-            boolean english = top.kuaner.pockete2.text.AppText.get(context).en;
+            boolean english = dev.openduo.pocket.text.AppText.get(context).en;
             boolean originalVoice = controller.settings.voiceInput();
             String originalDraft = controller.draft();
             String originalTarget = controller.snapshot().importTarget;
@@ -897,7 +929,7 @@ public final class Probe extends Instrumentation {
                 controller.setVoiceInput(false);
                 runOnMainSync(
                         () ->
-                                ((top.kuaner.pockete2.app.MainActivity) screen)
+                                ((dev.openduo.pocket.app.MainActivity) screen)
                                         .navigate("conversation"));
                 waitForIdleSync();
                 Thread.sleep(120);
@@ -978,10 +1010,10 @@ public final class Probe extends Instrumentation {
                         bounds.height() > 0 && bounds.bottom <= visible.bottom,
                         "composer stays above IME: input=" + bounds + " window=" + visible);
                 runOnMainSync(
-                        () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("settings"));
+                        () -> ((dev.openduo.pocket.app.MainActivity) screen).navigate("settings"));
                 runOnMainSync(
                         () ->
-                                ((top.kuaner.pockete2.app.MainActivity) screen)
+                                ((dev.openduo.pocket.app.MainActivity) screen)
                                         .navigate("conversation"));
                 waitForIdleSync();
                 check(
@@ -1068,7 +1100,7 @@ public final class Probe extends Instrumentation {
                                     editor.contentMimeTypes != null
                                             && connection.commitContent(
                                                     new android.view.inputmethod.InputContentInfo(
-                                                            top.kuaner.pockete2.app.PocketFiles.uri(
+                                                            dev.openduo.pocket.app.PocketFiles.uri(
                                                                     context, photo),
                                                             new android.content.ClipDescription(
                                                                     "QA image",
@@ -1092,8 +1124,7 @@ public final class Probe extends Instrumentation {
                 String imported = controller.snapshot().chips.get(0).localPath;
                 runOnMainSync(
                         () -> {
-                            ((top.kuaner.pockete2.app.MainActivity) screen)
-                                    .navigate("conversation");
+                            ((dev.openduo.pocket.app.MainActivity) screen).navigate("conversation");
                             screen.getSystemService(
                                             android.view.inputmethod.InputMethodManager.class)
                                     .hideSoftInputFromWindow(composer[0].getWindowToken(), 0);
@@ -1147,7 +1178,7 @@ public final class Probe extends Instrumentation {
                                         java.nio.file.Files.readAllBytes(photo.toPath())),
                         "try uploaded photo downloads through actual channel bytes");
                 android.net.Uri sharedPhoto =
-                        top.kuaner.pockete2.app.PocketFiles.uri(context, downloadedFile[0]);
+                        dev.openduo.pocket.app.PocketFiles.uri(context, downloadedFile[0]);
                 try (java.io.InputStream in =
                         context.getContentResolver().openInputStream(sharedPhoto)) {
                     check(
@@ -1169,7 +1200,7 @@ public final class Probe extends Instrumentation {
                             "try ambient hello follows capture and plays actual prepared packets");
                     runOnMainSync(
                             () ->
-                                    ((top.kuaner.pockete2.app.MainActivity) screen)
+                                    ((dev.openduo.pocket.app.MainActivity) screen)
                                             .navigate("ambient"));
                     waitForIdleSync();
                     screenshot(context, "ambient-room");
@@ -1264,7 +1295,7 @@ public final class Probe extends Instrumentation {
         android.app.Application.ActivityLifecycleCallbacks lifecycle =
                 new android.app.Application.ActivityLifecycleCallbacks() {
                     public void onActivityCreated(Activity activity, Bundle saved) {
-                        if (activity instanceof top.kuaner.pockete2.app.MainActivity) {
+                        if (activity instanceof dev.openduo.pocket.app.MainActivity) {
                             current.set(activity);
                             activity.getWindow()
                                     .addFlags(
@@ -1276,7 +1307,7 @@ public final class Probe extends Instrumentation {
                     public void onActivityStarted(Activity activity) {}
 
                     public void onActivityResumed(Activity activity) {
-                        if (activity instanceof top.kuaner.pockete2.app.MainActivity)
+                        if (activity instanceof dev.openduo.pocket.app.MainActivity)
                             current.set(activity);
                     }
 
@@ -1308,14 +1339,14 @@ public final class Probe extends Instrumentation {
                                     != PocketController.Connection.ONLINE)
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) source).navigate("settings"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) source).navigate("settings"));
             waitForIdleSync();
             runOnMainSync(
                     () -> {
                         android.widget.TextView label =
                                 textView(
                                         source.getWindow().getDecorView(),
-                                        top.kuaner.pockete2.text.AppText.get(context).t("语言"));
+                                        dev.openduo.pocket.text.AppText.get(context).t("语言"));
                         if (label == null) throw new AssertionError("Language setting missing");
                         android.view.View row = (android.view.View) label.getParent().getParent();
                         label.requestRectangleOnScreen(
@@ -1330,20 +1361,20 @@ public final class Probe extends Instrumentation {
             while ((current.get() == source
                             || !controller.settings.language().equals("en")
                             || controller.snapshot().rows.stream()
-                                    .noneMatch(row -> row.text.startsWith("Welcome to Pocket E2")))
+                                    .noneMatch(
+                                            row -> row.text.startsWith("Welcome to DuoDuo Pocket")))
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             check(
                     current.get() != source
                             && controller.settings.language().equals("en")
                             && controller.snapshot().rows.stream()
-                                    .anyMatch(row -> row.text.startsWith("Welcome to Pocket E2")),
+                                    .anyMatch(
+                                            row -> row.text.startsWith("Welcome to DuoDuo Pocket")),
                     "language setting recreates native UI and restarts the disposable English"
                             + " room");
             Activity english = current.get();
             runOnMainSync(
-                    () ->
-                            ((top.kuaner.pockete2.app.MainActivity) english)
-                                    .navigate("conversation"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) english).navigate("conversation"));
             controller.setVoiceInput(false);
             waitForIdleSync();
             Thread.sleep(150);
@@ -1381,7 +1412,7 @@ public final class Probe extends Instrumentation {
             screenshot(context, "conversation-en");
             visualVariant(context, english, controller, false, 1.35f);
             runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) english).navigate("settings"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) english).navigate("settings"));
             waitForIdleSync();
             check(
                     textView(english.getWindow().getDecorView(), "Settings") != null
@@ -1392,7 +1423,7 @@ public final class Probe extends Instrumentation {
                     "settings controls use the selected English catalog");
             screenshot(context, "settings-en");
             runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) english).navigate("sessions"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) english).navigate("sessions"));
             until = android.os.SystemClock.elapsedRealtime() + 3000;
             while (!controller.snapshot().sessions.listed
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
@@ -1509,7 +1540,7 @@ public final class Probe extends Instrumentation {
             Activity light = current.get();
             check(
                     light != english
-                            && top.kuaner.pockete2.ui.Ui.lightTheme(light)
+                            && dev.openduo.pocket.ui.Ui.lightTheme(light)
                             && controller.snapshot().rows.stream()
                                     .anyMatch(
                                             row ->
@@ -1568,7 +1599,7 @@ public final class Probe extends Instrumentation {
                                             android.view.inputmethod.InputMethodManager.class)
                                     .hideSoftInputFromWindow(retainedInput[0].getWindowToken(), 0));
             runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) light).navigate("conversation"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) light).navigate("conversation"));
             android.graphics.Rect lightComposer = new android.graphics.Rect();
             until = android.os.SystemClock.elapsedRealtime() + 3000;
             while (lightComposer.height() < 40
@@ -1604,7 +1635,7 @@ public final class Probe extends Instrumentation {
             long until = android.os.SystemClock.elapsedRealtime() + 3000;
             while ((controller.snapshot().trying
                             || controller.settings.voiceInput() != originalVoice
-                            || !top.kuaner.pockete2.text.AppText.get(context)
+                            || !dev.openduo.pocket.text.AppText.get(context)
                                     .t("后台回答")
                                     .contentEquals(
                                             context.getSystemService(
@@ -1616,7 +1647,7 @@ public final class Probe extends Instrumentation {
             runOnMainSync(last::finish);
             application.unregisterActivityLifecycleCallbacks(lifecycle);
             check(
-                    context.getSharedPreferences("pocket-e2.settings", Context.MODE_PRIVATE)
+                    context.getSharedPreferences("duoduo-pocket.settings", Context.MODE_PRIVATE)
                             .edit()
                             .putString("appearance", appearance)
                             .putString("language", language)
@@ -1689,7 +1720,7 @@ public final class Probe extends Instrumentation {
             boolean light,
             float scale)
             throws Exception {
-        top.kuaner.pockete2.ui.pages.ConversationPage[] preview = {null};
+        dev.openduo.pocket.ui.pages.ConversationPage[] preview = {null};
         android.app.Dialog[] dialog = {null};
         runOnMainSync(
                 () -> {
@@ -1701,21 +1732,21 @@ public final class Probe extends Instrumentation {
                             new android.view.ContextThemeWrapper(
                                     context.createConfigurationContext(configuration),
                                     light
-                                            ? top.kuaner.pockete2.R.style.PocketLightTheme
-                                            : top.kuaner.pockete2.R.style.PocketTheme);
-                    top.kuaner.pockete2.ui.Ui variant =
-                            new top.kuaner.pockete2.ui.Ui(
+                                            ? dev.openduo.pocket.R.style.PocketLightTheme
+                                            : dev.openduo.pocket.R.style.PocketTheme);
+                    dev.openduo.pocket.ui.Ui variant =
+                            new dev.openduo.pocket.ui.Ui(
                                     scoped,
                                     light
-                                            ? top.kuaner.pockete2.ui.ThemePalette.light()
-                                            : top.kuaner.pockete2.ui.ThemePalette.dark());
-                    top.kuaner.pockete2.ui.PageHost host =
-                            new top.kuaner.pockete2.ui.PageHost() {
+                                            ? dev.openduo.pocket.ui.ThemePalette.light()
+                                            : dev.openduo.pocket.ui.ThemePalette.dark());
+                    dev.openduo.pocket.ui.PageHost host =
+                            new dev.openduo.pocket.ui.PageHost() {
                                 public Activity activity() {
                                     return screen;
                                 }
 
-                                public top.kuaner.pockete2.ui.Ui ui() {
+                                public dev.openduo.pocket.ui.Ui ui() {
                                     return variant;
                                 }
 
@@ -1735,30 +1766,29 @@ public final class Probe extends Instrumentation {
 
                                 public void loginTailnet() {}
                             };
-                    preview[0] =
-                            new top.kuaner.pockete2.ui.pages.ConversationPage(host, controller);
+                    preview[0] = new dev.openduo.pocket.ui.pages.ConversationPage(host, controller);
                     android.widget.LinearLayout shell = variant.column();
                     shell.setBackgroundColor(variant.palette.background);
                     shell.addView(
                             preview[0].render(),
                             new android.widget.LinearLayout.LayoutParams(-1, 0, 1));
                     shell.addView(
-                            new top.kuaner.pockete2.ui.components.BottomNav(variant, ignored -> {})
+                            new dev.openduo.pocket.ui.components.BottomNav(variant, ignored -> {})
                                     .render("conversation"));
                     dialog[0] =
                             new android.app.Dialog(
                                     screen,
                                     light
-                                            ? top.kuaner.pockete2.R.style.PocketLightTheme
-                                            : top.kuaner.pockete2.R.style.PocketTheme) {
+                                            ? dev.openduo.pocket.R.style.PocketLightTheme
+                                            : dev.openduo.pocket.R.style.PocketTheme) {
                                 @Override
                                 public void onWindowFocusChanged(boolean focused) {
                                     super.onWindowFocusChanged(focused);
                                     if (focused) variant.immersive(getWindow());
                                 }
                             };
-                    top.kuaner.pockete2.ui.InsetsFrame frame =
-                            new top.kuaner.pockete2.ui.InsetsFrame(variant);
+                    dev.openduo.pocket.ui.InsetsFrame frame =
+                            new dev.openduo.pocket.ui.InsetsFrame(variant);
                     frame.setBackgroundColor(variant.palette.background);
                     frame.addView(shell);
                     dialog[0].setContentView(frame);
@@ -1783,7 +1813,7 @@ public final class Probe extends Instrumentation {
                     light
                             ? "light-theme compact composer reachable"
                             : "large-font compact composer reachable");
-            boolean english = top.kuaner.pockete2.text.AppText.get(context).en;
+            boolean english = dev.openduo.pocket.text.AppText.get(context).en;
             screenshot(
                     context,
                     english
@@ -1847,10 +1877,10 @@ public final class Probe extends Instrumentation {
     private void qrCamera(Context context) throws Exception {
         CountDownLatch first = new CountDownLatch(1);
         String[] failure = {""};
-        top.kuaner.pockete2.pairing.QrCapture capture =
-                new top.kuaner.pockete2.pairing.QrCapture(
+        dev.openduo.pocket.pairing.QrCapture capture =
+                new dev.openduo.pocket.pairing.QrCapture(
                         context,
-                        new top.kuaner.pockete2.pairing.QrCapture.Listener() {
+                        new dev.openduo.pocket.pairing.QrCapture.Listener() {
                             public void preview(android.graphics.Bitmap bitmap) {
                                 bitmap.recycle();
                                 first.countDown();
@@ -1879,13 +1909,13 @@ public final class Probe extends Instrumentation {
         final AtomicInteger frames = new AtomicInteger();
         final CountDownLatch first = new CountDownLatch(1);
         volatile String failure = "";
-        final top.kuaner.pockete2.pairing.QrCapture capture;
+        final dev.openduo.pocket.pairing.QrCapture capture;
 
         HeldCamera(Context context) {
             capture =
-                    new top.kuaner.pockete2.pairing.QrCapture(
+                    new dev.openduo.pocket.pairing.QrCapture(
                             context,
-                            new top.kuaner.pockete2.pairing.QrCapture.Listener() {
+                            new dev.openduo.pocket.pairing.QrCapture.Listener() {
                                 public void preview(android.graphics.Bitmap bitmap) {
                                     bitmap.recycle();
                                     frames.incrementAndGet();
@@ -1936,14 +1966,14 @@ public final class Probe extends Instrumentation {
         java.util.concurrent.atomic.AtomicReference<org.json.JSONObject>
                 firstConfig = new java.util.concurrent.atomic.AtomicReference<>(),
                 rotatedConfig = new java.util.concurrent.atomic.AtomicReference<>();
-        top.kuaner.pockete2.sight.SightSession session =
-                new top.kuaner.pockete2.sight.SightSession(
+        dev.openduo.pocket.sight.SightSession session =
+                new dev.openduo.pocket.sight.SightSession(
                         context,
                         serial,
                         closer,
                         () -> true,
                         () -> false,
-                        new top.kuaner.pockete2.sight.SightSession.Listener() {
+                        new dev.openduo.pocket.sight.SightSession.Listener() {
                             public void changed() {}
 
                             public void text(org.json.JSONObject frame) {
@@ -2053,9 +2083,9 @@ public final class Probe extends Instrumentation {
             final android.graphics.Bitmap[] rendered = {null};
             runOnMainSync(
                     () -> {
-                        top.kuaner.pockete2.ui.Ui ui = new top.kuaner.pockete2.ui.Ui(context);
-                        top.kuaner.pockete2.ui.components.SightViewfinder view =
-                                new top.kuaner.pockete2.ui.components.SightViewfinder(
+                        dev.openduo.pocket.ui.Ui ui = new dev.openduo.pocket.ui.Ui(context);
+                        dev.openduo.pocket.ui.components.SightViewfinder view =
+                                new dev.openduo.pocket.ui.components.SightViewfinder(
                                         ui, session::preview, ignored -> {});
                         view.measure(
                                 android.view.View.MeasureSpec.makeMeasureSpec(

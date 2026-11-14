@@ -1,17 +1,17 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.core.SessionViewer;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.core.SessionViewer;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +20,7 @@ import java.util.function.BooleanSupplier;
 
 /** Once-only notification acceptance restricted to the app's own currently paired room. */
 final class SessionNotifyRoomProbe {
-    private static final String TEXT = "这是 Pocket E2 当前房间的会话通知集成测试，请只回复：会话通知验证成功。";
+    private static final String TEXT = "这是 DuoDuo Pocket 当前房间的会话通知集成测试，请只回复：会话通知验证成功。";
     private final Probe probe;
     private PocketController controller;
     private int assertions;
@@ -161,7 +161,7 @@ final class SessionNotifyRoomProbe {
                                     .anyMatch(
                                             row ->
                                                     row.kind.equals("notify")
-                                                            && row.text.contains("Pocket E2")
+                                                            && row.text.contains("DuoDuo Pocket")
                                                             && row.text.contains("会话通知集成测试")),
                     60_000);
             long copies =
@@ -169,7 +169,7 @@ final class SessionNotifyRoomProbe {
                             .filter(
                                     row ->
                                             row.kind.equals("notify")
-                                                    && row.text.contains("Pocket E2")
+                                                    && row.text.contains("DuoDuo Pocket")
                                                     && row.text.contains("会话通知集成测试"))
                             .count();
             check(

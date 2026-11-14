@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -11,14 +11,14 @@ import android.content.ContextWrapper;
 import android.content.Intent;
 import android.os.SystemClock;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.input.RecordingInput;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -33,7 +33,7 @@ import java.util.function.BooleanSupplier;
 
 /** Real Activity/service lifecycle with an isolated SQLite room and no-network voice fixture. */
 final class BackgroundVoiceProbe {
-    private static final String DATABASE = "pocket-e2-background-voice-qa.db";
+    private static final String DATABASE = "duoduo-pocket-background-voice-qa.db";
     private final Probe probe;
     private PocketController controller;
     private Executor state;
@@ -86,7 +86,7 @@ final class BackgroundVoiceProbe {
             if (info.foreground
                     && info.service
                             .getClassName()
-                            .equals("top.kuaner.pockete2.app.PocketSessionService")) return true;
+                            .equals("dev.openduo.pocket.app.PocketSessionService")) return true;
         return false;
     }
 
@@ -567,7 +567,7 @@ final class BackgroundVoiceProbe {
                                             "at",
                                             java.time.Instant.now().toString(),
                                             "text",
-                                            "Pocket E2 QA · Prepared transcript"))
+                                            "DuoDuo Pocket QA · Prepared transcript"))
                             .toString());
         }
 

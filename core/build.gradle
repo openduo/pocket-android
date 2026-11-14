@@ -1,0 +1,27 @@
+// Copyright 2026 OpenDuo contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+plugins { id 'java-library' }
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+dependencies {
+    compileOnly 'org.json:json:20250517'
+    implementation files('../android/libs/zxing-core-3.5.3.jar')
+    testImplementation 'org.json:json:20250517'
+    testImplementation project(':ui-policy')
+}
+sourceSets.test.java.srcDirs = [rootProject.file('tests/host')]
+
+tasks.register('contracts', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'Contracts'
+    enableAssertions = true
+    systemProperty 'pocket.android.root', rootProject.projectDir.absolutePath
+}
+tasks.named('check') { dependsOn 'contracts' }

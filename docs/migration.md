@@ -1,12 +1,14 @@
 # Migration evidence and future 1:1 comparison
 
+The Android preview aligns its name/icon/application ID with iOS and separates window policy from hardware adapters. E2 is the included hardware example; future display-equipped smart speakers reuse the standard path. See [status](status.md), [architecture](architecture.md) and [devices](devices.md). Most records below describe earlier test-package APKs, not a full rerun of the renamed release. Natural speech/Sight/notify/visits, target-speaker acceptance, and deferred Push/Passport gaps remain explicit.
+
 The user changed the milestone on 2026-11-14: finish the known P0/P1 implementation, improve
 maintainability and support general Android windows. **Complete 1:1 parity is not the current
 release requirement.** Keep `openduo/pocket-ios`, initially commit
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`, as the future comparison. A prepared reply,
 placeholder, compiled page or unit contract is not end-to-end verification.
 
-Read the Chinese [current status](status.md) and [expanded acceptance](acceptance.md) first.
+Read the [current status](status.md) first. [Expanded acceptance](acceptance.md) retains historical evidence; it does not require another full run.
 The current UI layer has a complete 22-case API 35 window/font matrix (9,616 checks), actual display
 rotation (20), freeform (8) and system split (12), actual TalkBack 15.0 traversal/gestures (12 scenes,
 404 checks) and legacy Google source Switch Access 6.1.1 scan/order/scroll/activation (113). The previous

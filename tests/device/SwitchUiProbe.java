@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.UiAutomation;
 import android.content.Context;
@@ -16,12 +16,12 @@ import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.ui.components.Sheets;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.ui.components.Sheets;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -175,7 +175,7 @@ final class SwitchUiProbe {
                                                     visible(
                                                                     screen.getWindow()
                                                                             .getDecorView(),
-                                                                    top.kuaner.pockete2.R.id
+                                                                    dev.openduo.pocket.R.id
                                                                             .composer)
                                                             != null),
                     5000);
@@ -184,7 +184,7 @@ final class SwitchUiProbe {
                             () ->
                                     visible(
                                                     screen.getWindow().getDecorView(),
-                                                    top.kuaner.pockete2.R.id.composer)
+                                                    dev.openduo.pocket.R.id.composer)
                                             != null),
                     "the loaded session has rendered its native notification editor");
             main(
@@ -192,7 +192,7 @@ final class SwitchUiProbe {
                         ((EditText)
                                         visible(
                                                 screen.getWindow().getDecorView(),
-                                                top.kuaner.pockete2.R.id.composer))
+                                                dev.openduo.pocket.R.id.composer))
                                 .setText("QA Switch Access notification");
                         return null;
                     });
@@ -376,7 +376,7 @@ final class SwitchUiProbe {
                 "Theme",
                 "Record network log",
                 "Export diagnostics",
-                "About Pocket E2",
+                "About DuoDuo Pocket",
                 "Forget room",
                 "Exit try-it mode"
             };

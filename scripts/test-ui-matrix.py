@@ -14,7 +14,7 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGE = 'top.kuaner.pockete2'
+PACKAGE = 'dev.openduo.pocket'
 
 
 def main():
@@ -60,11 +60,11 @@ def main():
                                     ('system', 'user_rotation')]}
     original_size = adb('shell', 'wm', 'size')
     original_density = adb('shell', 'wm', 'density')
-    summary = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
+    summary = {'apkSha256': hashlib.sha256((ROOT / 'dist/Pocket.apk').read_bytes()).hexdigest(),
                'api': adb('shell', 'getprop', 'ro.build.version.sdk'), 'cases': []}
     try:
         if not args.installed:
-            adb('install', '-r', ROOT / 'dist/PocketE2.apk')
+            adb('install', '-r', ROOT / 'dist/Pocket.apk')
             env = dict(os.environ, ANDROID_SERIAL=args.serial, POCKET_E2_TEST_BUILD_ONLY='1')
             subprocess.run([str(ROOT / 'scripts/test-device.sh')], cwd=ROOT, env=env, check=True)
         adb('shell', 'settings', 'put', 'system', 'accelerometer_rotation', '0')
@@ -134,7 +134,7 @@ def main():
                         if line.startswith('Override density: ')), 'reset')
         adb('shell', 'wm', 'size', size)
         adb('shell', 'wm', 'density', density)
-        if not args.installed:
+        if not args.installed and PACKAGE + '.qa' in adb('shell', 'pm', 'list', 'packages', PACKAGE + '.qa'):
             adb('uninstall', PACKAGE + '.qa')
 
 

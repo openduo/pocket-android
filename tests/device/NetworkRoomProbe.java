@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
@@ -9,12 +9,12 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.SystemClock;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelTransport;
-import top.kuaner.pockete2.net.GoTransport;
-import top.kuaner.pockete2.net.RequestScope;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelTransport;
+import dev.openduo.pocket.net.GoTransport;
+import dev.openduo.pocket.net.RequestScope;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.Executor;
@@ -114,7 +114,12 @@ final class NetworkRoomProbe {
             ChannelTransport transport = (ChannelTransport) field("channel");
             check(transport instanceof GoTransport, "actual HTTP uses the embedded native node");
             RequestScope retired = new RequestScope(transport);
-            ChannelClient client = new ChannelClient(controller.settings, retired);
+            ChannelClient client =
+                    new ChannelClient(
+                            controller.settings.endpoint(),
+                            controller.settings.token(),
+                            controller.settings.room(),
+                            retired);
             try {
                 int elapsed = client.health();
                 check(elapsed >= 0, "the registered JNI request reaches actual room health");
@@ -137,7 +142,11 @@ final class NetworkRoomProbe {
                     "a retired scope fails promptly before another actual request starts");
             try (RequestScope replacement = new RequestScope(transport)) {
                 check(
-                        new ChannelClient(controller.settings, replacement)
+                        new ChannelClient(
+                                        controller.settings.endpoint(),
+                                        controller.settings.token(),
+                                        controller.settings.room(),
+                                        replacement)
                                 .state()
                                 .room
                                 .equals(controller.settings.room()),

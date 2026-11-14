@@ -39,7 +39,7 @@ int main(int count, char **args) {
         for (unsigned int i = 0; i < sizeof(codes) / sizeof(codes[0]); i++)
             ioctl(keyboard, UI_SET_KEYBIT, codes[i]);
         struct uinput_user_dev device = {0};
-        strcpy(device.name, "Pocket E2 QA switches");
+        strcpy(device.name, "DuoDuo Pocket QA switches");
         device.id.bustype = BUS_USB;
         device.id.vendor = 0x18d1;
         device.id.product = 0x4ee7;

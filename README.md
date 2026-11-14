@@ -1,154 +1,87 @@
-# Pocket E2
+# DuoDuo Pocket for Android
 
-An independent native Android migration of [openduo/pocket-ios](https://github.com/openduo/pocket-ios),
-using E2Studio's visual and interaction conventions. The current milestone closes the agreed P0/P1
-implementation and improves maintainability and general Android window adaptation. Complete 1:1
-parity is a documented future comparison, not this milestone's release requirement.
+English · [简体中文](README.zh-CN.md)
 
-Start with the Chinese [current status and handoff](docs/status.md). It separates implemented paths,
-verified conditions and the remaining real-use acceptance. [The migration matrix](docs/migration.md)
-retains the upstream comparison and historical evidence. The reference clone is `../pocket-ios`,
-initially pinned to `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`.
+The native Android client for [OpenDuo Pocket](https://github.com/openduo/pocket-ios): text, voice, files and an ambient room on your own tailnet. The app shares the iOS name, pompom-and-voice-bars icon, `dev.openduo.pocket` application ID and `duoduopocket://pair` links. The reference is iOS 0.4.0 at `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`.
 
-The user deferred **immediate Android push and external Passport Bluetooth** on 2026-11-14. Push
-registration/relay/receiver, upstream push crypto/identifiers/ledger and fixed vectors remain future
-work. Existing local notifications and periodic catch-up remain. Passport code is retained, while
-standalone policy omits normal shortcuts, automatic accessory resume and accessory background work.
+Built for phones, tablets and other Android devices with a display. **E2 ships as a hardware-adapter example.** Window layout and hardware integration are independent, so future display-equipped smart speakers can reuse the protocol, business logic and UI. Target smart-speaker hardware has not yet been validated.
 
-## Current implementation
+<p align="center">
+  <img src="docs/screens/app.png" alt="DuoDuo Pocket on Android: English conversation, Markdown schedule, file reply and ambient controls using prepared demo content" width="100%">
+</p>
+<p align="center"><sub>English UI with built-in Try content on an Android emulator. Replies are prepared examples; capture and playback are off.</sub></p>
+<p align="center">
+  <img src="docs/screens/devices.png" alt="The same Android app on a physical E2, a phone emulator, a tablet emulator and a landscape display layout" width="100%">
+</p>
+<p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The landscape example illustrates a reusable layout; target smart-speaker compatibility remains unverified.</sub></p>
 
-- Embedded Tailscale/tsnet, native browser-free login QR/link/status, pairing, API-v2 HTTP and `/live`.
-- Transactional SQLite cache/outbox/cursor, stable retry identity, durable import/voice inboxes,
-  cleanup receipts, history reconciliation and generation-scoped cancellation/access rejection.
-- Native Opus and E2 array capture, voice-note upload/retry, ambient ASR/audio/tool flow and streamed
-  read-aloud with exclusive capture, focus handling and bounded foreground-service lifetimes.
-- Scoped sessions/rows/notify UI, Markdown/tools/reply/copy/share, attachments and Android
-  picker/camera/share handoff, native map/geocoder/coordinate insertion and arrival ledger.
-- Camera2 H.264 media-v1 uplink with ask/gate/refusal/recovery, viewfinder and backpressure policy.
-- Chinese/English, semantic light/dark/system themes, diagnostics, local notifications and Try mode.
-- Shared window policy and native page-state restoration for compact/medium/expanded widths,
-  landscape, IME, split/freeform windows and font scaling; keyboard and accessibility actions.
+[Download the Android preview](https://github.com/openduo/pocket-android/releases) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
-Implementation does not imply all actual services and failure cases have been accepted. Known
-synthetic speech has traversed real ASR → brain/tool → reply → muted hardware playback; natural
-microphone recognition and audible replies remain unaccepted. Actual Sight negotiation, session
-notify delivery, physical visits and actual identity/cross-network/external-audio/long-term lifecycle
-scenarios also remain open. Prepared Try replies never count as real server responses.
+## What is implemented
 
-## Verification checkpoint
+- Embedded Tailscale login, authorization by QR/link, pairing, API v2 and `/live`. Recovery resamples netmon to fix a restored Wi-Fi connection leaving the node offline.
+- Conversations, Markdown/tables/tools, quotes/copy/share, history, photos/files and Android import/share handoff; durable SQLite drafts, idempotent outbox and recovery receipts.
+- Hold to talk, Opus voice upload/retry, ambient capture, streamed replies/read-aloud, audio focus and one shared microphone lease.
+- Session lists/details/notification controls, Camera2/H.264 Sight, maps/coordinates/geocoding and arrival tracking.
+- English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
+- Compact/medium/expanded window policy, bounded reading columns, system-bar/IME insets, scrollable short-window controls and page-state restoration.
 
-| Verification | Accepted scope |
-| --- | --- |
-| Host / source checks | 325-contract checkpoint, architecture boundaries and 617-entry localization catalog; Go vet/test and Android build pass for the network recovery fix |
-| Emulator UI | 22 API 35 window/font/language/theme cases, 9,616 checks; actual display rotation 20, freeform 8 and system split 12 checks |
-| Actual accessibility services | TalkBack 15.0 expanded runner: 12 scenes, 404 checks; legacy Google source Switch Access 6.1.1 scan/order/scroll/activation 113 checks |
-| Actual system permissions | Both services pass camera, microphone, location and notification dialogs, denial/retry, precision upgrade and return/cancellation; exact counts and limits in accessibility evidence |
-| Actual external document picker | Both services: 25 checks each; real DocumentsUI opening, two platform Back cancellations, retained draft/selection and no residual import/send |
-| Permission/activity recreation fix | Both services pass camera, microphone and notification rotation; TalkBack passes document-picker cancellation/recreation; location rotation remains unaccepted |
-| Physical E2 | Earlier APK checkpoints: complete capture/camera/paired-Try regression 342 checks and feed-fix native accessibility/capture target 27 checks; latest combined network/permission build installed with connection recovery acceptance only |
-| Actual recovery incident | Fixed stale tsnet network-down state by resampling netmon on recovery; one real background Wi-Fi outage/restore returns Online in about 2.7 seconds without an app-process restart; host Tailscale also sees the E2 online |
-| Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
-| Physical E2 lifetime | 900-second idle/trim/Online checkpoint passed; separate eight-hour attempt terminated after about 98 minutes on foreground return, without reaching trim/final recovery, and will not be restarted |
+Implementation and real-service acceptance are tracked separately. Natural speech with audible replies, actual Sight negotiation, session-notification receipt, physical arrivals and long-term background behavior remain incompletely verified. Android push and external Passport integration are deferred. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
 
-Reports retain separate APK digests and exact conditions in ignored `.build/acceptance/`. See
-[acceptance](docs/acceptance.md), [UI architecture](docs/ui.md) and
-[accessibility evidence and limits](docs/accessibility.md). Current Play Switch Access, all OEMs and
-all system permission-dialog/lifecycle combinations are not covered by these runs. Remote CI has
-not run. There is no feature-parity percentage.
-The E2's final read-only location probe reports no framework Geocoder and no enabled providers;
-search/arrival needs an available backend/source. Coordinate insertion/map selection remains usable.
+## Install and connect
 
-## Build and install
+Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
-Requirements: JDK 17, Go 1.27.4, the pinned x/mobile version in `bridge/tsbridge/go.mod`, Android
-Platform 35, Build Tools 35.0.0 and NDK 28.2.13676358. Only arm64-v8a is currently built. Scripts accept
-`ANDROID_SDK_ROOT`, `ANDROID_NDK_ROOT` and `POCKET_E2_SIGN_DIR`. A private signing identity is generated
-once outside the repository; keep it for in-place upgrades.
+1. Install `Pocket.apk` from [Releases](https://github.com/openduo/pocket-android/releases).
+2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.
+3. Obtain a **fresh pairing link** from your ambient host, paste or scan it, then join the room.
+
+The earlier test package, `top.kuaner.pockete2`, and this app can coexist. Android does not transfer their private databases or AndroidKeyStore credentials across application IDs. The new app needs a fresh login/pairing; consumed one-time links cannot be reused. Keep the old app if you need its existing pairing/data. See [connection details](docs/connection.md).
+
+## Build
+
+Use JDK 17, Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1, Go 1.27.4 and the x/mobile version pinned in `go.mod`. Gradle wrapper 8.13 and AGP 8.13.2 are pinned. Open the repository directly in Android Studio.
+
+```sh
+export ANDROID_HOME=/path/to/android-sdk
+sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
+go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260908204917-8b95e45f8d3e
+gomobile init
+./gradlew :app:assembleDebug
+```
+
+The generic build uses Android framework audio. It never automatically includes local E2 firmware. A Gradle task builds the Go bridge for both ABIs; CMake builds Opus from the checksum-pinned source archive. `./gradlew :core:check` runs JVM contracts without a device.
+
+For a locally signed release:
 
 ```sh
 scripts/build-android.sh
-scripts/test-host.sh
-python3 scripts/check-architecture.py
-python3 scripts/check-localization.py
-(cd bridge/tsbridge && go vet ./... && go test ./...)
-adb -s YOUR_DEVICE_SERIAL install -r dist/PocketE2.apk
+# Output: dist/Pocket.apk
+# Signing files stay outside the repository. Retain them for future updates.
+# POCKET_SIGN_DIR can select a different signing directory.
 ```
 
-Application: `top.kuaner.pockete2`; artifact: ignored `dist/PocketE2.apk`. Login/pairing instructions
-and actual-service boundaries are in [connection.md](docs/connection.md).
+E2 array capture is an [explicit local build option](docs/devices.md). Proprietary firmware libraries/models are excluded from source and public APKs.
 
-E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}` or
-through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the
-existing E2Studio build. They are not source dependencies or public redistribution assets. Without
-them, other devices can use standard Android input and E2 array capture reports the missing parts.
+## Modules and maintenance
 
-## Test commands
+| Module | Responsibility |
+| --- | --- |
+| `:core` | Pure Java protocol, models, reducers, request boundaries and Try transport; no Android, UI or hardware dependency |
+| `:ui-policy` | Pure Java window/typography policy; no business state or model-specific layout |
+| `:device` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |
+| `:device-e2` | E2 model/firmware detection, system-bar quirk and optional array adapter |
+| `:app` (`android/`) | Android composition, persistence, controller, system services, native View pages and window containers |
+| `bridge/tsbridge` | Embedded Tailscale, HTTP/WebSocket and speech transport |
 
-Select the device explicitly. Physical capture requires E2Studio recording/work and other active
-Pocket E2 work to be idle. Paired Try probes retain the actual room/draft and use a disposable
-transport; they refuse active capture/camera or a nonempty outbox. The test APK is built separately
-with the same local signing identity and does not enter the application build.
+Start with [architecture](docs/architecture.md), [window policy](docs/ui.md) and [localization](docs/localization.md). Run checks relevant to a change; documentation capture does not run a regression matrix. Earlier expanded checks are retained as [historical evidence](docs/acceptance.md), with separate APK identities and limits.
 
 ```sh
-# Full physical capture/camera/Try regression on an already paired, idle E2.
-ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
-# Native accessibility, capture, keyboard and cancellation.
-ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_ACCESSIBILITY_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh
-# Optional separate-UID picker/camera test; currently API 27 only.
-ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
-# Isolated emulator window/font/IME and real rotation/freeform/split acceptance.
-python3 scripts/test-ui-matrix.py --serial YOUR_API35_EMULATOR
-python3 scripts/test-window-ui.py --serial YOUR_API35_EMULATOR
-# Actual services on a rooted arm64 API 35+ Google APIs emulator.
-python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback
-python3 scripts/prepare-switch-access.py --serial YOUR_ROOTED_API35_EMULATOR
-python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch
+python3 scripts/verify-sources.py
+scripts/test-host.sh
+# Alternative: ./gradlew :core:check
+(cd bridge/tsbridge && go vet ./... && go test ./...)
 ```
 
-The emulator runners restore changed display/font/rotation/accessibility settings. Use `--installed`
-only when matching app/probe APKs are already installed. Each emulator has one QA lock. Switch
-Access's pinned legacy source QA build is separate from the product and is not current Play-version
-acceptance. Details and additional opt-in probes live in the feature documents below.
-
-Real-service probes may create marked messages/uploads, while identity recovery requires a working
-login and fresh pairing path. Read each probe's documented scope before opting in. Once-only
-journals retain original identifiers across repeats; do not remove them to repeat a send.
-[Audio](docs/audio.md), [imports](docs/imports.md), [storage](docs/storage.md) and
-[connection](docs/connection.md) describe the relevant opt-in commands and limits.
-
-The E2 panel observed in this workspace is 480×800 px at existing override density 210. Existing
-system overscan leaves a 340 px application viewport, approximately 259dp wide. The app uses its
-current window and insets and never changes density, overscan, launcher, screen timeout or
-E2Studio configuration. It does not take over E2Studio's Passport BLE connection.
-
-## Structure and maintenance
-
-| Area | Responsibility |
-| --- | --- |
-| `core/` | Immutable values, pure reducers, single-writer controller, SQLite, durable draft/outbox/inboxes |
-| `net/`, `bridge/tsbridge/` | Scoped requests, embedded Tailscale and actual HTTP/live/speech transport |
-| `audio/` | Exclusive input, firmware adapter, Opus, incremental packet parsing and hardware receipts |
-| `sight/`, `location/` | Video capture/framing, map and location/arrival adapters |
-| `ui/` | Window policy, insets, containers, page-state restoration, shared controls and snapshot-driven pages |
-| `text/` | Scoped application copy/language catalogs and Markdown processing |
-| `trymode/` | Disposable API-v2 transport, in-memory room/storage and prepared scenarios |
-| `passport/` | Deferred BLE protocol/GATT/press/reply implementation |
-| `tests/`, `scripts/` | Host contracts, isolated device probes and reproducible acceptance runners |
-
-Use `AdaptiveMetrics` for size/font tokens, `AdaptivePage`/`AdaptiveColumn`/`InsetsFrame` for window
-layout, `PageStates` for native view state and `Ui`/`Sheets`/`ViewportNavigation` for shared controls.
-Business state and durable composer text belong to `PocketController`; it must not read window
-geometry. See [ui.md](docs/ui.md) for breakpoints and the architecture checks that enforce this.
-
-Continue from [status.md](docs/status.md), then [acceptance.md](docs/acceptance.md) and
-[migration.md](docs/migration.md). Feature ownership and evidence remain in
-[connection](docs/connection.md), [audio](docs/audio.md), [storage](docs/storage.md),
-[history](docs/history.md), [imports](docs/imports.md), [location](docs/location.md),
-[protocol](docs/protocol.md), [design](docs/design.md) and [localization](docs/localization.md).
-
-The prepared Chinese/English Try audio/notes are pinned by `third_party/try-assets.sha256`.
-`python3 scripts/prepare-try-assets.py` regenerates them from the clean upstream clone with
-ffmpeg/libopus; ordinary builds verify the committed assets and do not require ffmpeg.
-
-No remote repository has been created or published. Neutral Pocket E2 branding does not reuse the
-upstream icon/mark. Code follows FSL-1.1-Apache-2.0; third-party components retain their licences.
+Code is FSL-1.1-Apache-2.0. Dependencies retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). OpenDuo names, icons and brand assets are excluded from the code license; forks must replace the brand. See the [brand notice](third_party/POCKET-IOS-NOTICE.txt). Screenshot provenance and reproduction are documented in [docs/screens](docs/screens/README.md).

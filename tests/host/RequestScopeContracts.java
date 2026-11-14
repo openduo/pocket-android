@@ -1,12 +1,12 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.JSONObject;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.net.ChannelTransport;
+import dev.openduo.pocket.net.RequestScope;
 
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.net.ChannelTransport;
-import top.kuaner.pockete2.net.RequestScope;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.*;

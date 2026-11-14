@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.app.Dialog;
@@ -13,15 +13,15 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.input.RecordingInput;
-import top.kuaner.pockete2.core.Attachment;
-import top.kuaner.pockete2.core.Message;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.ui.PageHost;
-import top.kuaner.pockete2.ui.Ui;
-import top.kuaner.pockete2.ui.components.HoldToTalkView;
-import top.kuaner.pockete2.ui.components.Sheets;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.core.Attachment;
+import dev.openduo.pocket.core.Message;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.ui.PageHost;
+import dev.openduo.pocket.ui.Ui;
+import dev.openduo.pocket.ui.components.HoldToTalkView;
+import dev.openduo.pocket.ui.components.Sheets;
 
 import java.util.*;
 import java.util.concurrent.Executor;

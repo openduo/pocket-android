@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import top.kuaner.pockete2.ui.AdaptiveMetrics;
+import dev.openduo.pocket.ui.AdaptiveMetrics;
 
 /** Pure host checks for the window-size and typography policy used by every native page. */
 final class AdaptiveMetricsContracts {

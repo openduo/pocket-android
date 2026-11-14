@@ -7,7 +7,7 @@ sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/homebrew/share/android-commandline
 tools="$sdk/build-tools/${POCKET_E2_BUILD_TOOLS:-35.0.0}"
 android_jar="$sdk/platforms/${POCKET_E2_ANDROID_PLATFORM:-android-35}/android.jar"
 build="$project_dir/.build/device-tests"
-sign_dir="${POCKET_E2_SIGN_DIR:-$HOME/.local/share/pocket-e2/signing}"
+sign_dir="${POCKET_SIGN_DIR:-$HOME/.local/share/pocket-android/signing}"
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" != 27 ]]; then
   echo 'Native import UI probe currently requires API 27 to restore camera-location decisions.' >&2
   exit 1
@@ -16,16 +16,16 @@ fi
 rm -rf "$build/classes" "$build/dex"
 mkdir -p "$build/classes" "$build/dex"
 cat > "$build/AndroidManifest.xml" <<'MANIFEST'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="top.kuaner.pockete2.qa">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.openduo.pocket.qa">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
-  <application android:label="Pocket E2 QA">
+  <application android:label="DuoDuo Pocket QA">
     <activity android:name=".ProviderWarmup" android:theme="@android:style/Theme.NoDisplay" android:exported="true" android:excludeFromRecents="true"/>
-    <provider android:name=".ProcessControl" android:authorities="top.kuaner.pockete2.qa.restart-control" android:exported="true"/>
-    <provider android:name=".Documents" android:authorities="top.kuaner.pockete2.qa.documents" android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS">
+    <provider android:name=".ProcessControl" android:authorities="dev.openduo.pocket.qa.restart-control" android:exported="true"/>
+    <provider android:name=".Documents" android:authorities="dev.openduo.pocket.qa.documents" android:exported="true" android:grantUriPermissions="true" android:permission="android.permission.MANAGE_DOCUMENTS">
       <intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER"/></intent-filter>
     </provider>
   </application>
-  <instrumentation android:name="top.kuaner.pockete2.qa.Probe" android:targetPackage="top.kuaner.pockete2" android:functionalTest="true"/>
+  <instrumentation android:name="dev.openduo.pocket.qa.Probe" android:targetPackage="dev.openduo.pocket" android:functionalTest="true"/>
 </manifest>
 MANIFEST
 "$tools/aapt2" link -I "$android_jar" --manifest "$build/AndroidManifest.xml" -o "$build/base.apk"
@@ -36,32 +36,32 @@ jar cf "$build/tests.jar" -C "$build/classes" .
 "$tools/d8" --min-api 26 --lib "$android_jar" --classpath "$project_dir/.build/android/classes.jar" --output "$build/dex" "$build/tests.jar"
 (cd "$build/dex" && zip -q "$build/base.apk" ./*.dex)
 "$tools/zipalign" -f -p 4 "$build/base.apk" "$build/aligned.apk"
-"$tools/apksigner" sign --ks "$sign_dir/pocket-e2.p12" --ks-key-alias pocket-e2 --ks-pass "file:$sign_dir/password" --out "$build/probe.apk" "$build/aligned.apk"
+"$tools/apksigner" sign --ks "$sign_dir/pocket.p12" --ks-key-alias pocket --ks-pass "file:$sign_dir/password" --out "$build/probe.apk" "$build/aligned.apk"
 if [[ "${POCKET_E2_TEST_CAPTURE:-0}" == 1 || "${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}" == 1 || "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
   if adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then echo 'E2Studio is recording or working; capture probe refused.' >&2; exit 1; fi
-  adb shell pm grant top.kuaner.pockete2 android.permission.RECORD_AUDIO
+  adb shell pm grant dev.openduo.pocket android.permission.RECORD_AUDIO
 fi
 if [[ "${POCKET_E2_TEST_ROOM_ONLY:-0}" == 1 ]] && adb shell dumpsys activity services top.kuaner.recorder | rg -q 'RecordingService|WorkService'; then
   echo 'E2Studio is recording or working; real-room playback probe refused.' >&2
   exit 1
 fi
-if [[ "${POCKET_E2_TEST_CAMERA:-0}" == 1 ]]; then adb shell pm grant top.kuaner.pockete2 android.permission.CAMERA; fi
+if [[ "${POCKET_E2_TEST_CAMERA:-0}" == 1 ]]; then adb shell pm grant dev.openduo.pocket android.permission.CAMERA; fi
 adb install -r "$build/probe.apk"
 if [[ "${POCKET_E2_TEST_BUILD_ONLY:-0}" == 1 ]]; then exit; fi
 camera_location_flags=""
 cleanup_probe() {
   local restore_failed=0
   if [[ "$camera_location_flags" =~ ^[0-9]+,[0-9]+$ ]]; then
-    adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin top.kuaner.pockete2.qa.PermissionFlags "$camera_location_flags" || restore_failed=1
+    adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin dev.openduo.pocket.qa.PermissionFlags "$camera_location_flags" || restore_failed=1
   fi
   adb shell rm -f /data/local/tmp/pocket-e2-qa.apk >/dev/null
-  adb uninstall top.kuaner.pockete2.qa >/dev/null 2>&1 || true
+  adb uninstall dev.openduo.pocket.qa >/dev/null 2>&1 || true
   return "$restore_failed"
 }
 trap cleanup_probe EXIT
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" == 27 ]]; then
   adb push "$build/probe.apk" /data/local/tmp/pocket-e2-qa.apk >/dev/null
-  camera_location_flags="$(adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin top.kuaner.pockete2.qa.PermissionFlags | tr -d '\r')"
+  camera_location_flags="$(adb shell CLASSPATH=/data/local/tmp/pocket-e2-qa.apk app_process /system/bin dev.openduo.pocket.qa.PermissionFlags | tr -d '\r')"
   [[ "$camera_location_flags" =~ ^[0-9]+,[0-9]+$ ]] || { echo 'Could not preserve native camera location decisions' >&2; exit 1; }
 fi
 adb shell input keyevent 224
@@ -78,8 +78,12 @@ if [[ "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
   python3 "$project_dir/scripts/test-voice-death.py" "$build" | tee "$build/voice-death-result.txt"
   exit
 fi
-if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
+if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n dev.openduo.pocket.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
+  -e showcaseOnly "${POCKET_CAPTURE_SHOWCASE:-0}"
+  -e showcaseLanguage "${POCKET_SHOWCASE_LANGUAGE:-en}"
+  -e showcaseTheme "${POCKET_SHOWCASE_THEME:-light}"
+  -e hardwareSmokeOnly "${POCKET_TEST_HARDWARE_SMOKE:-0}"
   -e windowOnly "${POCKET_E2_TEST_WINDOW_ONLY:-0}"
   -e screenReaderOnly "${POCKET_E2_TEST_SCREEN_READER_ONLY:-0}"
   -e locationServiceOnly "${POCKET_E2_TEST_LOCATION_SERVICE_ONLY:-0}"
@@ -115,7 +119,12 @@ probe_args=(
   -e outageOnly "${POCKET_E2_TEST_OUTAGE_ONLY:-0}"
   -e pairedTry "${POCKET_E2_TEST_PAIRED_TRY:-0}"
 )
-adb shell am instrument -w -r "${probe_args[@]}" top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe | tee "$build/result.txt"
+adb shell am instrument -w -r "${probe_args[@]}" dev.openduo.pocket.qa/dev.openduo.pocket.qa.Probe | tee "$build/result.txt"
 rg -q 'result=PASS' "$build/result.txt"
 rm -rf "$build/screenshots"
-adb pull /sdcard/Android/data/top.kuaner.pockete2/cache/qa "$build/screenshots" >/dev/null
+if [[ "${POCKET_CAPTURE_SHOWCASE:-0}" == 1 ]]; then
+  rm -rf "$build/showcase"
+  adb pull /sdcard/Android/data/dev.openduo.pocket/cache/showcase "$build/showcase" >/dev/null
+elif [[ "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 ]]; then
+  adb pull /sdcard/Android/data/dev.openduo.pocket/cache/qa "$build/screenshots" >/dev/null
+fi

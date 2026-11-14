@@ -1,15 +1,15 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 
-import top.kuaner.pockete2.app.PocketFiles;
-import top.kuaner.pockete2.core.*;
+import dev.openduo.pocket.app.PocketFiles;
+import dev.openduo.pocket.core.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -75,8 +75,8 @@ final class ImportCancellationProbe {
                                 .startActivity(
                                         new android.content.Intent()
                                                 .setClassName(
-                                                        "top.kuaner.pockete2.qa",
-                                                        "top.kuaner.pockete2.qa.ProviderWarmup")));
+                                                        "dev.openduo.pocket.qa",
+                                                        "dev.openduo.pocket.qa.ProviderWarmup")));
         probe.waitForIdleSync();
         await(
                 () -> {

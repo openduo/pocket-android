@@ -1,4 +1,4 @@
-# E2 login and room pairing
+# Login and room pairing
 
 Pocket E2 runs its own embedded Tailscale node, named `pocket-e2`. The app's login and
 room-pairing steps are separate. Authorizing this node does not pair it with a room.
@@ -25,7 +25,7 @@ The E2 has no browser registered for HTTPS in the observed firmware; copying a l
 the former failure. A native QR avoids depending on another installed application.
 
 For an ADB-assisted handoff, deliver the management page's **actual** pairing link as an Android
-`ACTION_VIEW` intent targeting `top.kuaner.pockete2`. Treat pairing and login links as credentials:
+`ACTION_VIEW` intent targeting `dev.openduo.pocket`. Treat pairing and login links as credentials:
 keep them out of tracked scripts, logs and screenshots. The scanner decodes QR locally.
 
 `POCKET_E2_TEST_LOGIN_ONLY=1 scripts/test-device.sh` exercises the actual node and the rendered

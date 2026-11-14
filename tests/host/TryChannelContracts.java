@@ -1,18 +1,18 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
+import dev.openduo.pocket.core.Attachment;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.Message;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelConnection;
+import dev.openduo.pocket.net.ChannelTransport.Response;
+import dev.openduo.pocket.trymode.TryChannel;
+import dev.openduo.pocket.trymode.TryScript;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.core.Attachment;
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.Message;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelConnection;
-import top.kuaner.pockete2.net.ChannelTransport.Response;
-import top.kuaner.pockete2.trymode.TryChannel;
-import top.kuaner.pockete2.trymode.TryScript;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -42,7 +42,7 @@ public final class TryChannelContracts {
     }
 
     public static int run() throws Exception {
-        File temporary = Files.createTempDirectory("pocket-e2-try-contract-").toFile();
+        File temporary = Files.createTempDirectory("duoduo-pocket-try-contract-").toFile();
         File directory = new File(temporary, "channel");
         byte[] framed = new byte[6000];
         for (int i = 0; i < framed.length; i += 3) {

@@ -1,9 +1,9 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.*;
+import dev.openduo.pocket.core.*;
 
-import top.kuaner.pockete2.core.*;
+import org.json.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +22,7 @@ public final class ImportInboxContracts {
     public static int run() throws Exception {
         routes();
         requests();
-        Path temporary = Files.createTempDirectory("pocket-e2-import-");
+        Path temporary = Files.createTempDirectory("duoduo-pocket-import-");
         try {
             File root = temporary.resolve("inbox").toFile();
             ImportInbox inbox = new ImportInbox(root);

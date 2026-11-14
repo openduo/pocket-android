@@ -1,53 +1,47 @@
 #!/usr/bin/env python3
-# Copyright 2026 pocket-e2 contributors
+# Copyright 2026 OpenDuo contributors
 # SPDX-License-Identifier: FSL-1.1-Apache-2.0
-"""Fast source-boundary and attribution checks; behavioural assertions live in tests/."""
+"""Enforce the module graph and keep hardware and window policy out of room logic."""
 from pathlib import Path
 import re
 
 root = Path(__file__).resolve().parent.parent
-source = root / 'android/src/main/java/top/kuaner/pockete2'
+package = 'dev/openduo/pocket'
+source = root / 'android/src/main/java' / package
 errors = []
-pure = [source / 'core' / (name + '.java') for name in
-        ('Endpoint', 'Json', 'Message', 'Attachment', 'Outbox', 'TurnState', 'SessionViewer', 'AmbientInput', 'AmbientOutput', 'VoiceRetry', 'RedialBackoff', 'PlaceLedger')]
-pure += [source / 'passport' / (name + '.java') for name in ('PassportPolicy', 'PocketProtocol', 'PressAssembler', 'ReplyTracker')]
-pure += [source / 'audio/PacketStream.java', source / 'sight/SightProtocol.java', source / 'pairing/QrCode.java']
-pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.java', source / 'trymode/TryScript.java']
-pure += [source / 'net/RequestScope.java']
-pure += [source / 'net/RoomAccess.java']
-pure += [source / 'core/VoiceInbox.java']
-pure += [source / 'core/UpgradeNotice.java']
-pure += [source / 'sight/PreviewFrame.java']
-pure += [source / 'sight/SightRecovery.java']
-pure += [source / 'text/TextCatalog.java']
-pure += [source / 'ui/AdaptiveMetrics.java']
-pure += [source / 'core/DraftText.java', source / 'core/ImportBatch.java', source / 'core/ImportInbox.java', source / 'core/ImportRoute.java', source / 'core/ImportProgress.java', source / 'core/ImportRequest.java']
-for file in pure:
-    if re.search(r'^import android\.', file.read_text(), re.M):
-        errors.append(f'{file.relative_to(root)} imports Android in a pure protocol/model')
+
+for module in ('core', 'ui-policy'):
+    for file in (root / module / 'src/main/java').rglob('*.java'):
+        if re.search(r'^import (?:android\.|dev\.openduo\.pocket\.(?:device\.|app\.))', file.read_text(), re.M):
+            errors.append(f'{file.relative_to(root)} imports platform code in a pure module')
+for file in (root / 'ui-policy/src/main/java').rglob('*.java'):
+    if re.search(r'^import dev\.openduo\.pocket\.(?:core|net|audio|sight)\.', file.read_text(), re.M):
+        errors.append(f'{file.relative_to(root)} imports business state in window policy')
 for file in (source / 'ui').rglob('*.java'):
-    if re.search(r'^import (?:tsbridge\.|top\.kuaner\.pockete2\.(?:net\.|audio\.input\.|audio\.Opus)|android\.database\.)', file.read_text(), re.M):
+    if re.search(r'^import (?:tsbridge\.|dev\.openduo\.pocket\.(?:net\.|audio\.input\.|audio\.Opus)|android\.database\.)', file.read_text(), re.M):
         errors.append(f'{file.relative_to(root)} crosses the UI boundary')
-for name in ('AdaptiveMetrics', 'AdaptivePage', 'AdaptiveColumn', 'InsetsFrame', 'PageStates',
-             'ViewportNavigation'):
+for name in ('AdaptivePage', 'AdaptiveColumn', 'InsetsFrame', 'PageStates', 'ViewportNavigation'):
     file = source / 'ui' / (name + '.java')
-    if re.search(r'^import top\.kuaner\.pockete2\.(?:core|net|audio|sight)\.', file.read_text(), re.M):
-        errors.append(f'{file.relative_to(root)} imports business/protocol state in the UI policy')
+    if re.search(r'^import dev\.openduo\.pocket\.(?:core|net|audio|sight)\.', file.read_text(), re.M):
+        errors.append(f'{file.relative_to(root)} imports business state in layout containers')
 controller = (source / 'core/PocketController.java').read_text()
-if re.search(r'^import top\.kuaner\.pockete2\.ui\.|\b(?:screenWidthDp|screenHeightDp|widthPixels|heightPixels)\b',
-             controller, re.M):
-    errors.append('PocketController depends on UI/window geometry')
-# Window geometry belongs to the UI policy and inset adapters. Pages/components must not turn a
-# physical display measurement into business or layout decisions themselves.
+if re.search(r'^import dev\.openduo\.pocket\.(?:ui|device\.e2)\.|\b(?:screenWidthDp|screenHeightDp|widthPixels|heightPixels)\b', controller, re.M):
+    errors.append('PocketController depends on UI geometry or OEM hardware')
 for file in (source / 'ui').rglob('*.java'):
-    if file.name in ('Ui.java', 'InsetsFrame.java'):
-        continue
-    text = file.read_text()
-    if re.search(r'\b(?:widthPixels|heightPixels|screenWidthDp|screenHeightDp)\b', text):
-        errors.append(f'{file.relative_to(root)} reads physical/window pixels outside the UI policy')
-for directory in ('android/src', 'scripts', 'tests', 'bridge/tsbridge'):
+    if file.name not in ('Ui.java', 'InsetsFrame.java') and re.search(r'\b(?:widthPixels|heightPixels|screenWidthDp|screenHeightDp)\b', file.read_text()):
+        errors.append(f'{file.relative_to(root)} reads window pixels outside the UI policy')
+for module in ('android', 'core', 'ui-policy', 'device', 'device-e2'):
+    for file in (root / module / 'src').rglob('*'):
+        if not file.is_file() or file.suffix not in ('.java', '.c', '.h'):
+            continue
+        text = file.read_text()
+        if module != 'device-e2' and re.search(r'\bBuild\.(?:MODEL|FINGERPRINT)\b', text):
+            errors.append(f'{file.relative_to(root)} selects an OEM outside its adapter')
+        if module == 'device' and re.search(r'dev\.openduo\.pocket\.(?:device\.e2|core|ui|net)\.', text):
+            errors.append(f'{file.relative_to(root)} reverses the hardware dependency')
+for directory in ('android/src', 'core/src', 'ui-policy/src', 'device/src', 'device-e2/src', 'scripts', 'tests', 'bridge/tsbridge'):
     for file in (root / directory).rglob('*'):
-        if file.suffix not in ('.java', '.go', '.c', '.h', '.sh', '.py') or not file.is_file():
+        if not file.is_file() or file.suffix not in ('.java', '.go', '.c', '.h', '.sh', '.py', '.cjs'):
             continue
         if 'SPDX-License-Identifier: FSL-1.1-Apache-2.0' not in '\n'.join(file.read_text().splitlines()[:6]):
             errors.append(f'{file.relative_to(root)} has no SPDX header')
@@ -56,4 +50,4 @@ for key in ('VoiceCapture', 'ChannelPoller', 'ConversationStore'):
         errors.append(f'obsolete implementation remains: {key}')
 if errors:
     raise SystemExit('\n'.join(errors))
-print('PASS architecture and source attribution checks')
+print('PASS module, UI, hardware and source attribution boundaries')

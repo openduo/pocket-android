@@ -9,7 +9,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 
-PACKAGE = 'top.kuaner.pockete2'
+PACKAGE = 'dev.openduo.pocket'
 build = Path(sys.argv[1]) / 'process-death'
 build.mkdir(parents=True, exist_ok=True)
 assertions = 0
@@ -31,7 +31,7 @@ def require(value, label):
 
 def instrument(phase):
     output = adb('shell', 'am', 'instrument', '-w', '-r', '-e', 'processPhase', phase,
-                 'top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe', timeout=45)
+                 'dev.openduo.pocket.qa/dev.openduo.pocket.qa.Probe', timeout=45)
     (build / (phase + '.txt')).write_text(output)
     require('result=PASS' in output, 'Native process-death phase failed: ' + phase)
     line = re.search(r'INSTRUMENTATION_RESULT: result=(.*)', output)
@@ -41,7 +41,7 @@ def instrument(phase):
 
 def source(method='state', fixture=None):
     args = ['shell', 'content', 'call', '--uri',
-            'content://top.kuaner.pockete2.qa.restart-control', '--method', method]
+            'content://dev.openduo.pocket.qa.restart-control', '--method', method]
     if fixture:
         args += ['--arg', fixture]
     output = adb(*args)
@@ -99,7 +99,7 @@ def kill_and_resume(label):
         (build / 'activities-private.txt').write_text(adb('shell', 'dumpsys', 'activity', 'activities'))
     require(terminated, 'Android must terminate the actual application process')
     require(wait_for(lambda: source()['active'] == 0, 3), 'Process death must close the external source descriptor')
-    require(source()['pid'] == external_pid, 'Stopping Pocket E2 must preserve the external provider process')
+    require(source()['pid'] == external_pid, 'Stopping DuoDuo Pocket must preserve the external provider process')
     adb('shell', 'input', 'keyevent', '224')
     adb('shell', 'wm', 'dismiss-keyguard')
     adb('shell', 'am', 'start', '-n', PACKAGE + '/.app.MainActivity')
@@ -113,7 +113,7 @@ try:
     prepared = True
     fixture = re.search(r'INSTRUMENTATION_RESULT: fixture=([0-9a-f-]{36})', output).group(1)
     source('reset', fixture)
-    adb('shell', 'am', 'start', '-n', 'top.kuaner.pockete2.qa/.ProviderWarmup')
+    adb('shell', 'am', 'start', '-n', 'dev.openduo.pocket.qa/.ProviderWarmup')
     adb('shell', 'am', 'start', '-n', PACKAGE + '/.app.MainActivity')
     require(click(lambda node: node.get('content-desc') in
                   ('添加照片、拍照、文件或位置', 'Attach a photo, take a photo, add a file or location'), 'attach'),
@@ -121,14 +121,14 @@ try:
     require(click(lambda node: node.get('text') in ('文件', 'File'), 'file'),
             'The ordinary file action must launch the system document picker')
     root = xml('picker-roots')
-    if not any(node.attrib.get('text') == 'Pocket E2 QA source' for node in root.iter('node')):
+    if not any(node.attrib.get('text') == 'DuoDuo Pocket QA source' for node in root.iter('node')):
         require(click(lambda node: node.get('resource-id') == 'android:id/home'
                       or node.get('content-desc') in ('Show roots', '显示根目录', '显示根目录列表',
                                                     'Open navigation drawer'), 'picker-drawer'),
                 'The real document picker must expose its sources')
-    require(click(lambda node: node.get('text') == 'Pocket E2 QA source', 'picker-source'),
+    require(click(lambda node: node.get('text') == 'DuoDuo Pocket QA source', 'picker-source'),
             'The separate-UID document source must be selectable')
-    require(click(lambda node: node.get('text') == 'Pocket E2 process restart fixture.txt', 'picker-document'),
+    require(click(lambda node: node.get('text') == 'DuoDuo Pocket process restart fixture.txt', 'picker-document'),
             'The system picker must return the real process-death fixture')
     require(wait_for(lambda: source()['opens'] == 1 and source()['active'] == 1, 8),
             'The external UID must open the granted source and withhold EOF')
@@ -138,7 +138,7 @@ try:
     kill_and_resume('unfinished provider copy')
     require(wait_for(lambda: source()['opens'] >= 2, 8), 'Restored sharing must reopen its source')
     require(wait_for(lambda: source()['active'] == 0, 5), 'The restarted provider copy must finish')
-    incoming = 'Pocket E2 preserved draft ' + fixture
+    incoming = 'DuoDuo Pocket preserved draft ' + fixture
 
     def admitted(label):
         root = xml(label)

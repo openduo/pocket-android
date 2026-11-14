@@ -1,20 +1,20 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.SystemClock;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelConnection;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -26,7 +26,7 @@ import java.util.function.BooleanSupplier;
 
 /** Prepared live/history outcomes through the real controller and a separate native SQLite room. */
 final class HistoryProbe {
-    private static final String DATABASE = "pocket-e2-history-qa.db";
+    private static final String DATABASE = "duoduo-pocket-history-qa.db";
     private final Probe probe;
     private PocketController controller;
     private Executor state;

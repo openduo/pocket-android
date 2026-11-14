@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import top.kuaner.pockete2.core.*;
+import dev.openduo.pocket.core.*;
 
 import java.io.*;
 import java.nio.file.*;
@@ -24,7 +24,7 @@ final class VoiceInboxContracts {
     }
 
     static int run() throws Exception {
-        File root = Files.createTempDirectory("pocket-e2-voice").toFile();
+        File root = Files.createTempDirectory("duoduo-pocket-voice").toFile();
         VoiceInbox inbox = new VoiceInbox(root);
         Set<String> none = Collections.emptySet();
         try {
@@ -130,7 +130,7 @@ final class VoiceInboxContracts {
                     inbox.pending(none, none).unreadable == 1 && invalid.file.isFile(),
                     "an unreadable manifest is reported and never reassigned to the current room");
             inbox.discard(invalid);
-            File outside = File.createTempFile("pocket-e2-outside", ".bin");
+            File outside = File.createTempFile("duoduo-pocket-outside", ".bin");
             try {
                 VoiceInbox.Note link = inbox.begin("qa:link");
                 Files.delete(link.file.toPath());

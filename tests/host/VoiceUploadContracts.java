@@ -1,13 +1,13 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.JSONObject;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.VoiceRetry;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelTransport;
 
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.VoiceRetry;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelTransport;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +48,7 @@ public final class VoiceUploadContracts {
                 retry.remainingMs() == 0 && retry.nextDelayMs() == -1,
                 "a delayed executor cannot reopen an expired upload budget");
 
-        File file = File.createTempFile("pocket-e2-voice-contract-", ".packets");
+        File file = File.createTempFile("duoduo-pocket-voice-contract-", ".packets");
         byte[] framed = {3, 0, (byte) 0xf8, (byte) 0xff, (byte) 0xfe};
         Capture transport = new Capture();
         ChannelClient client =

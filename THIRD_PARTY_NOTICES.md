@@ -1,12 +1,12 @@
 # Third-party notices
 
-Pocket E2 bundles the applicable Android/Go components below. Each component keeps its own licence; the
+Pocket Android bundles the applicable Android/Go components below. Each component keeps its own licence; the
 licence texts follow the table. The OpenDuo brand assets are not third-party code and are
 covered in `third_party/POCKET-IOS-NOTICE.txt`.
 
 | Component | Version | Licence | How it is included |
 |---|---|---|---|
-| libopus | 1.6.1 | BSD-3-Clause | static library built by `scripts/build-opus.sh` from the xiph.org release |
+| libopus | 1.6.1 | BSD-3-Clause | static library built by CMake (`android/src/main/cpp/CMakeLists.txt`) from the xiph.org release |
 | github.com/coder/websocket | v1.8.15 | ISC | compiled into `libgojni.so` by gomobile |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause | compiled into `libgojni.so` by gomobile |
 | github.com/tailscale/wireguard-go | v0.0.0-20260928213032-417aef361226 | MIT | compiled into `libgojni.so` by gomobile |

@@ -14,7 +14,7 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGE = 'top.kuaner.pockete2'
+PACKAGE = 'dev.openduo.pocket'
 SWITCH = PACKAGE + '.switchqa'
 
 
@@ -89,7 +89,7 @@ def main():
     adb('shell', 'chmod', '755', remote + '.next')
     adb('shell', 'mv', remote + '.next', remote)
     if not args.installed:
-        adb('install', '-r', ROOT / 'dist/PocketE2.apk')
+        adb('install', '-r', ROOT / 'dist/Pocket.apk')
         subprocess.run([str(ROOT / 'scripts/test-device.sh')], cwd=ROOT, check=True,
                        env=dict(os.environ, ANDROID_SERIAL=args.serial, POCKET_E2_TEST_BUILD_ONLY='1'))
     original = {key: adb('shell', 'settings', 'get', 'secure', key)
@@ -100,7 +100,7 @@ def main():
     keyboard = None
     original_permissions = {}
     orientation = None
-    report = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
+    report = {'apkSha256': hashlib.sha256((ROOT / 'dist/Pocket.apk').read_bytes()).hexdigest(),
               'service': args.service, 'api': adb('shell', 'getprop', 'ro.build.version.sdk'),
               'passed': False}
     (directory / 'run.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
@@ -144,7 +144,7 @@ def main():
             deadline = time.monotonic() + 5
             device = None
             while time.monotonic() < deadline and device is None:
-                found = re.search(r'add device \d+: (/dev/input/event\d+)\s+name: +"Pocket E2 QA switches"',
+                found = re.search(r'add device \d+: (/dev/input/event\d+)\s+name: +"DuoDuo Pocket QA switches"',
                                   adb('shell', 'getevent', '-pl'))
                 if found:
                     device = found[1]

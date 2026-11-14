@@ -1,4 +1,4 @@
-module github.com/openduo/pocket-ios/bridge/tsbridge
+module github.com/openduo/pocket-android/bridge/tsbridge
 
 go 1.27.1
 

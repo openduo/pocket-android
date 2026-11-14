@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 pocket-e2 contributors
 # SPDX-License-Identifier: FSL-1.1-Apache-2.0
-"""Terminate Pocket E2 at real SQLite/cleanup boundaries; fixtures never enter its paired room."""
+"""Terminate DuoDuo Pocket at real SQLite/cleanup boundaries; fixtures never enter its paired room."""
 import os
 from pathlib import Path
 import queue
@@ -11,8 +11,8 @@ import sys
 import threading
 import time
 
-PACKAGE = 'top.kuaner.pockete2'
-RUNNER = 'top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe'
+PACKAGE = 'dev.openduo.pocket'
+RUNNER = 'dev.openduo.pocket.qa/dev.openduo.pocket.qa.Probe'
 serial = os.environ.get('ANDROID_SERIAL', '')
 if not serial:
     raise SystemExit('Select the E2 explicitly with ANDROID_SERIAL.')
@@ -49,7 +49,7 @@ def wait_for(condition, timeout):
 
 def stop_and_launch(label):
     before = pid()
-    require(before.isdecimal(), 'The actual Pocket E2 process is alive before ' + label)
+    require(before.isdecimal(), 'The actual DuoDuo Pocket process is alive before ' + label)
     adb('shell', 'am', 'force-stop', PACKAGE)
     require(wait_for(lambda: not pid(), 4), 'Android terminates the real process at ' + label)
     adb('shell', 'input', 'keyevent', '224')

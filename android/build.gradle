@@ -1,0 +1,85 @@
+// Copyright 2026 OpenDuo contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'dev.openduo.pocket'
+    compileSdk 35
+    ndkVersion '28.2.13676358'
+    defaultConfig {
+        applicationId 'dev.openduo.pocket'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.4.0'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        externalNativeBuild {
+            cmake { arguments '-DANDROID_STL=c++_static' }
+        }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+    sourceSets.main {
+        jniLibs.srcDir rootProject.file('.build/tsbridge/jni')
+        assets.srcDir layout.buildDirectory.dir('generated/legalAssets')
+    }
+    packaging {
+        jniLibs.useLegacyPackaging = true
+        resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
+    }
+}
+
+dependencies {
+    implementation project(':core')
+    implementation project(':ui-policy')
+    implementation project(':device')
+    implementation project(':device-e2')
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation files(rootProject.file('.build/tsbridge/classes.jar'))
+            .builtBy(rootProject.tasks.named('buildBridge'))
+}
+
+tasks.register('prepareLegalAssets', Sync) {
+    into layout.buildDirectory.dir('generated/legalAssets/licenses')
+    from(rootProject.file('LICENSE')) { rename { 'Pocket-LICENSE.txt' } }
+    from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+    from(rootProject.file('third_party/POCKET-IOS-NOTICE.txt')) { rename { 'Upstream-NOTICE.txt' } }
+    from(rootProject.file('third_party/opus-LICENSE.txt')) { rename { 'Opus-LICENSE.txt' } }
+    from('libs') { include '*LICENSE.txt' }
+}
+tasks.named('preBuild') {
+    dependsOn rootProject.tasks.named('verifySources'), rootProject.tasks.named('buildBridge'), 'prepareLegalAssets'
+}
+
+// Preserve the existing opt-in instrumentation runner across the build-system migration.
+tasks.register('exportProbeClasspath', Jar) {
+    dependsOn 'compileReleaseJavaWithJavac', ':core:classes', ':ui-policy:classes',
+            ':device:compileReleaseJavaWithJavac', ':device-e2:compileReleaseJavaWithJavac'
+    archiveFileName = 'classes.jar'
+    destinationDirectory = rootProject.layout.projectDirectory.dir('.build/android')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from layout.buildDirectory.dir('intermediates/javac/release/compileReleaseJavaWithJavac/classes')
+    from project(':core').layout.buildDirectory.dir('classes/java/main')
+    from project(':ui-policy').layout.buildDirectory.dir('classes/java/main')
+    for (module in [':device', ':device-e2']) {
+        from project(module).layout.buildDirectory.dir('intermediates/javac/release/compileReleaseJavaWithJavac/classes')
+    }
+    from { zipTree(rootProject.file('.build/tsbridge/classes.jar')) }
+    from { zipTree(layout.buildDirectory.file('intermediates/compile_and_runtime_not_namespaced_r_class_jar/release/processReleaseResources/R.jar').get().asFile) }
+    from { fileTree('libs').matching { include '*.jar' }.collect { zipTree(it) } }
+}

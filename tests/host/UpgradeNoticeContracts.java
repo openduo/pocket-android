@@ -1,9 +1,9 @@
 // Copyright 2026 openduo and pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.JSONObject;
+import dev.openduo.pocket.core.*;
 
-import top.kuaner.pockete2.core.*;
+import org.json.JSONObject;
 
 /** The pinned upstream UpgradeNoticeTests plus Android state/strict-wire boundaries. */
 final class UpgradeNoticeContracts {

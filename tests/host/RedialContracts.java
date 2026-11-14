@@ -1,7 +1,7 @@
 // Copyright 2026 openduo and pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import top.kuaner.pockete2.core.RedialBackoff;
+import dev.openduo.pocket.core.RedialBackoff;
 
 /** Ported from PocketCore.RedialBackoffTests, including the sustained-outage boundary. */
 final class RedialContracts {

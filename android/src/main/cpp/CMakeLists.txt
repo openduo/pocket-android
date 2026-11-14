@@ -1,0 +1,26 @@
+# Copyright 2026 OpenDuo contributors
+# SPDX-License-Identifier: FSL-1.1-Apache-2.0
+cmake_minimum_required(VERSION 3.22.1)
+project(pocket_audio C)
+
+set(OPUS_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/opus-1.6.1.tar.gz")
+file(SHA256 "${OPUS_ARCHIVE}" OPUS_SHA)
+if(NOT OPUS_SHA STREQUAL "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1")
+    message(FATAL_ERROR "Opus dependency checksum mismatch")
+endif()
+set(OPUS_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/opus-source")
+if(NOT EXISTS "${OPUS_SOURCE}/opus-1.6.1/CMakeLists.txt")
+    file(MAKE_DIRECTORY "${OPUS_SOURCE}")
+    file(ARCHIVE_EXTRACT INPUT "${OPUS_ARCHIVE}" DESTINATION "${OPUS_SOURCE}")
+endif()
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+foreach(option OPUS_BUILD_PROGRAMS OPUS_BUILD_TESTING OPUS_DRED OPUS_OSCE OPUS_DEEP_PLC
+        OPUS_INSTALL_PKG_CONFIG_MODULE OPUS_INSTALL_CMAKE_CONFIG_MODULE)
+    set(${option} OFF CACHE BOOL "" FORCE)
+endforeach()
+add_subdirectory("${OPUS_SOURCE}/opus-1.6.1" "${CMAKE_CURRENT_BINARY_DIR}/opus")
+add_library(pocket_opus SHARED pocket_opus.c)
+target_compile_options(pocket_opus PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
+target_link_options(pocket_opus PRIVATE -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--no-undefined)
+target_link_libraries(pocket_opus opus m)

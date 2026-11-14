@@ -1,11 +1,11 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.SessionViewer;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.SessionViewer;
 
 /**
  * Session boundary validation, chronological ordering, sender identity and notification ownership.

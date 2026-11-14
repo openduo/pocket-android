@@ -13,7 +13,7 @@ import time
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGE = 'top.kuaner.pockete2'
+PACKAGE = 'dev.openduo.pocket'
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
         raise SystemExit('Capture/upload/background work must be idle before this UI lifetime run.')
     directory = args.output.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    result = {'apkSha256': hashlib.sha256((ROOT / 'dist/PocketE2.apk').read_bytes()).hexdigest(),
+    result = {'apkSha256': hashlib.sha256((ROOT / 'dist/Pocket.apk').read_bytes()).hexdigest(),
               'startedAt': datetime.now(timezone.utc).isoformat(),
               'requestedSeconds': args.seconds, 'samples': [], 'trimMemory': 'RUNNING_CRITICAL',
               'scope': 'measured idle background and trim callback; not natural LMK or sustained ambient capture'}
@@ -83,7 +83,7 @@ def main():
             result['samples'].append({'seconds': round(elapsed, 2), 'processPresent': bool(pid),
                                       'activityBackground': not foreground})
             if foreground:
-                raise RuntimeError('Pocket E2 returned to the foreground during the measured interval.')
+                raise RuntimeError('DuoDuo Pocket returned to the foreground during the measured interval.')
             if not trimmed and elapsed > args.seconds / 2:
                 trimmed = True
                 result['trimResponse'] = adb('shell', 'am', 'send-trim-memory', PACKAGE, 'RUNNING_CRITICAL')

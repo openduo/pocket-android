@@ -36,8 +36,8 @@ def main():
         '\n'.join(f"include ':{module}'" for module in modules) + '\n')
     (source / 'build.gradle').write_text('''plugins { id 'com.android.application' version '8.7.3'; id 'com.android.library' version '8.7.3' apply false }
 allprojects { repositories { google(); mavenCentral() } }
-android { namespace 'top.kuaner.pockete2.switchqa'; compileSdk 35
-    defaultConfig { applicationId 'top.kuaner.pockete2.switchqa'; minSdk 26; targetSdk 28; versionName 'Google-source-6.1.1'; versionCode 1 }
+android { namespace 'dev.openduo.pocket.switchqa'; compileSdk 35
+    defaultConfig { applicationId 'dev.openduo.pocket.switchqa'; minSdk 26; targetSdk 28; versionName 'Google-source-6.1.1'; versionCode 1 }
     sourceSets { main { manifest.srcFile 'qa-manifest.xml'; java.srcDirs=[]; res.srcDirs=[] } }
     packaging { resources.excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/NOTICE'] }
 }

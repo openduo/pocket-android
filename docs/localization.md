@@ -1,13 +1,13 @@
 # Application language boundaries
 
-Pocket E2 supports System, 中文 and English. System resolves Chinese locales to Simplified Chinese
+Pocket Android supports System, 中文 and English. System resolves Chinese locales to Simplified Chinese
 and other locales to English, matching the supported upstream language fallback. Changing the
 preference recreates the Activity with a scoped Android Configuration, so native controls and
 accessibility strings agree without modifying system language. Application notifications and
 Passport APP_STATE use the same resolved catalog. The Passport language byte is covered by host
 contracts; an external accessory has not yet verified it.
 
-`text/TextCatalog.java` is Android-independent and immutable. Authored Chinese copy is an explicit
+`:core`’s `text/TextCatalog.java` is Android-independent and immutable. Authored Chinese copy is an explicit
 key in `android/src/main/assets/i18n/en.json`; `AppText` loads that catalog and resolves the
 application preference/system locale. `Ui.t` and `Ui.format` translate application labels and
 templates at their binding sites. `Ui.explain` handles exact authored status/error strings and a
@@ -37,3 +37,5 @@ room, switch through the native setting, verify native resource locale, keep Chi
 literal, and capture English conversation/settings/session views at the actual ~259 dp viewport.
 They restore the app's original presentation preferences synchronously. These checks do not replace
 real-room or full accessibility acceptance.
+
+The public README, current status and main architecture/device/UI guides have English entry points and Chinese companions. Public documentation screenshots use English. New hardware statuses must enter the same catalog checks; user content and protocol identities remain literal. To add another locale, extend the catalog/resource boundary and the explicit selector rather than translating live room data. Current shipped languages are English and Simplified Chinese, not an unverified promise of all locales.

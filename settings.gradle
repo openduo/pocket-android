@@ -1,0 +1,19 @@
+// Copyright 2026 OpenDuo contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'pocket-android'
+include ':app', ':core', ':ui-policy', ':device', ':device-e2'
+project(':app').projectDir = file('android')

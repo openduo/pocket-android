@@ -12,8 +12,9 @@ command -v go >/dev/null || { echo '需要 Go 1.27.1 或以上版本。' >&2; ex
 command -v gomobile >/dev/null || { echo '需要 gomobile（版本与 bridge/tsbridge/go.mod 中的 x/mobile 一致）。' >&2; exit 1; }
 mkdir -p "$project_dir/.build/tsbridge"
 stamp=$(find "$project_dir/bridge/tsbridge" -type f \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) -exec shasum -a 256 {} \; | shasum -a 256 | cut -d' ' -f1)
+stamp="$stamp-android-arm64-amd64"
 if [[ ! -f "$project_dir/.build/tsbridge.aar" || "$(cat "$project_dir/.build/bridge-stamp" 2>/dev/null || true)" != "$stamp" ]]; then
-  (cd "$project_dir/bridge/tsbridge" && gomobile bind -trimpath -ldflags '-s -w' -target android/arm64 -androidapi 26 -o "$project_dir/.build/tsbridge.aar" .)
+  (cd "$project_dir/bridge/tsbridge" && gomobile bind -trimpath -ldflags '-s -w' -target android/arm64,android/amd64 -androidapi 26 -o "$project_dir/.build/tsbridge.aar" .)
   echo "$stamp" > "$project_dir/.build/bridge-stamp"
 fi
 unzip -o -q "$project_dir/.build/tsbridge.aar" -d "$project_dir/.build/tsbridge"

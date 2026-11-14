@@ -1,18 +1,18 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.Context;
 import android.media.AudioTrack;
 import android.os.SystemClock;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.SpeechPlayer;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.SpeechPlayer;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.JSONObject;
 
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
@@ -150,7 +150,8 @@ final class ReadAloudProbe {
                         && controller.snapshot().readingId.equals(message.id)
                         && onState(() -> (Boolean) field("readInFlight")),
                 "the real hardware block drains while its speech HTTP body stays open");
-        // Release only Pocket E2's track to model a native output failure; no system route changes.
+        // Release only DuoDuo Pocket's track to model a native output failure; no system route
+        // changes.
         track.release();
         await(
                 () -> gate.cancelled.getCount() == 0 && controller.snapshot().readingId.isEmpty(),
@@ -173,7 +174,7 @@ final class ReadAloudProbe {
                         && onState(
                                 () -> {
                                     Field granted =
-                                            top.kuaner.pockete2.audio.AudioFocus.class
+                                            dev.openduo.pocket.audio.AudioFocus.class
                                                     .getDeclaredField("granted");
                                     granted.setAccessible(true);
                                     return !(Boolean) granted.get(field("audioFocus"));

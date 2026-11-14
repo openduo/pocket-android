@@ -1,16 +1,16 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.Context;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.SpeechPlayer;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.SpeechPlayer;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.JSONObject;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -89,7 +89,7 @@ final class AudioOutputProbe {
         check(
                 controller.snapshot().trying,
                 "output fault injection is restricted to the disposable try room");
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         String draft = controller.draft();
         int outbox = controller.snapshot().outbox.size();
         try (OpusEncoder encoder = new OpusEncoder()) {
@@ -116,7 +116,7 @@ final class AudioOutputProbe {
                             + ", packets="
                             + source.binary.get()
                             + ", capture="
-                            + top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                            + dev.openduo.pocket.audio.input.RecordingInput.isActive()
                             + ", issue="
                             + controller.snapshot().ambientError);
 
@@ -262,12 +262,12 @@ final class AudioOutputProbe {
                         channel.set(controller, original);
                         return null;
                     });
-            await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+            await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         }
     }
 
     private void shortReadFailure() throws Exception {
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         Message proof =
                 controller.snapshot().rows.stream()
                         .filter(row -> row.kind == Message.DUODUO && row.id.startsWith("ans:"))
@@ -282,7 +282,7 @@ final class AudioOutputProbe {
                     onState(
                             () -> {
                                 Field granted =
-                                        top.kuaner.pockete2.audio.AudioFocus.class.getDeclaredField(
+                                        dev.openduo.pocket.audio.AudioFocus.class.getDeclaredField(
                                                 "granted");
                                 granted.setAccessible(true);
                                 return (Boolean) granted.get(field("audioFocus"));
@@ -398,13 +398,13 @@ final class AudioOutputProbe {
                 await(
                         () ->
                                 controller.snapshot().ambient == PocketController.Ambient.PAUSED
-                                        && !top.kuaner.pockete2.audio.input.RecordingInput
+                                        && !dev.openduo.pocket.audio.input.RecordingInput
                                                 .isActive(),
                         4000);
                 check(
                         controller.snapshot().ambient == PocketController.Ambient.PAUSED
                                 && controller.snapshot().ambientActive
-                                && !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && !dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                         "a real system focus loss pauses capture while retaining ambient intent");
                 await(() -> source.livePath.contains("audio=0"), 3000);
                 check(
@@ -420,7 +420,7 @@ final class AudioOutputProbe {
                 Thread.sleep(400);
                 check(
                         controller.snapshot().ambient == PocketController.Ambient.PAUSED
-                                && !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && !dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                         "unowned seat metadata and a foreground callback cannot resume capture or"
                                 + " hide an ongoing focus loss");
             } finally {
@@ -431,8 +431,7 @@ final class AudioOutputProbe {
                 boolean regained =
                         onState(
                                 () ->
-                                        !((top.kuaner.pockete2.audio.AudioFocus)
-                                                        field("audioFocus"))
+                                        !((dev.openduo.pocket.audio.AudioFocus) field("audioFocus"))
                                                 .interrupted());
                 check(
                         regained
@@ -449,7 +448,7 @@ final class AudioOutputProbe {
                     7000);
             check(
                     controller.snapshot().ambient == PocketController.Ambient.LISTENING
-                            && top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                            && dev.openduo.pocket.audio.input.RecordingInput.isActive()
                             && source.binary.get() > before
                             && source.livePath.contains("audio=1"),
                     "focus recovery restarts native capture and its ordinary hello/uplink:"

@@ -1,13 +1,13 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.JSONObject;
+import dev.openduo.pocket.core.Attachment;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelTransport;
 
-import top.kuaner.pockete2.core.Attachment;
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelTransport;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,7 @@ public final class UploadContracts {
     }
 
     public static int run() throws Exception {
-        File file = File.createTempFile("pocket-e2-upload-contract-", ".txt");
+        File file = File.createTempFile("duoduo-pocket-upload-contract-", ".txt");
         byte[] bytes = "abc".getBytes(StandardCharsets.UTF_8);
         Files.write(file.toPath(), bytes);
         UploadTransport transport = new UploadTransport();

@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -11,7 +11,7 @@ import android.os.Bundle;
 
 /** Only synthetic fixture state crosses this test-only control provider, never app data. */
 public final class ProcessControl extends ContentProvider {
-    static final Uri URI = Uri.parse("content://top.kuaner.pockete2.qa.restart-control");
+    static final Uri URI = Uri.parse("content://dev.openduo.pocket.qa.restart-control");
 
     @Override
     public boolean onCreate() {
@@ -25,7 +25,7 @@ public final class ProcessControl extends ContentProvider {
         if (caller != 2000
                 && caller != android.os.Process.myUid()
                 && (packages == null
-                        || !java.util.Arrays.asList(packages).contains("top.kuaner.pockete2")))
+                        || !java.util.Arrays.asList(packages).contains("dev.openduo.pocket")))
             throw new SecurityException("Not a process-death test caller");
         android.content.SharedPreferences prefs = ProcessSource.state(getContext());
         if (method.equals("reset")) {

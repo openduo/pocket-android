@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / 'android/src/main/java/top/kuaner/pockete2'
+SOURCE = ROOT / 'android/src/main/java/dev/openduo/pocket'
 
 
 def pairs(items):
@@ -63,14 +63,20 @@ for path in files:
         checked += 1
 
 # Domain/hardware statuses cross through immutable snapshots and are translated by the observer.
+domain_files = []
 for directory in ('core', 'audio', 'passport', 'net', 'location', 'sight', 'image'):
-    for path in (SOURCE / directory).rglob('*.java'):
-        for match in tokens.finditer(path.read_text()):
-            if not match.group().startswith('"'):
-                continue
-            value = json.loads(match.group())
-            if han.search(value) and value != '多多' and value not in catalog:
-                errors.append(f'{path.relative_to(ROOT)} missing English application status: {value}')
+    domain_files.extend((SOURCE / directory).rglob('*.java'))
+for module in ('core', 'device', 'device-e2'):
+    base = ROOT / module / 'src/main/java/dev/openduo/pocket'
+    for directory in ('core', 'audio', 'passport', 'net', 'location', 'sight', 'image', 'device'):
+        domain_files.extend((base / directory).rglob('*.java'))
+for path in domain_files:
+    for match in tokens.finditer(path.read_text()):
+        if not match.group().startswith('"'):
+            continue
+        value = json.loads(match.group())
+        if han.search(value) and value != '多多' and value not in catalog:
+            errors.append(f'{path.relative_to(ROOT)} missing English application status: {value}')
 
 if errors:
     raise SystemExit('\n'.join(errors))

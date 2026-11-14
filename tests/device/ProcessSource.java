@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.os.ParcelFileDescriptor;
 
@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** A granted, separate-UID source: its first pipe stalls, later reads return the complete body. */
 final class ProcessSource {
-    static final String NAME = "Pocket E2 process restart fixture.txt";
+    static final String NAME = "DuoDuo Pocket process restart fixture.txt";
     static final AtomicInteger active = new AtomicInteger();
 
     static android.content.SharedPreferences state(android.content.Context context) {
@@ -57,7 +57,7 @@ final class ProcessSource {
                                     active.decrementAndGet();
                                 }
                             },
-                            "Pocket E2 process-death source")
+                            "DuoDuo Pocket process-death source")
                     .start();
             return pipe[0];
         } catch (IOException failure) {

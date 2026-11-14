@@ -1,17 +1,17 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.*;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 
-import org.json.*;
+import dev.openduo.pocket.app.InboundContent;
+import dev.openduo.pocket.app.PocketFiles;
+import dev.openduo.pocket.core.*;
 
-import top.kuaner.pockete2.app.InboundContent;
-import top.kuaner.pockete2.app.PocketFiles;
-import top.kuaner.pockete2.core.*;
+import org.json.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +48,7 @@ final class ImportProbe {
                             context,
                             second,
                             "settings stays.literal",
-                            "application/vnd.pocket-e2+data");
+                            "application/vnd.duoduo-pocket+data");
             try (android.database.Cursor cursor =
                     context.getContentResolver().query(one, null, null, null, null)) {
                 check(
@@ -63,7 +63,7 @@ final class ImportProbe {
                                         == first.length()
                                 && context.getContentResolver()
                                         .getType(two)
-                                        .equals("application/vnd.pocket-e2+data"),
+                                        .equals("application/vnd.duoduo-pocket+data"),
                         "content provider exposes original names and declared MIME independently of"
                                 + " cache filenames");
             }
@@ -165,7 +165,7 @@ final class ImportProbe {
     }
 
     private static void database(Context context) throws Exception {
-        String name = "pocket-e2-import-qa.db";
+        String name = "duoduo-pocket-import-qa.db";
         context.deleteDatabase(name);
         RoomRepository repo = new RoomRepository(context, name);
         try {

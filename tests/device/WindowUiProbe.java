@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Instrumentation.ActivityMonitor;
 import android.content.Context;
@@ -12,12 +12,12 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ScrollView;
 
+import dev.openduo.pocket.R;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.R;
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -84,7 +84,7 @@ final class WindowUiProbe {
                 ActivityMonitor monitor =
                         probe.addMonitor(MainActivity.class.getName(), null, false);
                 try {
-                    shell("am start --windowingMode 5 -n top.kuaner.pockete2/.app.MainActivity");
+                    shell("am start --windowingMode 5 -n dev.openduo.pocket/.app.MainActivity");
                     screen = (MainActivity) monitor.waitForActivityWithTimeout(8000);
                     check(screen != null, "freeform creates the shipping Activity");
                     if (screen == null) throw new AssertionError("No freeform Activity");
@@ -338,8 +338,8 @@ final class WindowUiProbe {
             check(systemAction("Split", false), "the system Recents Split action is available");
             Thread.sleep(500);
             check(
-                    systemAction("Pocket E2", true),
-                    "the system app selector chooses Pocket E2 as the second pane");
+                    systemAction("DuoDuo Pocket", true),
+                    "the system app selector chooses DuoDuo Pocket as the second pane");
             android.app.Activity replacement = monitor.waitForActivityWithTimeout(4000);
             if (replacement != null) screen = (MainActivity) replacement;
             Thread.sleep(500);

@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -18,8 +18,9 @@ import java.util.*;
 public final class Documents extends DocumentsProvider {
     private static final java.util.concurrent.atomic.AtomicInteger active =
             new java.util.concurrent.atomic.AtomicInteger();
-    public static final String AUTHORITY = "top.kuaner.pockete2.qa.documents";
-    public static final String TITLE = "Pocket E2 QA source", NAME = "Pocket E2 QA document.txt";
+    public static final String AUTHORITY = "dev.openduo.pocket.qa.documents";
+    public static final String TITLE = "DuoDuo Pocket QA source",
+            NAME = "DuoDuo Pocket QA document.txt";
     public static final String CONTENT = "Native picker bytes, not a simulated result.\n";
 
     @Override
@@ -148,7 +149,7 @@ public final class Documents extends DocumentsProvider {
                                     active.decrementAndGet();
                                 }
                             },
-                            "Pocket E2 QA blocked provider")
+                            "DuoDuo Pocket QA blocked provider")
                     .start();
             return pipe[0];
         } catch (IOException failure) {

@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.location;
+package dev.openduo.pocket.location;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

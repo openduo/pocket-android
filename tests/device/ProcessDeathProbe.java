@@ -1,17 +1,17 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.*;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -103,8 +103,8 @@ final class ProcessDeathProbe {
                                     .noneMatch(a -> a.state == Attachment.UPLOADING),
                     "process-death acceptance requires the actual application idle");
             String fixture = UUID.randomUUID().toString();
-            String before = "Pocket E2 preserved draft " + fixture;
-            String incoming = "Pocket E2 incoming share " + fixture;
+            String before = "DuoDuo Pocket preserved draft " + fixture;
+            String incoming = "DuoDuo Pocket incoming share " + fixture;
             String seeded = initial.draft.isEmpty() ? before : initial.draft + "\n" + before;
             JSONObject journal =
                     Json.object(
@@ -139,7 +139,7 @@ final class ProcessDeathProbe {
             controller.setVoiceInput(false);
             controller.draft(seeded);
             onState(() -> null);
-            context.getSharedPreferences("pocket-e2.settings", 0).edit().commit();
+            context.getSharedPreferences("duoduo-pocket.settings", 0).edit().commit();
             check(
                     controller.draft().equals(seeded),
                     "the existing composer is durably seeded before external sharing");
@@ -218,7 +218,7 @@ final class ProcessDeathProbe {
             controller.draft(String.join("\n", kept));
             controller.setVoiceInput(journal.getBoolean("voice"));
             onState(() -> null);
-            context.getSharedPreferences("pocket-e2.settings", 0).edit().commit();
+            context.getSharedPreferences("duoduo-pocket.settings", 0).edit().commit();
             check(
                     controller.draft().equals(journal.getString("draft"))
                             && controller.snapshot().quote.equals(journal.getString("quote"))

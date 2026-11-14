@@ -1,21 +1,21 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusDecoder;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.PacketStream;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusDecoder;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.PacketStream;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -47,8 +47,10 @@ final class AmbientRoomProbe {
         expected = brain ? "环境工具验证成功" : "环境模式连通成功";
         text =
                 brain
-                        ? "多多，这是Pocket E2环境工具集成测试。请调用工具查询电脑现在的日期和时间，告诉我查询结果，最后说" + expected + "。"
-                        : "多多这是Pocket E2环境语音链路集成测试请只回复" + expected + "。";
+                        ? "多多，这是DuoDuo Pocket环境工具集成测试。请调用工具查询电脑现在的日期和时间，告诉我查询结果，最后说"
+                                + expected
+                                + "。"
+                        : "多多这是DuoDuo Pocket环境语音链路集成测试请只回复" + expected + "。";
         fixtureName = brain ? "ambient-brain-20ms" : "ambient-room-20ms";
     }
 
@@ -225,7 +227,12 @@ final class AmbientRoomProbe {
                 "actual ambient acceptance requires the app's capture, outgoing work and playback"
                         + " idle");
         ChannelConnection original = onState(() -> (ChannelConnection) field("channel"));
-        ChannelClient client = new ChannelClient(controller.settings, original);
+        ChannelClient client =
+                new ChannelClient(
+                        controller.settings.endpoint(),
+                        controller.settings.token(),
+                        controller.settings.room(),
+                        original);
         File qa = new File(context.getFilesDir(), "qa");
         qa.mkdirs();
         File journal = new File(qa, fixtureName + "-once.json");
@@ -346,7 +353,7 @@ final class AmbientRoomProbe {
                 onState(
                         () -> {
                             invoke("ensurePlayer");
-                            ((top.kuaner.pockete2.audio.SpeechPlayer) field("player")).silent(true);
+                            ((dev.openduo.pocket.audio.SpeechPlayer) field("player")).silent(true);
                             return null;
                         });
                 await(
@@ -360,7 +367,7 @@ final class AmbientRoomProbe {
                                 && source.nativePackets.get() > 0
                                 && controller.snapshot().ambientActive
                                 && !controller.snapshot().ambientMuted
-                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                         "native capture reaches actual hello/master/uplink while every microphone"
                                 + " packet is replaced by silence and only the local AudioTrack is"
                                 + " muted");
@@ -484,7 +491,7 @@ final class AmbientRoomProbe {
                 await(() -> source.nativePackets.get() > before + 10, 4000);
                 check(
                         source.nativePackets.get() > before + 10
-                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                         "actual reconnection resumes native-paced silence uplink without resending"
                                 + " the fixture");
                 ChannelClient.Rows rows = client.rows(since);
@@ -511,7 +518,7 @@ final class AmbientRoomProbe {
                 controller.releaseHold(true);
                 await(
                         () ->
-                                !top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                                !dev.openduo.pocket.audio.input.RecordingInput.isActive()
                                         && !controller.snapshot().ambientActive
                                         && controller.snapshot().connection
                                                 == PocketController.Connection.ONLINE,
@@ -528,7 +535,7 @@ final class AmbientRoomProbe {
                 check(
                         !controller.snapshot().ambientActive
                                 && !controller.snapshot().ambientMuted
-                                && !top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                                && !dev.openduo.pocket.audio.input.RecordingInput.isActive()
                                 && controller.snapshot().importTarget.equals(initial.importTarget)
                                 && controller.draft().equals(initial.draft)
                                 && controller.snapshot().quote.equals(initial.quote)
@@ -560,7 +567,7 @@ final class AmbientRoomProbe {
                             reconnect();
                             return null;
                         });
-                await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+                await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
                 File eventDir = new File(context.getExternalCacheDir(), "qa");
                 eventDir.mkdirs();
                 File evidence =

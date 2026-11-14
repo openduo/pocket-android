@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.*;
 import android.content.*;
@@ -9,14 +9,14 @@ import android.media.*;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 
-import org.json.*;
+import dev.openduo.pocket.app.AnswerNotifications;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.app.AnswerNotifications;
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.input.RecordingInput;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.*;
 
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +27,7 @@ import java.util.function.BooleanSupplier;
 
 /** Actual Activity, focus, capture and local notices; isolated storage and no network delegate. */
 final class AmbientInterruptionProbe {
-    private static final String DATABASE = "pocket-e2-interruption-qa.db";
+    private static final String DATABASE = "duoduo-pocket-interruption-qa.db";
     private final Probe probe;
     private PocketController controller;
     private Executor state;
@@ -234,7 +234,7 @@ final class AmbientInterruptionProbe {
                         return super.getSharedPreferences(name + ".interruption-qa", mode);
                     }
                 };
-        isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
+        isolated.getSharedPreferences("duoduo-pocket.settings", 0).edit().clear().commit();
         isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
         Settings settings = new Settings(isolated);
         settings.saveConnection(
@@ -419,7 +419,7 @@ final class AmbientInterruptionProbe {
             repository.close();
             context.deleteDatabase(DATABASE);
             settings.clearConnection();
-            isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
+            isolated.getSharedPreferences("duoduo-pocket.settings", 0).edit().clear().commit();
             isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
             notifications.cancel("interrupted", 29);
             await(

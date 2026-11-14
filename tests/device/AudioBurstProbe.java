@@ -1,13 +1,13 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.Context;
 import android.os.SystemClock;
 
-import top.kuaner.pockete2.audio.PacketStream;
-import top.kuaner.pockete2.core.PocketController;
+import dev.openduo.pocket.audio.PacketStream;
+import dev.openduo.pocket.core.PocketController;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -87,8 +87,8 @@ final class AudioBurstProbe {
                         () -> {
                             Field player = PocketController.class.getDeclaredField("player");
                             player.setAccessible(true);
-                            top.kuaner.pockete2.audio.SpeechPlayer output =
-                                    (top.kuaner.pockete2.audio.SpeechPlayer) player.get(controller);
+                            dev.openduo.pocket.audio.SpeechPlayer output =
+                                    (dev.openduo.pocket.audio.SpeechPlayer) player.get(controller);
                             decoded.set(output != null && output.hasPending());
                             invoke("stopPlayback");
                             return null;
@@ -99,7 +99,7 @@ final class AudioBurstProbe {
         if (first.getCount() != 0
                 || !decoded.get()
                 || controller.snapshot().holdRecording
-                || top.kuaner.pockete2.audio.input.RecordingInput.isActive())
+                || dev.openduo.pocket.audio.input.RecordingInput.isActive())
             throw new AssertionError("Burst must complete without capture");
         android.os.Bundle status = new android.os.Bundle();
         status.putString(

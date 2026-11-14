@@ -1,0 +1,34 @@
+{
+  "phone": {
+    "source": "Android emulator",
+    "profile": "phone",
+    "language": "en",
+    "theme": "light",
+    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "content": "Prepared Try content; no microphone, camera or actual room sends"
+  },
+  "e2": {
+    "source": "Physical E2, API 27",
+    "profile": "e2",
+    "language": "en",
+    "theme": "dark",
+    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "content": "Prepared Try content; no microphone, camera or actual room sends"
+  },
+  "tablet": {
+    "source": "Android emulator",
+    "profile": "tablet",
+    "language": "en",
+    "theme": "dark",
+    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "content": "Prepared Try content; no microphone, camera or actual room sends"
+  },
+  "landscape": {
+    "source": "Android emulator",
+    "profile": "landscape",
+    "language": "en",
+    "theme": "light",
+    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "content": "Prepared Try content; no microphone, camera or actual room sends"
+  }
+}

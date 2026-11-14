@@ -1,0 +1,19 @@
+// Copyright 2026 OpenDuo contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+    id 'com.android.library' version '8.13.2' apply false
+}
+
+tasks.register('verifySources', Exec) {
+    commandLine 'python3', 'scripts/verify-sources.py'
+}
+
+tasks.register('buildBridge', Exec) {
+    inputs.dir('bridge/tsbridge')
+    inputs.file('scripts/build-bridge.sh')
+    inputs.property('abis', 'arm64-v8a,x86_64')
+    outputs.file('.build/tsbridge.aar')
+    outputs.dir('.build/tsbridge')
+    commandLine 'bash', 'scripts/build-bridge.sh'
+}

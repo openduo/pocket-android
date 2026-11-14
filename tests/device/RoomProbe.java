@@ -1,18 +1,18 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.app.PocketFiles;
-import top.kuaner.pockete2.audio.SpeechPlayer;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.text.AppText;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.app.PocketFiles;
+import dev.openduo.pocket.audio.SpeechPlayer;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.text.AppText;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -221,12 +221,12 @@ final class RoomProbe {
         shared.mkdirs();
         File fixture = File.createTempFile("qa-real-room-", ".txt", shared);
         File[] download = {null};
-        String name = "Pocket E2 integration fixture " + UUID.randomUUID() + ".txt";
+        String name = "DuoDuo Pocket integration fixture " + UUID.randomUUID() + ".txt";
         String[] importedPath = {""};
         ImportRoute route = controller.importRoute(ImportRoute.Kind.FILES);
         try {
             byte[] bytes =
-                    ("Pocket E2 real upload/download fixture.\n" + UUID.randomUUID() + "\n")
+                    ("DuoDuo Pocket real upload/download fixture.\n" + UUID.randomUUID() + "\n")
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8);
             Files.write(fixture.toPath(), bytes);
             CountDownLatch copied = new CountDownLatch(1);

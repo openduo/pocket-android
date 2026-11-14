@@ -1,0 +1,31 @@
+// Copyright 2026 OpenDuo contributors
+// SPDX-License-Identifier: FSL-1.1-Apache-2.0
+plugins { id 'com.android.library' }
+
+android {
+    namespace 'dev.openduo.pocket.device.e2'
+    compileSdk 35
+    defaultConfig { minSdk 26 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    // No implicit discovery of local firmware in a public build.
+    if (providers.gradleProperty('e2FirmwareDir').isPresent()) {
+        sourceSets.main.assets.srcDir layout.buildDirectory.dir('firmware/assets')
+        sourceSets.main.jniLibs.srcDir layout.buildDirectory.dir('firmware/jni')
+    }
+}
+dependencies { api project(':device') }
+
+if (providers.gradleProperty('e2FirmwareDir').isPresent()) {
+    tasks.register('prepareE2Firmware', Exec) {
+        def firmware = rootProject.file(providers.gradleProperty('e2FirmwareDir').get())
+        inputs.dir(firmware)
+        inputs.files(rootProject.file('scripts/build-e2-adapter.sh'), file('src/main/cpp'))
+        outputs.dir(layout.buildDirectory.dir('firmware'))
+        commandLine 'bash', rootProject.file('scripts/build-e2-adapter.sh'), firmware,
+                layout.buildDirectory.dir('firmware').get().asFile
+    }
+    tasks.named('preBuild') { dependsOn 'prepareE2Firmware' }
+}

@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -12,13 +12,13 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.SystemClock;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -36,7 +36,7 @@ import java.util.function.BooleanSupplier;
  * Prepared access loss through the actual controller, isolated settings/SQLite and native service.
  */
 final class AccessRecoveryProbe {
-    private static final String DATABASE = "pocket-e2-access-qa.db";
+    private static final String DATABASE = "duoduo-pocket-access-qa.db";
     private final Probe probe;
     private PocketController controller;
     private Executor state;
@@ -134,7 +134,7 @@ final class AccessRecoveryProbe {
             if (info.foreground
                     && info.service
                             .getClassName()
-                            .equals("top.kuaner.pockete2.app.PocketSessionService")) return true;
+                            .equals("dev.openduo.pocket.app.PocketSessionService")) return true;
         return false;
     }
 
@@ -241,7 +241,7 @@ final class AccessRecoveryProbe {
                         return super.getSharedPreferences(name + ".access-qa", mode);
                     }
                 };
-        isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
+        isolated.getSharedPreferences("duoduo-pocket.settings", 0).edit().clear().commit();
         isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
         Settings settings = new Settings(isolated);
         settings.saveConnection(
@@ -326,7 +326,7 @@ final class AccessRecoveryProbe {
             context.deleteDatabase(DATABASE);
             new File(context.getCacheDir(), "access-qa/ordinary.txt").delete();
             settings.clearConnection();
-            isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
+            isolated.getSharedPreferences("duoduo-pocket.settings", 0).edit().clear().commit();
             isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
             Bundle restoration = new Bundle();
             restoration.putString("checkpoint", "access-restore-before-wake");
@@ -933,16 +933,16 @@ final class AccessRecoveryProbe {
         anonymous.release.countDown();
         source.routes.put("/healthz", anonymous);
         try {
-            top.kuaner.pockete2.net.ChannelClient client =
+            dev.openduo.pocket.net.ChannelClient client =
                     onState(
                             () -> {
                                 Method method = PocketController.class.getDeclaredMethod("client");
                                 method.setAccessible(true);
-                                return (top.kuaner.pockete2.net.ChannelClient)
+                                return (dev.openduo.pocket.net.ChannelClient)
                                         method.invoke(controller);
                             });
             client.health();
-        } catch (top.kuaner.pockete2.net.ChannelClient.Failure expected) {
+        } catch (dev.openduo.pocket.net.ChannelClient.Failure expected) {
         }
         check(
                 !settings.unauthorized() && online(),

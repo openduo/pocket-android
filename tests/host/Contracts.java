@@ -1,12 +1,12 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-import org.json.*;
+import dev.openduo.pocket.audio.PacketStream;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.*;
+import dev.openduo.pocket.passport.*;
 
-import top.kuaner.pockete2.audio.PacketStream;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.*;
-import top.kuaner.pockete2.passport.*;
+import org.json.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -31,7 +31,7 @@ public final class Contracts {
 
     public static void main(String[] args) throws Exception {
         check(
-                !top.kuaner.pockete2.passport.PassportPolicy.ENABLED,
+                !dev.openduo.pocket.passport.PassportPolicy.ENABLED,
                 "standalone E2 keeps deferred Passport integration disabled");
         Endpoint.PairingLink p =
                 Endpoint.PairingLink.parse(
@@ -59,13 +59,13 @@ public final class Contracts {
         byte[] luminance = new byte[256 * 256];
         for (int y = 0; y < 256; y++)
             for (int x = 0; x < 256; x++) luminance[y * 256 + x] = (byte) (qr.get(x, y) ? 0 : 255);
-        String scanned = top.kuaner.pockete2.pairing.QrCode.read(luminance, 256, 256);
+        String scanned = dev.openduo.pocket.pairing.QrCode.read(luminance, 256, 256);
         check(
                 qrLink.equals(scanned)
                         && Endpoint.PairingLink.parse(scanned).code.equals("opaque+value"),
                 "local QR scan preserves authoritative pairing link");
         check(
-                top.kuaner.pockete2.pairing.QrCode.read(new byte[10], 640, 480) == null,
+                dev.openduo.pocket.pairing.QrCode.read(new byte[10], 640, 480) == null,
                 "short camera luminance buffer rejected");
         Message heard =
                 ChannelClient.mapEntry(
@@ -588,18 +588,18 @@ public final class Contracts {
                                 200000,
                                 "key_interval_ms",
                                 1000));
-        top.kuaner.pockete2.sight.SightProtocol.Ask ask =
-                new top.kuaner.pockete2.sight.SightProtocol.Ask(camera);
+        dev.openduo.pocket.sight.SightProtocol.Ask ask =
+                new dev.openduo.pocket.sight.SightProtocol.Ask(camera);
         check(
                 ask.fps == 15 && ask.profile == 66 && ask.level == 31,
                 "camera ask retains exact server profile and rate");
         JSONObject invalid = new JSONObject(camera.toString());
         invalid.getJSONObject("video").put("min_fps", true);
         rejects(
-                () -> new top.kuaner.pockete2.sight.SightProtocol.Ask(invalid),
+                () -> new dev.openduo.pocket.sight.SightProtocol.Ask(invalid),
                 "camera boolean cannot masquerade as integer");
-        top.kuaner.pockete2.sight.SightProtocol.Uplink video =
-                new top.kuaner.pockete2.sight.SightProtocol.Uplink();
+        dev.openduo.pocket.sight.SightProtocol.Uplink video =
+                new dev.openduo.pocket.sight.SightProtocol.Uplink();
         byte[] keyFrame =
                 video.frame(
                         true, 100, new byte[] {0, 0, 0, 1, 5}, 640, 480, "room", 15, 200000, 1024);
@@ -641,7 +641,7 @@ public final class Contracts {
                 "incompatible media falls back to cursor-resumed audio");
         check(
                 Arrays.equals(
-                        top.kuaner.pockete2.sight.SightProtocol.annexB(
+                        dev.openduo.pocket.sight.SightProtocol.annexB(
                                 new byte[] {0, 0, 0, 2, 7, 8, 0, 0, 0, 1, 9}),
                         new byte[] {0, 0, 0, 1, 7, 8, 0, 0, 0, 1, 9}),
                 "AVCC access units convert to Annex-B");
@@ -712,13 +712,13 @@ public final class Contracts {
                             9, 16, 40, 80, 100, 0, 0, 120, (byte) 150, (byte) 200, (byte) 235
                         });
         yuvY.position(1);
-        top.kuaner.pockete2.sight.PreviewFrame.Plane yp =
-                new top.kuaner.pockete2.sight.PreviewFrame.Plane(yuvY, 6, 1);
-        top.kuaner.pockete2.sight.PreviewFrame.Plane uv =
-                new top.kuaner.pockete2.sight.PreviewFrame.Plane(
+        dev.openduo.pocket.sight.PreviewFrame.Plane yp =
+                new dev.openduo.pocket.sight.PreviewFrame.Plane(yuvY, 6, 1);
+        dev.openduo.pocket.sight.PreviewFrame.Plane uv =
+                new dev.openduo.pocket.sight.PreviewFrame.Plane(
                         java.nio.ByteBuffer.wrap(new byte[] {(byte) 128, 0, (byte) 128}), 3, 2);
-        top.kuaner.pockete2.sight.PreviewFrame unrotated =
-                top.kuaner.pockete2.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 0, 4);
+        dev.openduo.pocket.sight.PreviewFrame unrotated =
+                dev.openduo.pocket.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 0, 4);
         int[] basePixels = new int[8];
         unrotated.copyPixels(basePixels);
         check(
@@ -727,8 +727,8 @@ public final class Contracts {
                         && basePixels[0] == 0xff000000
                         && basePixels[7] == 0xffffffff,
                 "viewfinder respects plane positions, padded rows and shared interleaved chroma");
-        top.kuaner.pockete2.sight.PreviewFrame clockwise =
-                top.kuaner.pockete2.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 90, 4);
+        dev.openduo.pocket.sight.PreviewFrame clockwise =
+                dev.openduo.pocket.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 90, 4);
         int[] rotatedPixels = new int[8];
         clockwise.copyPixels(rotatedPixels);
         check(
@@ -738,23 +738,23 @@ public final class Contracts {
                         && rotatedPixels[6] == basePixels[7],
                 "rear viewfinder rotation matches the encoded camera plane rotation");
         check(
-                top.kuaner.pockete2.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 270, 2).height == 2,
+                dev.openduo.pocket.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 270, 2).height == 2,
                 "viewfinder downsamples before RGB allocation");
         rejects(
-                () -> top.kuaner.pockete2.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 45, 4),
+                () -> dev.openduo.pocket.sight.PreviewFrame.yuv(4, 2, yp, uv, uv, 45, 4),
                 "invalid viewfinder rotation rejected");
         check(
-                top.kuaner.pockete2.sight.SightProtocol.quadrant(50, 0) == 0
-                        && top.kuaner.pockete2.sight.SightProtocol.quadrant(65, 0) == 90
-                        && top.kuaner.pockete2.sight.SightProtocol.quadrant(355, 270) == 0,
+                dev.openduo.pocket.sight.SightProtocol.quadrant(50, 0) == 0
+                        && dev.openduo.pocket.sight.SightProtocol.quadrant(65, 0) == 90
+                        && dev.openduo.pocket.sight.SightProtocol.quadrant(355, 270) == 0,
                 "camera rotation has hysteresis and handles wraparound");
         check(
-                top.kuaner.pockete2.sight.SightProtocol.bufferRotation(90, false, 90) == 180
-                        && top.kuaner.pockete2.sight.SightProtocol.bufferRotation(270, true, 270)
+                dev.openduo.pocket.sight.SightProtocol.bufferRotation(90, false, 90) == 180
+                        && dev.openduo.pocket.sight.SightProtocol.bufferRotation(270, true, 270)
                                 == 0,
                 "camera buffers use lens sensor and physical device rotation");
-        top.kuaner.pockete2.sight.SightRecovery recovery =
-                new top.kuaner.pockete2.sight.SightRecovery();
+        dev.openduo.pocket.sight.SightRecovery recovery =
+                new dev.openduo.pocket.sight.SightRecovery();
         recovery.failed("camera_taken", 1_000);
         check(
                 recovery.delay(1_001) > 0
@@ -792,11 +792,11 @@ public final class Contracts {
                         new String(
                                 java.nio.file.Files.readAllBytes(
                                         java.nio.file.Paths.get(
-                                                System.getProperty("pocket.e2.root"),
+                                                System.getProperty("pocket.android.root"),
                                                 "android/src/main/assets/i18n/en.json")),
                                 java.nio.charset.StandardCharsets.UTF_8));
-        top.kuaner.pockete2.text.TextCatalog english =
-                new top.kuaner.pockete2.text.TextCatalog("en", Locale.CHINA, translated);
+        dev.openduo.pocket.text.TextCatalog english =
+                new dev.openduo.pocket.text.TextCatalog("en", Locale.CHINA, translated);
         check(
                 english.t("设置").equals("Settings")
                         && english.t("后置摄像头画面").equals("Rear camera view"),

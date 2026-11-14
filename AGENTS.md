@@ -1,58 +1,48 @@
-# Pocket E2 engineering rules
+# Pocket Android engineering rules
 
-The current user milestone is to close the agreed P0/P1 implementation, strengthen maintainability
-and support general Android window sizes. The user explicitly stopped requiring complete 1:1 parity
-for this milestone on 2026-11-14. Keep `openduo/pocket-ios`, initially pinned to
-`b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`, as the future parity comparison. Maintain
-`docs/status.md` and `docs/migration.md` with explicit implementation and verification gaps.
-Do not mark a placeholder, prepared reply, protocol test or compiled UI as end-to-end acceptance.
+Current milestone: publish `openduo/pocket-android`, align the app name/icon/application ID with
+Pocket iOS, and finish maintainable multi-device architecture. The user explicitly narrowed testing:
+run necessary builds and relevant contracts/short representative checks; do not expand rotation,
+accessibility or overnight matrices. Earlier acceptance plans are historical evidence, not a mandate
+to keep testing. Complete 1:1 parity is a future comparison against iOS
+`b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`, not the release gate.
 
-The user deferred external Passport Bluetooth integration on 2026-11-14. Prioritize standalone E2
-use and omit Passport entry points from normal conversation/settings flows. Retain the existing
-implementation for later; external Passport hardware acceptance is not a current release blocker.
-Keep its remaining parity gaps for a possible later milestone.
+Support general Android hardware, including future display-equipped smart speakers. E2 ships as an
+adapter example. Keep device/OEM decisions in `:device-e2` or future adapter modules, window policy
+in `:ui-policy` and `app/ui`, and Android-independent business/protocol in `:core`. The default
+adapter uses Android framework audio. No vendor firmware/model may enter public source or APKs.
+Push (including crypto/identifiers/ledger) and external Passport remain explicitly deferred.
 
-The user also deferred immediate Android push on 2026-11-14. Push transport registration, relay,
-receiver, upstream push crypto/identifiers/ledger and fixed-vector validation are outside the
-current implementation scope until explicitly resumed. Keep existing local notifications and
-periodic catch-up, and record the deferred push gaps alongside Passport in `docs/migration.md`.
+- `PocketController` owns mutable room state on one executor; views observe snapshots. Do not read
+  window geometry or select device models in business state. Hardware adapters never own room state.
+- Separate bounded networking, capture and rendering queues. Acquire one shared microphone lease;
+  adapters release native resources on the capture owner thread. Preserve netmon resampling on
+  network recovery, idempotent outbox identity and transactional rows/outbox/cursors.
+- Use current-window/inset policy, system fonts, filled E2Studio-style surfaces, genuine Lucide
+  vectors, scrollable controls and bounded content/sheets. Do not change a physical device's density,
+  overscan, launcher or another app's settings. Preserve drafts, focus and reading position.
+- Use four-space Java (`scripts/format-java.sh`), English source comments and SPDX headers. Retain
+  upstream attribution/licences. OpenDuo brand assets are excluded from the code licence. Public screenshots use English;
+  the public README and current technical guides use English with Chinese companions. Keep all
+  app-owned copy, native controls and device errors within the localization boundary.
+- Never track actual hosts/room/device IDs, tokens, keys, private logs/screenshots, recordings or firmware.
+  Exception: the user explicitly requested public README/device screenshots; only sanitized
+  prepared Try content under `docs/screens/` may be committed.
+  Generated/private material belongs in ignored `.build/`, `build/` or `dist/`. Licensed prepared
+  Try fixtures are distinct from real recordings and pinned by checksum.
+- Keep implementation, prepared responses and real-service acceptance distinct in `docs/status.md`
+  and `docs/migration.md`. Do not invent a parity percentage.
+- The old physical E2 app `top.kuaner.pockete2` retains its login/pairing. Do not uninstall, clear or
+  replace its data while developing `dev.openduo.pocket`; package IDs cannot share AndroidKeyStore.
+- Do not spawn subagents without an explicit user request. No unsolicited full regression, long
+  wait, or notification/message to a person. Existing opt-in probes can send real room content;
+  read their scope before use and never silently run them for a build/refactor.
 
-The user resumed P0 and P1 work on 2026-11-14: connection reliability, natural voice and full
-ambient turns first; then Sight, session notifications, location/arrival, compact-screen
-accessibility and failure recovery. Push and Passport remain deferred. Keep real acceptance gaps
-explicit when a physical action or unavailable service prevents local verification.
-
-The next acceptance scope is in `docs/acceptance.md`: phone/tablet/landscape/split/multi-window and
-font scaling (emulators are permitted), actual TalkBack/Switch Access and focus order, actual
-speech/Sight/session notify/visit, and actual identity/network/audio/lifecycle scenarios. Do not
-claim these complete from earlier compact-only, synthetic or fault-injection probes. Isolated
-emulator display/accessibility settings may be changed and restored by the acceptance harness;
-physical E2 display and E2Studio settings must remain untouched.
-
-- Follow E2Studio's filled surfaces, system fonts, real Lucide icons, bottom controls and bounded
-  full-width sheets. Use the current viewport, not the physical panel size. Preserve scroll,
-  drafts and focus. Do not change device density, overscan, launcher or another app's settings.
-- `PocketController` owns mutable room state on its state executor. Views observe snapshots.
-  Keep protocol reducers and codecs Android-independent. Networking, capture and rendering have
-  separate bounded queues. Acquire one microphone lease; release native resources on their owner.
-- Persist rows, outbox transitions and cursors transactionally. Reuse the idempotency key and the
-  original surface on retries/relaunch. Distinguish transport failures from HTTP failures.
-- Use four-space Java formatting (`scripts/format-java.sh`), English source comments, and SPDX
-  headers for project source/scripts. Keep upstream copyright and third-party licences.
-- Never track hosts, actual room/device identifiers, tokens, signing keys, logs, screenshots,
-  recordings or firmware binaries/models. Generated material belongs in ignored `.build/` or
-  `dist/`. Do not copy unrelated local credentials or steal E2Studio's existing BLE connection.
-  Licensed upstream prepared try clips/notes are source fixtures, pinned by checksum; they are
-  distinct from device recordings and can be regenerated with `scripts/prepare-try-assets.py`.
-- Validate behaviour changes using relevant host contracts, Go checks and isolated device probes.
-  Device probes may restart **Pocket E2 only**. Microphone probes require other recording/work to
-  be idle. Keep acoustic, API, simulated and UI evidence distinct.
-
-Commands:
+Relevant checks:
 
 ```sh
+python3 scripts/verify-sources.py
 scripts/test-host.sh
+./gradlew :core:check :app:assembleDebug
 (cd bridge/tsbridge && go vet ./... && go test ./...)
-scripts/build-android.sh
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 scripts/test-device.sh
 ```

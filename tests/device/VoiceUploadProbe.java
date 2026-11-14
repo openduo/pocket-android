@@ -1,16 +1,16 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.Context;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelClient;
+import dev.openduo.pocket.net.ChannelConnection;
 
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelClient;
-import top.kuaner.pockete2.net.ChannelConnection;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -467,7 +467,7 @@ final class VoiceUploadProbe {
     }
 
     private void beginCapturedHold() throws Exception {
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         controller.beginHold();
         await(
                 () -> controller.snapshot().holdLive && controller.snapshot().holdDurationMs >= 400,
@@ -483,7 +483,7 @@ final class VoiceUploadProbe {
         beginCapturedHold();
         File cancelled = onState(() -> (File) field("heldFile"));
         controller.releaseHold(true);
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         check(
                 !cancelled.exists()
                         && controller.snapshot().outbox.isEmpty()
@@ -494,7 +494,7 @@ final class VoiceUploadProbe {
         beginCapturedHold();
         File background = onState(() -> (File) field("heldFile"));
         controller.onForeground(false);
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         check(
                 !background.exists()
                         && controller.snapshot().outbox.isEmpty()
@@ -528,7 +528,7 @@ final class VoiceUploadProbe {
             await(
                     () ->
                             !controller.snapshot().holdRecording
-                                    && !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                    && !dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                     5000);
             check(
                     controller.snapshot().outbox.size() == 1,

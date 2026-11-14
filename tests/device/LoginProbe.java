@@ -1,15 +1,15 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.*;
 import android.graphics.*;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.pairing.QrCode;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.pairing.QrCode;
 
 /** Actual tsnet status and rendered login QR; does not authorize or change room credentials. */
 final class LoginProbe {

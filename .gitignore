@@ -13,3 +13,8 @@ private/
 *.wav
 *.packets
 *.opus
+.gradle/
+**/build/
+**/.cxx/
+.idea/
+*.iml

@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
@@ -9,15 +9,15 @@ import android.graphics.Rect;
 import android.view.View;
 import android.widget.TextView;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.AmbientInput;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.sight.SightSession;
+import dev.openduo.pocket.text.AppText;
+import dev.openduo.pocket.text.TextCatalog;
 
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.AmbientInput;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.sight.SightSession;
-import top.kuaner.pockete2.text.AppText;
-import top.kuaner.pockete2.text.TextCatalog;
+import org.json.JSONObject;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

@@ -1,14 +1,14 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
-import top.kuaner.pockete2.core.*;
+import dev.openduo.pocket.core.*;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -69,10 +69,10 @@ final class ImportUiProbe {
                     second.toPath(),
                     "second shared document".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             android.net.Uri one =
-                    top.kuaner.pockete2.app.PocketFiles.uri(
+                    dev.openduo.pocket.app.PocketFiles.uri(
                             context, first, "旅途 计划.txt", "text/plain");
             android.net.Uri two =
-                    top.kuaner.pockete2.app.PocketFiles.uri(
+                    dev.openduo.pocket.app.PocketFiles.uri(
                             context, second, "camera notes.md", "text/markdown");
             int beforeCount = controller.snapshot().chips.size();
             String beforeText = controller.draft();
@@ -85,8 +85,7 @@ final class ImportUiProbe {
             Intent delivery =
                     new Intent(Intent.ACTION_SEND_MULTIPLE)
                             .setClassName(
-                                    context.getPackageName(),
-                                    "top.kuaner.pockete2.app.MainActivity")
+                                    context.getPackageName(), "dev.openduo.pocket.app.MainActivity")
                             .setType("*/*")
                             .putExtra(Intent.EXTRA_TEXT, "  QA share one \n")
                             .putParcelableArrayListExtra(
@@ -166,7 +165,7 @@ final class ImportUiProbe {
             probe.screenshot(context, "conversation-shared-files-end-en");
             Activity before = current.get();
             probe.runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) before).navigate("settings"));
+                    () -> ((dev.openduo.pocket.app.MainActivity) before).navigate("settings"));
             probe.runOnMainSync(before::recreate);
             until = android.os.SystemClock.elapsedRealtime() + 5000;
             while (current.get() == before && android.os.SystemClock.elapsedRealtime() < until)
@@ -186,7 +185,7 @@ final class ImportUiProbe {
                     "recreating an already-presented share retains the selected settings page");
             probe.runOnMainSync(
                     () ->
-                            ((top.kuaner.pockete2.app.MainActivity) current.get())
+                            ((dev.openduo.pocket.app.MainActivity) current.get())
                                     .navigate("conversation"));
             String afterEdit = afterFirst + " typed locally\nQA appended during edit";
             probe.runOnMainSync(
@@ -211,15 +210,13 @@ final class ImportUiProbe {
             Intent textTwo =
                     new Intent(Intent.ACTION_SEND)
                             .setClassName(
-                                    context.getPackageName(),
-                                    "top.kuaner.pockete2.app.MainActivity")
+                                    context.getPackageName(), "dev.openduo.pocket.app.MainActivity")
                             .setType("text/plain")
                             .putExtra(Intent.EXTRA_TEXT, "QA share two");
             Intent textThree =
                     new Intent(Intent.ACTION_SEND)
                             .setClassName(
-                                    context.getPackageName(),
-                                    "top.kuaner.pockete2.app.MainActivity")
+                                    context.getPackageName(), "dev.openduo.pocket.app.MainActivity")
                             .setType("text/plain")
                             .putExtra(Intent.EXTRA_TEXT, "QA share three");
             probe.runOnMainSync(
@@ -241,7 +238,7 @@ final class ImportUiProbe {
             selected.addItem(new android.content.ClipData.Item(one));
             selection.setClipData(selected);
             java.lang.reflect.Method result =
-                    top.kuaner.pockete2.app.MainActivity.class.getDeclaredMethod(
+                    dev.openduo.pocket.app.MainActivity.class.getDeclaredMethod(
                             "onActivityResult", int.class, int.class, Intent.class);
             result.setAccessible(true);
             probe.runOnMainSync(
@@ -403,7 +400,7 @@ final class ImportUiProbe {
             int before = controller.snapshot().chips.size();
             probe.runOnMainSync(
                     () ->
-                            ((top.kuaner.pockete2.app.MainActivity) current.get())
+                            ((dev.openduo.pocket.app.MainActivity) current.get())
                                     .pickAttachment("*/*"));
             Thread.sleep(500);
             ImportRoute launchedPicker = (ImportRoute) externalField(current.get(), "pickerRoute");

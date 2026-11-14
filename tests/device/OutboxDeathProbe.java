@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
@@ -12,12 +12,12 @@ import android.os.SystemClock;
 import android.system.Os;
 import android.util.AtomicFile;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.core.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.core.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -117,7 +117,7 @@ final class OutboxDeathProbe {
                 record.getString("id"),
                 Message.MINE,
                 record.getLong("at"),
-                "Pocket E2 QA · Prepared transcript",
+                "DuoDuo Pocket QA · Prepared transcript",
                 "phone",
                 0,
                 Message.DELIVERED,
@@ -228,7 +228,9 @@ final class OutboxDeathProbe {
                 }
                 synced(voice, packets.toByteArray());
             }
-            synced(attachment, "Pocket E2 QA attachment bytes".getBytes(StandardCharsets.UTF_8));
+            synced(
+                    attachment,
+                    "DuoDuo Pocket QA attachment bytes".getBytes(StandardCharsets.UTF_8));
             record.put("voice_bytes", voice.length());
             record.put("attachment_bytes", attachment.length());
             record.put(
@@ -336,7 +338,7 @@ final class OutboxDeathProbe {
                                     && new String(
                                                     Files.readAllBytes(attachment.toPath()),
                                                     StandardCharsets.UTF_8)
-                                            .equals("Pocket E2 QA attachment bytes"),
+                                            .equals("DuoDuo Pocket QA attachment bytes"),
                             "rollback keeps both the complete voice file and attachment");
                     synced(discarded, Base64.getDecoder().decode(record.getString("voice")));
                     synced(cleared, Base64.getDecoder().decode(record.getString("voice")));

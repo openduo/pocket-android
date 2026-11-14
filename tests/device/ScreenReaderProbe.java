@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.UiAutomation;
 import android.content.Context;
@@ -14,12 +14,12 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.EditText;
 import android.widget.ScrollView;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.ui.components.Sheets;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.ui.components.Sheets;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -185,7 +185,7 @@ final class ScreenReaderProbe {
                             View scroll =
                                     visible(
                                             screen.getWindow().getDecorView(),
-                                            top.kuaner.pockete2.R.id.page_scroll);
+                                            dev.openduo.pocket.R.id.page_scroll);
                             if (scroll instanceof ScrollView)
                                 ((ScrollView) scroll).fullScroll(View.FOCUS_UP);
                             return null;
@@ -230,7 +230,7 @@ final class ScreenReaderProbe {
                                                     visible(
                                                                     screen.getWindow()
                                                                             .getDecorView(),
-                                                                    top.kuaner.pockete2.R.id
+                                                                    dev.openduo.pocket.R.id
                                                                             .composer)
                                                             != null),
                     5000);
@@ -240,7 +240,7 @@ final class ScreenReaderProbe {
                                 (EditText)
                                         visible(
                                                 screen.getWindow().getDecorView(),
-                                                top.kuaner.pockete2.R.id.composer);
+                                                dev.openduo.pocket.R.id.composer);
                         editor.setText("QA accessible session draft");
                         return null;
                     });

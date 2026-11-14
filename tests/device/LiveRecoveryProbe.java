@@ -1,17 +1,17 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
+
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.Message;
+import dev.openduo.pocket.core.Outbox;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.core.RoomRepository;
+import dev.openduo.pocket.net.ChannelConnection;
 
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.Message;
-import top.kuaner.pockete2.core.Outbox;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.core.RoomRepository;
-import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -352,8 +352,8 @@ final class LiveRecoveryProbe {
         check(
                 onState(
                                 () -> {
-                                    top.kuaner.pockete2.net.ChannelClient.State room =
-                                            (top.kuaner.pockete2.net.ChannelClient.State)
+                                    dev.openduo.pocket.net.ChannelClient.State room =
+                                            (dev.openduo.pocket.net.ChannelClient.State)
                                                     field("roomState");
                                     return room != null
                                             && !room.roomName.equals("Expired metadata");
@@ -368,12 +368,12 @@ final class LiveRecoveryProbe {
                 () ->
                         controller.snapshot().ambientActive
                                 && source.binary.get() > 0
-                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 7000);
         check(
                 controller.snapshot().ambientActive
                         && source.binary.get() > 0
-                        && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                        && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 "ambient recovery uses actual native capture and ordinary hello/uplink");
         controller.beginHold();
         await(() -> controller.snapshot().holdLive && source.events.contains("mute:false"), 2000);
@@ -404,15 +404,15 @@ final class LiveRecoveryProbe {
                 controller.snapshot().holdLive
                         && controller.snapshot().ambientActive
                         && onState(() -> field("capture") == heldCapture)
-                        && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                        && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 "compatibility recheck preserves the same native capture and unfinished held note");
         source.events.clear();
         int opened = source.opens.get();
         String releaseState =
                 onState(
                         () -> {
-                            top.kuaner.pockete2.core.AmbientInput input =
-                                    (top.kuaner.pockete2.core.AmbientInput) field("ambientInput");
+                            dev.openduo.pocket.core.AmbientInput input =
+                                    (dev.openduo.pocket.core.AmbientInput) field("ambientInput");
                             return "hello="
                                     + input.helloSent()
                                     + ", muted="
@@ -436,17 +436,17 @@ final class LiveRecoveryProbe {
                         + "; events="
                         + events);
         controller.releaseHold(true);
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 4000);
         check(
                 !controller.snapshot().holdRecording
-                        && !top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                        && !dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 "cancelled overlap releases native capture without creating a voice message");
 
         controller.ambientToggle();
         await(
                 () ->
                         controller.snapshot().ambientActive
-                                && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                                && dev.openduo.pocket.audio.input.RecordingInput.isActive(),
                 6000);
         controller.beginHold();
         await(() -> controller.snapshot().holdLive && source.events.contains("mute:false"), 2000);
@@ -458,11 +458,11 @@ final class LiveRecoveryProbe {
         check(
                 source.restoreEntered.await(3, TimeUnit.SECONDS),
                 "background cancellation retains a final unmute on the normal socket writer");
-        await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 3000);
+        await(() -> !dev.openduo.pocket.audio.input.RecordingInput.isActive(), 3000);
         check(
                 !controller.snapshot().ambientActive
                         && !controller.snapshot().holdRecording
-                        && !top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                        && !dev.openduo.pocket.audio.input.RecordingInput.isActive()
                         && !source.events.contains("close"),
                 "capture and the hold end promptly while socket teardown waits off the state"
                         + " owner");

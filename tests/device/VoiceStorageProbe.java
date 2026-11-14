@@ -1,7 +1,7 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.app.Activity;
 import android.content.Context;
@@ -12,14 +12,14 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.TextView;
 
-import org.json.JSONObject;
+import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.core.*;
+import dev.openduo.pocket.net.ChannelConnection;
+import dev.openduo.pocket.ui.PageHost;
+import dev.openduo.pocket.ui.Ui;
+import dev.openduo.pocket.ui.components.HoldToTalkView;
 
-import top.kuaner.pockete2.audio.input.RecordingInput;
-import top.kuaner.pockete2.core.*;
-import top.kuaner.pockete2.net.ChannelConnection;
-import top.kuaner.pockete2.ui.PageHost;
-import top.kuaner.pockete2.ui.Ui;
-import top.kuaner.pockete2.ui.components.HoldToTalkView;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.lang.reflect.Field;

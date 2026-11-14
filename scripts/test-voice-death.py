@@ -11,8 +11,8 @@ import sys
 import threading
 import time
 
-PACKAGE = 'top.kuaner.pockete2'
-RUNNER = 'top.kuaner.pockete2.qa/top.kuaner.pockete2.qa.Probe'
+PACKAGE = 'dev.openduo.pocket'
+RUNNER = 'dev.openduo.pocket.qa/dev.openduo.pocket.qa.Probe'
 serial = os.environ.get('ANDROID_SERIAL', '')
 if not serial:
     raise SystemExit('Select the E2 explicitly with ANDROID_SERIAL.')
@@ -49,7 +49,7 @@ def wait_for(condition, timeout):
 
 def stop_and_launch(label):
     before = pid()
-    require(before.isdecimal(), 'Pocket E2 is alive before ' + label)
+    require(before.isdecimal(), 'DuoDuo Pocket is alive before ' + label)
     adb('shell', 'am', 'force-stop', PACKAGE)
     require(wait_for(lambda: not pid(), 4), 'Android terminates the actual process at ' + label)
     adb('shell', 'input', 'keyevent', '224')

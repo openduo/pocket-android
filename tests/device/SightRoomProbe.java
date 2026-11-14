@@ -1,22 +1,22 @@
 // Copyright 2026 pocket-e2 contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 
-package top.kuaner.pockete2.qa;
+package dev.openduo.pocket.qa;
 
 import android.content.Context;
 import android.content.Intent;
 import android.os.SystemClock;
 
+import dev.openduo.pocket.app.MainActivity;
+import dev.openduo.pocket.audio.OpusEncoder;
+import dev.openduo.pocket.audio.input.RecordingInput;
+import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.net.ChannelConnection;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import top.kuaner.pockete2.app.MainActivity;
-import top.kuaner.pockete2.audio.OpusEncoder;
-import top.kuaner.pockete2.audio.input.RecordingInput;
-import top.kuaner.pockete2.core.Endpoint;
-import top.kuaner.pockete2.core.Json;
-import top.kuaner.pockete2.core.PocketController;
-import top.kuaner.pockete2.net.ChannelConnection;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -156,7 +156,7 @@ final class SightRoomProbe {
             owner(
                     () -> {
                         invoke("ensurePlayer");
-                        ((top.kuaner.pockete2.audio.SpeechPlayer) field("player")).silent(true);
+                        ((dev.openduo.pocket.audio.SpeechPlayer) field("player")).silent(true);
                         return null;
                     });
             await(() -> source.role.equals("master") && source.audio.get() > 0, 15_000);
@@ -208,8 +208,8 @@ final class SightRoomProbe {
             owner(
                     () -> {
                         invoke("stopPlayback");
-                        top.kuaner.pockete2.audio.SpeechPlayer player =
-                                (top.kuaner.pockete2.audio.SpeechPlayer) field("player");
+                        dev.openduo.pocket.audio.SpeechPlayer player =
+                                (dev.openduo.pocket.audio.SpeechPlayer) field("player");
                         if (player != null) player.silent(initial.ambientMuted);
                         return null;
                     });
