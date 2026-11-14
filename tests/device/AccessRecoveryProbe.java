@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 import android.os.SystemClock;
 
 import org.json.JSONArray;
@@ -104,6 +105,27 @@ final class AccessRecoveryProbe {
     private boolean online() {
         return controller.snapshot() != null
                 && controller.snapshot().connection == PocketController.Connection.ONLINE;
+    }
+
+    private boolean awake() {
+        return context.getSystemService(android.os.PowerManager.class).isInteractive();
+    }
+
+    private boolean foreground() {
+        try {
+            return onState(() -> (Boolean) field("foreground"));
+        } catch (Exception failure) {
+            throw new IllegalStateException(failure);
+        }
+    }
+
+    private void shell(String command) throws Exception {
+        try (java.io.InputStream input =
+                new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                        probe.getUiAutomation().executeShellCommand(command))) {
+            byte[] discard = new byte[256];
+            while (input.read(discard) != -1) {}
+        }
     }
 
     private boolean service() {
@@ -272,6 +294,10 @@ final class AccessRecoveryProbe {
         } finally {
             for (Exchange exchange : source.exchanges.values()) exchange.release.countDown();
             for (Exchange exchange : source.routes.values()) exchange.release.countDown();
+            // Restoration models a user returning; a background idle room should not redial itself.
+            shell("input keyevent 223");
+            await(() -> !awake() && !foreground(), 3000);
+            boolean stoppedForRestore = !awake() && !foreground();
             onState(
                     () -> {
                         invoke("finishSend");
@@ -302,7 +328,25 @@ final class AccessRecoveryProbe {
             settings.clearConnection();
             isolated.getSharedPreferences("pocket-e2.settings", 0).edit().clear().commit();
             isolated.getSharedPreferences("pocket-secrets", 0).edit().clear().commit();
+            Bundle restoration = new Bundle();
+            restoration.putString("checkpoint", "access-restore-before-wake");
+            restoration.putString("connection", controller.snapshot().connection.name());
+            restoration.putBoolean("foreground", foreground());
+            restoration.putBoolean("awake", awake());
+            probe.sendStatus(0, restoration);
+            shell("input keyevent 224");
+            shell("wm dismiss-keyguard");
+            context.startActivity(
+                    new Intent(Intent.ACTION_MAIN)
+                            .setClassName(context.getPackageName(), MainActivity.class.getName())
+                            .addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK
+                                            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
             await(this::online, 35_000);
+            PocketController.Snapshot restored = controller.snapshot();
+            check(
+                    stoppedForRestore,
+                    "access restoration begins after an actual screen-off/Activity stop");
             check(
                     online()
                             && controller.settings == originalSettings
@@ -311,8 +355,31 @@ final class AccessRecoveryProbe {
                             && controller.draft().equals(initial.draft)
                             && controller.snapshot().quote.equals(initial.quote)
                             && controller.snapshot().chips.size() == initial.chips.size()
-                            && controller.snapshot().outbox.isEmpty(),
-                    "actual pairing, Online and composer survive isolated access failures");
+                            && controller.snapshot().outbox.isEmpty()
+                            && restored.upgrade == initial.upgrade,
+                    "actual pairing, Online and composer survive isolated access failures:"
+                            + " connection="
+                            + restored.connection
+                            + ", awake="
+                            + awake()
+                            + ", foreground="
+                            + foreground()
+                            + ", settingsMatch="
+                            + (controller.settings == originalSettings)
+                            + ", unauthorized="
+                            + originalSettings.unauthorized()
+                            + ", targetMatches="
+                            + restored.importTarget.equals(initial.importTarget)
+                            + ", draftMatches="
+                            + controller.draft().equals(initial.draft)
+                            + ", quoteMatches="
+                            + restored.quote.equals(initial.quote)
+                            + ", chipCountMatches="
+                            + (restored.chips.size() == initial.chips.size())
+                            + ", outbox="
+                            + restored.outbox.size()
+                            + ", upgradeMatches="
+                            + (restored.upgrade == initial.upgrade));
             probe.runOnMainSync(screen::finish);
         }
         return "PASS "

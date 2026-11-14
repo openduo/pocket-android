@@ -16,6 +16,7 @@ pure += [source / 'net/ChannelConnection.java', source / 'trymode/TryChannel.jav
 pure += [source / 'net/RequestScope.java']
 pure += [source / 'net/RoomAccess.java']
 pure += [source / 'core/VoiceInbox.java']
+pure += [source / 'core/UpgradeNotice.java']
 pure += [source / 'sight/PreviewFrame.java']
 pure += [source / 'sight/SightRecovery.java']
 pure += [source / 'text/TextCatalog.java']

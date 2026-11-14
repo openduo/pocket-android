@@ -19,6 +19,13 @@ before the 202 and retain precedence. Only sending/accepted items accept cleaned
 failure cannot override a live result or logged row. Discard and live settlement invalidate scheduled
 retries and release the send slot. Exhausted transport errors keep voice queued and replace the old
 live socket for reconnect; a healthy socket stays open after an HTTP service failure.
+Client/channel compatibility is a separate pure `UpgradeNotice`: messages 410 `update_required`
+requires an app update, messages 404 requires a channel upgrade, and absent/old `ready.api` requires
+a channel upgrade. A compatible ready clears only the channel requirement; app update takes
+priority. The outbox gate uses that typed state instead of a translated error string, preserves
+all pending identity/body/surface and requires a fresh ready before resuming a compatible channel.
+Room/Try replacement resets the transient notice, and late retired sends/frames cannot impose it.
+See `connection.md` for the small-screen explanation/recheck flow and prepared fault acceptance.
 Each real voice dispatch requests its data-sync foreground service, including background retries.
 A denied service start retains the queued item and its surface without starting HTTP; actual
 foreground return resumes it without needing a live reconnect. See `audio.md`.

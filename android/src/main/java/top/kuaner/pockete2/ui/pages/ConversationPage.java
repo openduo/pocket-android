@@ -23,6 +23,7 @@ import top.kuaner.pockete2.core.Json;
 import top.kuaner.pockete2.core.Message;
 import top.kuaner.pockete2.core.PocketController;
 import top.kuaner.pockete2.core.TurnState;
+import top.kuaner.pockete2.core.UpgradeNotice;
 import top.kuaner.pockete2.ui.PageHost;
 import top.kuaner.pockete2.ui.ScrollAnchor;
 import top.kuaner.pockete2.ui.Ui;
@@ -52,6 +53,7 @@ public final class ConversationPage implements PocketController.Listener {
     private LinearLayout root, feed, composer, textRow, chipRow, quoteRow, holdPanel, importRow;
     private TextView title,
             subtitle,
+            upgradeNotice,
             banner,
             older,
             working,
@@ -110,6 +112,14 @@ public final class ConversationPage implements PocketController.Listener {
                 new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
         root.addView(header);
         if (readOnly) header.setVisibility(View.GONE);
+        upgradeNotice = ui.label("", 12, ui.palette.attention, true);
+        upgradeNotice.setTag("upgrade-notice");
+        upgradeNotice.setMinHeight(ui.dp(48));
+        upgradeNotice.setGravity(Gravity.CENTER_VERTICAL);
+        ui.inset(upgradeNotice, 12, 8);
+        ui.clickable(upgradeNotice, ui.palette.attentionTint, 10, this::showUpgrade);
+        upgradeNotice.setVisibility(View.GONE);
+        root.addView(upgradeNotice);
         banner = ui.label("", 12, ui.palette.attention, false);
         ui.inset(banner, 12, 8);
         banner.setBackground(ui.surface(ui.palette.attentionTint, 10));
@@ -304,6 +314,8 @@ public final class ConversationPage implements PocketController.Listener {
                 title,
                 s.roomName.isEmpty() ? "Pocket E2" : s.trying ? ui.t(s.roomName) : s.roomName);
         Ui.updateText(subtitle, ui.explain(s.status));
+        Ui.updateText(upgradeNotice, upgradeTitle(s.upgrade));
+        upgradeNotice.setVisibility(s.upgrade == UpgradeNotice.NONE ? View.GONE : View.VISIBLE);
         String notice =
                 !s.lastError.isEmpty()
                         ? ui.explain(s.lastError)
@@ -732,6 +744,42 @@ public final class ConversationPage implements PocketController.Listener {
         }
         row.setContentDescription((mine ? ui.t("我") : ui.t("回答")) + "，" + m.text + "，" + meta);
         return row;
+    }
+
+    private String upgradeTitle(UpgradeNotice notice) {
+        if (notice == UpgradeNotice.APP_UPDATE) return ui.t("Pocket E2 需要更新 · 查看说明");
+        if (notice == UpgradeNotice.CHANNEL_UPGRADE) return ui.t("主机服务需要升级 · 查看说明");
+        return "";
+    }
+
+    private void showUpgrade() {
+        PocketController.Snapshot current = controller.snapshot();
+        if (current == null || current.upgrade == UpgradeNotice.NONE) return;
+        boolean app = current.upgrade == UpgradeNotice.APP_UPDATE;
+        LinearLayout body = ui.column();
+        TextView explanation =
+                ui.label(
+                        app
+                                ? ui.t("主机服务已升级，请安装新版 Pocket E2 后重新打开。已保存的待发内容会保留。")
+                                : ui.t("请在电脑上按部署文档升级 ambient，再重新检查。待发内容会保留。"),
+                        14,
+                        ui.palette.text,
+                        false);
+        ui.inset(explanation, 8, 10);
+        body.addView(explanation);
+        android.app.Dialog[] dialog = {null};
+        ui.add(
+                body,
+                ui.button(
+                        ui.t("重新检查"),
+                        ui.palette.onAccent,
+                        ui.palette.accent,
+                        () -> {
+                            dialog[0].dismiss();
+                            controller.checkCompatibility();
+                        }),
+                8);
+        dialog[0] = Sheets.content(ui, app ? ui.t("Pocket E2 需要更新") : ui.t("主机服务需要升级"), body);
     }
 
     private void bindMenu(View view, Runnable action) {

@@ -240,6 +240,45 @@ original five-second deadline. The subsequent run passes without production or s
 changes. This identifies this run's missing wake; the earlier background failures remain separately
 unlocated. These regressions send no new real message. See `audio.md`.
 
+The next P0/P1 correction ports upstream `UpgradeNotice` as an Android-independent typed state.
+Messages 410 `update_required` identifies an app update, messages 404 identifies a channel upgrade,
+and absent/old live API identifies a channel upgrade. A compatible ready clears only the channel
+requirement; app update takes priority. Clearing ordinary errors cannot bypass the outbox gate.
+Failed and queued messages retain their original identity/body/surface; the explanation and fresh
+live recheck preserve the composer. Current-room generation checks exclude stale ready frames and
+discarded-send responses, and Try/room replacement clears transient compatibility state.
+
+The preceding APK reproduced a messages 404 without upgrade guidance. The fixed native probe
+passes **26 isolated assertions** through the real controller, SQLite, silent JNI Opus and compact
+UI, including exact text retry, retained voice bytes, unrelated 410, old/new ready, app-update
+priority, late discarded responses, Try-to-real isolation and visible 48 dp native sheet actions.
+**300 host assertions** include the pinned upstream status/API cases plus state priority and strict
+API types; architecture/localisation/build checks pass. All version and message outcomes are
+prepared inside Try. The actual service is not downgraded or made to require an update, no new
+real message is sent, and Android has no public update handoff/automatic installer. Those limits
+remain explicit; see `connection.md` for the exact state rules and reproduction command.
+An added E2 capture probe then reproduced the new recheck omitting old-socket microphone restoration
+during an ambient/hold overlap. Recheck now uses the existing bounded final-control path before
+close, and the native run passes **31 live-recovery assertions**, including restore-before-close,
+fresh held-note mute and retention of the same actual capture object/unfinished note. The **26
+upgrade assertions** also pass on this correction. Wire/version outcomes remain prepared in Try;
+neither run uploads surrounding speech to the real service or accepts natural acoustics.
+The final APK then passed **338 complete capture/camera/import/paired-try assertions**, including
+the two new native recheck-overlap checks. Keyboard and 1.35-font compact screenshots were inspected.
+The separate upgrade probe is not included in the complete-suite count. The earlier complete run
+passed 336 before adding/correcting that new microphone recheck boundary; the final result covers
+the corrected production path.
+The expanded access regression passes **78 native assertions**, and **eight actual-room read-only
+HTTP assertions** pass on the same production APK. The first post-suite access run reached its last
+fixture checkpoint but failed the combined real-room restore assertion while the display was
+Asleep after the existing 60-second timeout. It lacked component diagnostics. The harness now
+explicitly exercises actual screen-off, reports Offline/background/asleep before return and
+wakes/unlocks/reopens before its original 35-second Online wait. Its restored settings, pairing,
+draft, quote, chip count, empty outbox and unchanged compatibility state pass; failure assertions
+cannot prevent those settings from being restored. This corrects the test's return flow without
+changing production code or system settings, and does not retroactively identify every failed
+term in the first combined assertion. No actual node logout/revocation or real message occurs.
+
 Earlier standalone-policy evidence at the 2026-11-14 checkpoint: **213 host contract assertions, Go vet/test, Android APK
 build and 283 real E2 device assertions passed**. The complete capture/camera/import/paired-try run
 used the standalone-policy APK and verifies no Passport activity or BLE thread. An earlier full
@@ -388,6 +427,7 @@ of the rows below is a claim of complete parity.
 | Upstream area | Android owner and current implementation | Remaining parity / acceptance work |
 | --- | --- | --- |
 | Tailscale / pairing | `GoTransport`, `Endpoint`, `SecretStore`, editable pasted/opened/shared links, local QR decode and scan sheet; native login QR/link/status sheet for devices without browsers, explicit interactive login/refresh preserving pending auth; actual node URL decoded from the visible E2 sheet in a dedicated two-assertion login run; real user authorization and link-to-pair succeeded; node login/approval pauses and generation-fenced explicit logout; shared `RoomAccess` credential generation across HTTP/outbox/speech, exact authenticated unauthorized classification, native cancellation and late-result guards; prepared native caller-by-caller rejection and durable recovery acceptance | Actual logout/relogin and revoke/re-pair, browser handoff on a browser-equipped device, actual displayed pairing QR into a room and cross-network handover acceptance. Physical Wi-Fi loss/restoration is separately accepted; Passport BLE-wake acceptance is deferred. See `connection.md` |
+| Client API compatibility | Pure `UpgradeNotice` matching upstream messages 410/404 and live-ready version rules; app-update priority, typed outbox gate independent of dismissible errors, retained id/body/surface and fresh-ready recheck; bounded compact explanation sheet with native 48 dp targets; prepared native failure/retry and Try isolation acceptance | Actual-service forced version rejection and external Android update handoff remain unaccepted. No public Android update URL/automatic installer; APK installation is manual. See `connection.md` |
 | Live/cache/outbox | API v2 `/live`, SQLite cursor transaction, replay, stable ids, persisted retry surface/draft/chips, generation guards; common retirement for reader/writer/queue/HTTP transport failure; upstream redial delays and foreground/press reset; default-network path monitoring with tsnet rebind and live ping; still-open/stale-callback/queue-saturation and actual retry-deadline fault acceptance; live-first bounded dialing/ping independent of HTTP, cancelled retired handshakes, foreground rebind/idle cleanup, generation-scoped metadata and protected retry deadlines; separate bounded sender with pre-registered cancellable native requests, one readiness/HTTP deadline and actual-room read-only JNI acceptance; after-row `brain_unreachable` resend preserves the failed logged row; real history/text/reply, physical Wi-Fi loss/restoration and actual background/return accepted; path-only cleanup receipts commit with outbox removal and recover failed deletion, discard and clear on ordinary startup; actual pre-commit rollback and post-commit cleanup across force-stop/cold launch with prepared rows; explicit answer ids survive attachment/renamed identities and SQLite reopen, shared live/history/catch-up settlement, cached two-day ready settlement, provisional/log reconciliation and generation-owned history loading with prepared native replay/failure acceptance | Different-Wi-Fi/cellular handover and long-term standby/path/energy acceptance; process death during real server admission/replay and upload; natural speech and low-storage/power-loss recovery; low-memory termination and remaining historical/unsequenced identity cases. Lost ids in older attachment/renamed cache rows need replay. Earlier intermittent timing and cold-start triggers were not retroactively diagnosed. See `storage.md` and `history.md` |
 | Thread and tools | Keyed bubbles, day/time separators, heard fold and speaker labels, spoken/partly-spoken metadata, live room notes, Markdown, copy/share/reply/read, tool archive and jump-to-latest; completed traces follow explicit ids/text onto attachment or renamed log rows, prepared native final/log ordering and same-text/different-turn checks | Full accessibility and more pages/font sizes; actual-service live/log interruptions and remaining tool identity edge cases |
 | Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, keyboard/accessibility start/send and named cancel with permission-generation guards, actual 48 dp primary controls, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal; real file upload/download/local removal accepted; interrupted uploads retain retryable chips/originals, stale credential callbacks cannot replace them, and local/cached files remain readable offline | Real upload limit/error/progress and retry acceptance; full clipboard lifecycle; more dense composer/font/keyboard combinations |

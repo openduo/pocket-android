@@ -185,6 +185,25 @@ explicitly exercises screen-off, then wakes/unlocks before the actual return and
 focus within the original deadline. It passes without changing production code or device settings;
 this does not retroactively diagnose earlier background-test failures. See [audio.md](docs/audio.md).
 
+Client API incompatibility now distinguishes **Update Pocket E2** from **Upgrade home service**,
+following the upstream messages 410/404 and live-ready rules. A separate small-screen explanation
+retains its 48 dp button target; recheck reads a fresh live ready. Pending messages and captured
+voice bytes stay retained, a transient notice cannot bypass compatibility, and Try cannot block
+the paired room. **300 host assertions** and **26 isolated upgrade assertions** pass. Version
+faults use prepared Try responses; the actual service is not downgraded and no public Android
+update installer is provided. See [connection.md](docs/connection.md).
+The capture-enabled **31-assertion live-recovery** run also checks recheck during an ambient/hold
+overlap: the old room microphone is restored before close, the replacement receives its current
+mute state, and the same native capture continues. This uses prepared Try wire outcomes.
+The same final APK passed **338 complete capture/camera/import/paired-try assertions**, including
+those two added microphone recheck checks. Actual keyboard and 1.35-font compact screenshots were
+inspected; the separate 26-assertion upgrade run is not included in that complete-suite count.
+The expanded final access run passes **78 assertions**, with an actual screen-off/wake return and
+retained real room/composer/compatibility state. **Eight actual-room scoped GET assertions** pass
+without sending a message. Its first restoration check ran after automatic screen-off; diagnostics
+and an explicit user-return flow now keep that case distinct from a connection failure. The
+original combined failure lacked component diagnostics; see [connection.md](docs/connection.md).
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
@@ -270,6 +289,8 @@ POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 scripts/test-device.
 POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
 # Isolated real hold/SQLite admission failure and compact failed-note controls:
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_STORAGE_ONLY=1 scripts/test-device.sh
+# Isolated client/channel upgrade classification, retained outbox and compact explanation sheet:
+POCKET_E2_TEST_UPGRADE_ONLY=1 scripts/test-device.sh
 # Explicitly force-stop during real held capture and voice commit/acknowledgment:
 ANDROID_SERIAL=YOUR_E2_SERIAL POCKET_E2_TEST_VOICE_DEATH=1 scripts/test-device.sh
 ```

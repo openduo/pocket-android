@@ -77,6 +77,7 @@ public final class PocketController {
 
     public static final class Snapshot {
         public final Connection connection;
+        public final UpgradeNotice upgrade;
         public final Ambient ambient;
         public final List<Message> rows;
         public final List<Outbox.Item> outbox;
@@ -130,6 +131,7 @@ public final class PocketController {
 
         Snapshot(PocketController c) {
             connection = c.connection;
+            upgrade = c.upgrade;
             ambient = c.ambient;
             ambientError = c.ambientFailure;
             ambientLinkPaused = c.ambientLinkPaused;
@@ -271,6 +273,7 @@ public final class PocketController {
     private List<Outbox.Item> pending = new ArrayList<>();
     private volatile Snapshot snapshot;
     private Connection connection = Connection.NEEDS_SETUP;
+    private UpgradeNotice upgrade = UpgradeNotice.NONE;
     private Ambient ambient = Ambient.OFF;
     private String lastError = "",
             draft = "",
@@ -602,6 +605,17 @@ public final class PocketController {
                         transport.rebind();
                         startNetwork();
                     }
+                });
+    }
+
+    /** Re-read compatibility from a fresh live ready without changing saved pairing or outbox. */
+    public void checkCompatibility() {
+        state.execute(
+                () -> {
+                    if (!accessAllowed()) return;
+                    resetRedial("compatibility_recheck");
+                    reconnect(ambientInput.releaseMicrophone());
+                    publish();
                 });
     }
 
@@ -1324,8 +1338,8 @@ public final class PocketController {
                 if (PassportPolicy.ENABLED && !trying) passport.online(true);
                 opening = false;
                 resetRedial("ready");
-                lastError =
-                        frame.optInt("api", 0) < 2 ? "家里的 ambient 需要升级（API v2）" : ambientFailure;
+                upgrade = upgrade.afterReady(frame);
+                lastError = ambientFailure;
                 repo.admit(Collections.<Message>emptyList(), frame.optLong("seq"));
                 turn.restore(frame.optJSONObject("turn"));
                 if (turn.working() != null && !turn.working().messages.isEmpty())
@@ -1698,7 +1712,7 @@ public final class PocketController {
                 || pairingActive
                 || connection != Connection.ONLINE
                 || !trying && (settings.unauthorized() || tailnetNeedsLogin())
-                || !lastError.isEmpty() && lastError.contains("API")) return;
+                || upgrade != UpgradeNotice.NONE) return;
         Outbox.Item next = null;
         for (Outbox.Item item : repo.pending())
             if (item.state == Message.QUEUED) {
@@ -1915,6 +1929,8 @@ public final class PocketController {
             return;
         }
         finishSend();
+        if (error != null && !error.transport)
+            upgrade = upgrade.afterResponse(error.status, error.reason);
         if (error == null) {
             messageAccepted(current);
             log.event("send", "accepted " + (current.voice ? "voice" : "text"));
@@ -3550,6 +3566,7 @@ public final class PocketController {
     }
 
     private void resetRoomTransient() {
+        upgrade = UpgradeNotice.NONE;
         resetRedial("room_reset");
         ambientLinkPaused = false;
         ambientFailure = "";

@@ -380,6 +380,32 @@ final class LiveRecoveryProbe {
         check(
                 controller.snapshot().holdLive && source.events.contains("mute:false"),
                 "holding a native note actually turns the room microphone switch off");
+        Object heldCapture = onState(() -> field("capture"));
+        int compatibilityOpened = source.opens.get();
+        source.events.clear();
+        controller.checkCompatibility();
+        await(
+                () ->
+                        source.opens.get() > compatibilityOpened
+                                && online()
+                                && source.events.contains("mute:false"),
+                5000);
+        List<String> compatibilityEvents = new java.util.ArrayList<>(source.events);
+        int restored = compatibilityEvents.indexOf("mute:true");
+        int retired = compatibilityEvents.indexOf("close");
+        check(
+                restored >= 0
+                        && retired > restored
+                        && compatibilityEvents.lastIndexOf("mute:false") > retired,
+                "compatibility recheck restores the old room microphone before close and restates"
+                        + " the held-note mute on its replacement: "
+                        + compatibilityEvents);
+        check(
+                controller.snapshot().holdLive
+                        && controller.snapshot().ambientActive
+                        && onState(() -> field("capture") == heldCapture)
+                        && top.kuaner.pockete2.audio.input.RecordingInput.isActive(),
+                "compatibility recheck preserves the same native capture and unfinished held note");
         source.events.clear();
         int opened = source.opens.get();
         String releaseState =

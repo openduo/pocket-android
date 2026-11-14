@@ -86,6 +86,7 @@ probe_args=(
   -e roomOnly "${POCKET_E2_TEST_ROOM_ONLY:-0}"
   -e voiceOnly "${POCKET_E2_TEST_VOICE_ONLY:-0}"
   -e voiceStorageOnly "${POCKET_E2_TEST_VOICE_STORAGE_ONLY:-0}"
+  -e upgradeOnly "${POCKET_E2_TEST_UPGRADE_ONLY:-0}"
   -e backgroundVoiceOnly "${POCKET_E2_TEST_BACKGROUND_VOICE_ONLY:-0}"
   -e historyOnly "${POCKET_E2_TEST_HISTORY_ONLY:-0}"
   -e audioBurstOnly "${POCKET_E2_TEST_AUDIO_BURST_ONLY:-0}"

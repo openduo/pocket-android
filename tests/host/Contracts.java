@@ -845,6 +845,7 @@ public final class Contracts {
         checked += RequestScopeContracts.run();
         checked += RoomAccessContracts.run();
         checked += VoiceInboxContracts.run();
+        checked += UpgradeNoticeContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

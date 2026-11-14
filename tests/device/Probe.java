@@ -110,43 +110,12 @@ public final class Probe extends Instrumentation {
                             || "1".equals(arguments.getString("audioBurstOnly"))
                             || "1".equals(arguments.getString("accessibilityOnly"))
                             || "1".equals(arguments.getString("voiceStorageOnly"))
+                            || "1".equals(arguments.getString("upgradeOnly"))
                             || "1".equals(arguments.getString("locationOnly"))
                             || "1".equals(arguments.getString("sightOnly"))
                             || "1".equals(arguments.getString("arrivalOnly")))) {
                 isolatedRoom(context);
-                report.putString(
-                        "result",
-                        "PASS "
-                                + assertions
-                                + ("1".equals(arguments.getString("locationOnly"))
-                                        ? " location UI assertions"
-                                        : "1".equals(arguments.getString("audioBurstOnly"))
-                                                ? " native audio burst measurement"
-                                                : "1"
-                                                                .equals(
-                                                                        arguments.getString(
-                                                                                "voiceStorageOnly"))
-                                                        ? " voice storage assertions"
-                                                        : "1"
-                                                                        .equals(
-                                                                                arguments.getString(
-                                                                                        "accessibilityOnly"))
-                                                                ? " accessibility assertions"
-                                                                : "1"
-                                                                                .equals(
-                                                                                        arguments
-                                                                                                .getString(
-                                                                                                        "sightOnly"))
-                                                                        ? " Sight assertions"
-                                                                        : "1"
-                                                                                        .equals(
-                                                                                                arguments
-                                                                                                        .getString(
-                                                                                                                "arrivalOnly"))
-                                                                                ? " arrival"
-                                                                                      + " assertions"
-                                                                                : " voice upload"
-                                                                                      + " assertions"));
+                report.putString("result", "PASS " + assertions + " " + isolatedResultLabel());
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -209,6 +178,20 @@ public final class Probe extends Instrumentation {
         }
     }
 
+    private String isolatedResultLabel() {
+        for (String[] option :
+                new String[][] {
+                    {"upgradeOnly", "upgrade compatibility assertions"},
+                    {"locationOnly", "location UI assertions"},
+                    {"audioBurstOnly", "native audio burst measurement"},
+                    {"voiceStorageOnly", "voice storage assertions"},
+                    {"accessibilityOnly", "accessibility assertions"},
+                    {"sightOnly", "Sight assertions"},
+                    {"arrivalOnly", "arrival assertions"}
+                }) if ("1".equals(arguments.getString(option[0]))) return option[1];
+        return "voice upload assertions";
+    }
+
     private void isolatedRoom(Context context) throws Exception {
         Activity screen =
                 startActivitySync(
@@ -246,6 +229,8 @@ public final class Probe extends Instrumentation {
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if ("1".equals(arguments.getString("audioBurstOnly"))) {
                 assertions += new AudioBurstProbe(this, controller).run(context);
+            } else if ("1".equals(arguments.getString("upgradeOnly"))) {
+                assertions += new UpgradeProbe(this, controller).run(context, screen);
             } else if ("1".equals(arguments.getString("voiceStorageOnly"))) {
                 assertions += new VoiceStorageProbe(this, controller).run(context, screen);
             } else if ("1".equals(arguments.getString("accessibilityOnly"))) {
@@ -277,6 +262,11 @@ public final class Probe extends Instrumentation {
                     controller.snapshot().importTarget.equals(target)
                             && controller.draft().equals(draft),
                     "isolated-room probe restores the actual room and composer");
+            if ("1".equals(arguments.getString("upgradeOnly")))
+                check(
+                        controller.snapshot().upgrade == UpgradeNotice.NONE,
+                        "a disposable room's upgrade requirement cannot block the actual paired"
+                                + " room");
         }
     }
 

@@ -27,6 +27,7 @@ sources+=("$project_dir/tests/host/RedialContracts.java")
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/net/RequestScope.java" "$project_dir/tests/host/RequestScopeContracts.java")
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/net/RoomAccess.java" "$project_dir/tests/host/RoomAccessContracts.java")
 sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/core/VoiceInbox.java" "$project_dir/tests/host/VoiceInboxContracts.java")
+sources+=("$project_dir/android/src/main/java/top/kuaner/pockete2/core/UpgradeNotice.java" "$project_dir/tests/host/UpgradeNoticeContracts.java")
 zxing="$project_dir/android/libs/zxing-core-3.5.3.jar"
 javac -encoding UTF-8 --release 8 -classpath "$json:$android_jar:$zxing" -d "$build/classes" "${sources[@]}"
 java -ea -Dpocket.e2.root="$project_dir" -classpath "$json:$build/classes:$android_jar:$zxing" Contracts

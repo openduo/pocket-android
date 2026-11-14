@@ -195,3 +195,75 @@ were retained without a new chat message or session notification. The static che
 414 explicit UI uses and 603 catalog entries; compact keyboard and 1.35-font screenshots were
 inspected. Natural acoustic recognition, audible playback, actual credential revocation and
 long-term standby remain unaccepted.
+
+## Client and channel upgrades
+
+`UpgradeNotice` ports the pinned upstream `PocketCore/UpgradeNotice.swift` rules into an
+Android-independent model. A messages response of **410 `update_required`** requires an app update;
+a **404** on that same route requires a channel upgrade. Other 410/401/403/service responses do
+not imply an upgrade, and errors from unrelated HTTP routes do not enter this classification.
+A live `ready` without an integer API major at least 2 requires a channel upgrade. Future compatible
+majors are accepted. A later compatible `ready` clears a channel notice; an app-update requirement
+outranks later channel notices and remains for the current room/process. Room/Try replacement
+clears that transient compatibility state.
+
+The controller exposes compatibility separately from connection/authentication and ordinary
+dismissible errors. Clearing a toast, publishing a storage error or returning to foreground cannot
+bypass it. The outbox's existing old-API pause now uses this typed state and also pauses successors
+after a messages 404/410. Failed items and queued successors retain their bytes, id and original
+surface. Once a channel recheck succeeds, queued successors resume and failed items remain available
+for explicit retry. An app-update requirement cannot be dismissed by reconnecting the same APK.
+This protects pending content; it neither clears pairing nor claims an app has actually been updated.
+
+Conversation and expanded ambient transcript expose a separate, filled 48 dp explanation control.
+It opens a bounded bottom sheet identifying which side needs updating and explaining that saved
+pending content is retained. **Recheck** requests a fresh live generation, rather than merely
+clearing the error while keeping the old socket. Pocket E2 currently distributes an APK locally;
+there is no public Android update URL or automatic installer. The app-update sheet gives manual
+installation guidance instead of opening the upstream iOS destination.
+
+The preceding APK reproduced a messages 404 showing only a generic failed bubble. The isolated
+upgrade probe uses the production controller, SQLite, silent native Opus fixture and compact UI,
+with all messages and version responses confined to Try. The final evidence is recorded in
+`migration.md`; the explicit reproduction command is:
+
+```sh
+POCKET_E2_TEST_UPGRADE_ONLY=1 scripts/test-device.sh
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_LIVE_ONLY=1 scripts/test-device.sh
+```
+
+The final upgrade run passes **26 native assertions**: text 404 and exact same-key/body/surface
+retry, unrelated 410, voice 410 with retained silent Opus, old/future-ready versions, app-update
+priority, no dispatch through clear-notice, retired ready/discarded-response exclusion, real-room
+restoration and fully visible 48 dp native explanation/recheck actions. **300 host assertions**
+include the pinned upstream status/API vectors and priority/type boundaries. Normal-size compact
+screenshots of the filled warning and app-update sheet were inspected. The probe runs separately
+from the complete regression.
+
+An added native overlap check reproduced recheck closing the socket while the room microphone
+was still off: its prepared wire observations were `close` then `mute:false`, without an old-socket
+restoration. Recheck now freezes `AmbientInput.releaseMicrophone()` before resetting the edge and
+uses the existing bounded asynchronous close path. The final capture-enabled live run passes
+**31 assertions**. It observes `mute:true` before the old socket closes, a fresh `mute:false` on
+the replacement, and the identical native capture object plus active held recording throughout.
+The rest of its write-pressure, slow-metadata, stale-callback and ambient-exit checks still pass.
+This is actual E2 capture with prepared Try transport; it does not establish a physical outage,
+actual service microphone control or natural acoustic recognition during an upgrade.
+The same final APK passed **338 complete capture/camera/import/paired-try assertions**, including
+both overlap checks. Actual compact keyboard and 1.35-font screenshots were inspected. The isolated
+26-assertion upgrade probe is separate from that complete count.
+
+The post-suite access run first reached all prepared rejection/cancellation checkpoints, then
+failed its combined actual-room restoration assertion while Android power state was Asleep;
+system logs show the existing 60-second screen timeout. That assertion lacked per-component
+diagnostics, so the exact earlier failed term is not retroactively established. The access harness
+now deliberately stops the actual display/Activity before restoration, reports connection/foreground
+state without private identifiers, and wakes/unlocks/reopens before the original 35-second Online
+wait. It observes Offline/background/asleep before that return and passes **78 access assertions**,
+including preserved real pairing, composer, queue and compatibility state. Failure checks run after
+restoring real settings rather than preventing cleanup. No product or system setting changed for
+this harness correction. **Eight actual-room scoped GET assertions** also pass on the final APK;
+that run observed health at 42 ms and sends no chat message or notification.
+
+This does not downgrade or reject the actual service, revoke real credentials, install a replacement
+APK or establish an external update handoff. Those remain separate acceptance boundaries.
