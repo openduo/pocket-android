@@ -41,4 +41,6 @@ in-place APK updates and the paired try/UI suite's app restarts. A final applica
 returned to **Online** with the verified reply retained. This is real room history/send/reply evidence; it does not establish voice,
 attachments, session scopes or background recovery. Revocation/re-pairing, scan-to-pair and browser
 handoff on a browser-equipped Android device still need separate acceptance. Actual authorization
-URLs, pairing links, room identities and conversation captures remain local ignored artifacts.
+URLs, pairing links, room identities and conversation captures remain local ignored artifacts. The
+live client now monitors Android's default path and probes stale sockets; physical path switching
+and Passport BLE-wake ping acceptance remain separate hardware/network checks.
