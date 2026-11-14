@@ -34,6 +34,7 @@ import java.util.Map;
 public final class MainActivity extends Activity implements PageHost, PocketController.Listener {
     private static final int PERMISSION = 12;
     private Ui ui;
+    private top.kuaner.pockete2.ui.PageStates pageStates;
     private PocketController controller;
     private LinearLayout shell, navSlot;
     private FrameLayout pages;
@@ -71,6 +72,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         if (retained instanceof top.kuaner.pockete2.ui.pages.SessionsPage.State)
             sessionsState = (top.kuaner.pockete2.ui.pages.SessionsPage.State) retained;
         ui = new Ui(this);
+        pageStates =
+                new top.kuaner.pockete2.ui.PageStates(
+                        saved == null ? null : saved.getBundle("uiPages"));
         ui.immersive();
         controller = PocketController.get(this);
         page =
@@ -250,8 +254,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                     break;
             }
             selected = ui.adaptivePage(pageView);
+            selected.setSaveFromParentEnabled(false);
             views.put(page, selected);
             pages.addView(selected, new FrameLayout.LayoutParams(-1, -1));
+            pageStates.restore(page, selected);
         }
         for (Map.Entry<String, View> entry : views.entrySet())
             entry.getValue().setVisibility(entry.getKey().equals(page) ? View.VISIBLE : View.GONE);
@@ -263,7 +269,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         navSlot.setVisibility(navigation && !keyboardVisible ? View.VISIBLE : View.GONE);
         if (navigation)
             navSlot.addView(
-                    new BottomNav(ui, this::navigate).render(page),
+                    ui.adaptiveWidth(new BottomNav(ui, this::navigate).render(page)),
                     new LinearLayout.LayoutParams(-1, -2));
         ui.immersive();
     }
@@ -331,6 +337,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     protected void onSaveInstanceState(Bundle saved) {
+        for (Map.Entry<String, View> entry : views.entrySet())
+            pageStates.capture(entry.getKey(), entry.getValue());
+        saved.putBundle("uiPages", pageStates.save());
         saved.putString("page", page);
         inputs.save(saved);
         saved.putString("deliveryId", deliveryId);

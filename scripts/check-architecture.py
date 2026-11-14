@@ -20,6 +20,7 @@ pure += [source / 'core/UpgradeNotice.java']
 pure += [source / 'sight/PreviewFrame.java']
 pure += [source / 'sight/SightRecovery.java']
 pure += [source / 'text/TextCatalog.java']
+pure += [source / 'ui/AdaptiveMetrics.java']
 pure += [source / 'core/DraftText.java', source / 'core/ImportBatch.java', source / 'core/ImportInbox.java', source / 'core/ImportRoute.java', source / 'core/ImportProgress.java', source / 'core/ImportRequest.java']
 for file in pure:
     if re.search(r'^import android\.', file.read_text(), re.M):
@@ -27,6 +28,15 @@ for file in pure:
 for file in (source / 'ui').rglob('*.java'):
     if re.search(r'^import (?:tsbridge\.|top\.kuaner\.pockete2\.(?:net\.|audio\.input\.|audio\.Opus)|android\.database\.)', file.read_text(), re.M):
         errors.append(f'{file.relative_to(root)} crosses the UI boundary')
+for name in ('AdaptiveMetrics', 'AdaptivePage', 'AdaptiveColumn', 'InsetsFrame', 'PageStates',
+             'ViewportNavigation'):
+    file = source / 'ui' / (name + '.java')
+    if re.search(r'^import top\.kuaner\.pockete2\.(?:core|net|audio|sight)\.', file.read_text(), re.M):
+        errors.append(f'{file.relative_to(root)} imports business/protocol state in the UI policy')
+controller = (source / 'core/PocketController.java').read_text()
+if re.search(r'^import top\.kuaner\.pockete2\.ui\.|\b(?:screenWidthDp|screenHeightDp|widthPixels|heightPixels)\b',
+             controller, re.M):
+    errors.append('PocketController depends on UI/window geometry')
 # Window geometry belongs to the UI policy and inset adapters. Pages/components must not turn a
 # physical display measurement into business or layout decisions themselves.
 for file in (source / 'ui').rglob('*.java'):

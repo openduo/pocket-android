@@ -51,6 +51,7 @@ public final class PairingPage implements PocketController.Listener {
                         false),
                 0);
         link = field(body, ui.t("配对链接"), "");
+        link.setId(top.kuaner.pockete2.R.id.pair_link);
         ui.add(
                 body,
                 ui.button(
@@ -77,11 +78,14 @@ public final class PairingPage implements PocketController.Listener {
                         () -> parseLink(link.getText().toString())),
                 6);
         address = field(body, ui.t("主机地址"), controller.settings.host());
+        address.setId(top.kuaner.pockete2.R.id.pair_host);
         LinearLayout advanced = ui.row();
         port = ui.input(ui.t("端口"), String.valueOf(controller.settings.port()), false);
+        port.setId(top.kuaner.pockete2.R.id.pair_port);
         port.setInputType(InputType.TYPE_CLASS_NUMBER);
         advanced.addView(port, new LinearLayout.LayoutParams(0, -2, 1));
         tls = new Switch(ui.context);
+        tls.setId(top.kuaner.pockete2.R.id.pair_tls);
         tls.setText("HTTPS");
         tls.setTextColor(ui.palette.text);
         tls.setChecked(controller.settings.tls());
@@ -89,11 +93,11 @@ public final class PairingPage implements PocketController.Listener {
         advanced.addView(tls, new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
         ui.add(body, advanced, 8);
         code = field(body, ui.t("配对码"), "");
+        code.setId(top.kuaner.pockete2.R.id.pair_code);
         code.setInputType(
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
         error = ui.label(ui.t("配对需要先登录同一个 Tailscale 网络。"), 12, ui.palette.secondary, false);
         ui.add(body, error, 12);
-        root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = ui.column();
         ui.inset(actions, ui.pagePaddingDp(), 8);
         commit = ui.button(ui.t("配对并连接"), ui.palette.onAccent, ui.palette.accent, this::pair);
@@ -102,7 +106,10 @@ public final class PairingPage implements PocketController.Listener {
                 actions,
                 ui.button(ui.t("登录 Tailscale"), ui.palette.secondary, 0, host::loginTailnet),
                 4);
-        root.addView(actions);
+        body.addView(actions);
+        View form = ui.scroll(body);
+        form.setId(top.kuaner.pockete2.R.id.page_scroll);
+        root.addView(form, new LinearLayout.LayoutParams(-1, 0, 1));
         controller.addListener(this);
         return root;
     }

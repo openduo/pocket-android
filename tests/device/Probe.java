@@ -41,6 +41,31 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("locationServiceOnly"))) {
+                report.putString("result", new LocationServiceProbe().run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("switchOnly"))) {
+                report.putString("result", new SwitchUiProbe(this).run(context, arguments));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("screenReaderOnly"))) {
+                report.putString("result", new ScreenReaderProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("windowOnly"))) {
+                report.putString("result", new WindowUiProbe(this).run(context, arguments));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("uiOnly"))) {
+                report.putString("result", new AdaptiveUiProbe(this).run(context, arguments));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("interruptionOnly"))) {
                 check(
                         "1".equals(arguments.getString("capture")),

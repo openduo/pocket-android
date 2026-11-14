@@ -48,7 +48,9 @@ public final class SettingsPage implements PocketController.Listener {
         root.addView(heading);
         LinearLayout body = ui.column();
         body.setPadding(ui.pagePadding(), 0, ui.pagePadding(), ui.dp(24));
-        root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
+        View content = ui.scroll(body);
+        content.setId(top.kuaner.pockete2.R.id.page_scroll);
+        root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
         Settings pref = controller.settings;
         section(body, ui.t("连接"));
         connection = row(body, "link", ui.t("房间与主机"), ui.t("尚未配对"), () -> host.navigate("pairing"));
@@ -352,6 +354,22 @@ public final class SettingsPage implements PocketController.Listener {
         control.setContentDescription(title);
         control.setMinimumHeight(ui.touchTarget());
         control.setOnCheckedChangeListener((b, checked) -> action.accept(checked));
+        labels.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        control.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.setContentDescription(title + ", " + detail);
+        row.setFocusable(true);
+        row.setAccessibilityDelegate(
+                new View.AccessibilityDelegate() {
+                    @Override
+                    public void onInitializeAccessibilityNodeInfo(
+                            View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                        super.onInitializeAccessibilityNodeInfo(host, info);
+                        info.setClassName(Switch.class.getName());
+                        info.setCheckable(true);
+                        info.setChecked(control.isChecked());
+                        info.setEnabled(control.isEnabled());
+                    }
+                });
         row.addView(control);
         row.setOnClickListener(
                 v -> {

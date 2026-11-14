@@ -78,7 +78,8 @@ public final class SessionsPage implements PocketController.Listener {
 
     public View render() {
         if (root != null) return root;
-        root = ui.column();
+        top.kuaner.pockete2.ui.AdaptiveColumn adaptive = ui.adaptiveColumn();
+        root = adaptive;
         LinearLayout bar = ui.row();
         bar.addView(
                 ui.iconButton(
@@ -101,6 +102,7 @@ public final class SessionsPage implements PocketController.Listener {
                         ui.palette.secondary,
                         () -> controller.showSessions(true)));
         root.addView(bar);
+        adaptive.chrome(bar);
         roomReturn = ui.row();
         ui.inset(roomReturn, 12, 6);
         roomReturn.setMinimumHeight(ui.rowHeight());
@@ -117,6 +119,7 @@ public final class SessionsPage implements PocketController.Listener {
         content = ui.column();
         ui.inset(content, ui.pagePaddingDp(), 10);
         ScrollView scroll = ui.scroll(content);
+        scroll.setId(top.kuaner.pockete2.R.id.page_scroll);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         anchor = new ScrollAnchor(scroll);
         result = ui.label("", 12, ui.palette.attention, false);
@@ -129,7 +132,10 @@ public final class SessionsPage implements PocketController.Listener {
         ui.add(notify, ui.label(ui.t("多多会在那个会话里处理这条通知"), 11, ui.palette.subtle, false), 4);
         LinearLayout notifyRow = ui.row();
         input = ui.input(ui.t("要告诉它什么"), "", true);
+        input.setId(top.kuaner.pockete2.R.id.composer);
+        input.setSaveEnabled(false);
         input.setMaxLines(3);
+        adaptive.editor(input, 3);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.addTextChangedListener(
                 new TextWatcher() {
@@ -154,7 +160,7 @@ public final class SessionsPage implements PocketController.Listener {
                 sendNotify,
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         ui.add(notify, notifyRow, 6);
-        root.addView(notify);
+        root.addView(ui.scrollFooter(notify));
         controller.addListener(this);
         changed();
         return root;

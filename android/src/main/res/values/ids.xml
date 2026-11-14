@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 pocket-e2 contributors; SPDX-License-Identifier: FSL-1.1-Apache-2.0 -->
+<resources>
+    <item type="id" name="page_scroll" />
+    <item type="id" name="composer" />
+    <item type="id" name="pair_link" />
+    <item type="id" name="pair_host" />
+    <item type="id" name="pair_port" />
+    <item type="id" name="pair_code" />
+    <item type="id" name="pair_tls" />
+    <item type="id" name="place_query" />
+    <item type="id" name="viewport_zoom_in" />
+    <item type="id" name="viewport_zoom_out" />
+</resources>

@@ -67,9 +67,11 @@ public final class LocationPage implements AutoCloseable {
         bar.addView(ui.iconButton("chevron_left", ui.t("返回"), ui.palette.secondary, host::back));
         bar.addView(ui.label(ui.t("选择位置"), 18, ui.palette.text, true));
         root.addView(bar);
+        LinearLayout body = ui.column();
         LinearLayout search = ui.row();
         ui.inset(search, 10, 6);
         query = ui.input(ui.t("搜索地点或输入 纬度, 经度"), "", false);
+        query.setId(top.kuaner.pockete2.R.id.place_query);
         query.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         query.setOnEditorActionListener(
                 (v, id, event) -> {
@@ -78,7 +80,7 @@ public final class LocationPage implements AutoCloseable {
                 });
         search.addView(query, new LinearLayout.LayoutParams(0, -2, 1));
         search.addView(ui.iconButton("search", ui.t("搜索"), ui.palette.accent, this::search));
-        root.addView(search);
+        body.addView(search);
         map =
                 new TileMapView(
                         ui.context,
@@ -86,18 +88,18 @@ public final class LocationPage implements AutoCloseable {
                             approximate = false;
                             pin(lat, lon, ui.t("地图中心"), "");
                         });
-        root.addView(map, new LinearLayout.LayoutParams(-1, 0, 1));
+        body.addView(map, new LinearLayout.LayoutParams(-1, ui.viewfinderHeight(), 1));
         LinearLayout controls = ui.row();
         controls.addView(
                 ui.button(ui.t("当前位置"), ui.palette.accent, 0, this::requestLocation),
-                new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
+                new LinearLayout.LayoutParams(0, -2, 1));
         controls.addView(
                 ui.iconButton("minus", ui.t("缩小地图"), ui.palette.secondary, () -> map.zoom(-1)),
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         controls.addView(
                 ui.iconButton("plus", ui.t("放大地图"), ui.palette.secondary, () -> map.zoom(1)),
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
-        root.addView(controls);
+        body.addView(controls);
         selected =
                 ui.label(
                         ui.t("拖动地图选择位置，或获取当前位置。地图数据来自 OpenStreetMap。"),
@@ -106,12 +108,15 @@ public final class LocationPage implements AutoCloseable {
                         false);
         ui.inset(selected, 14, 10);
         selected.setMaxLines(4);
-        root.addView(selected);
+        body.addView(selected);
         use = ui.button(ui.t("使用这个位置"), ui.palette.onAccent, ui.palette.accent, this::insert);
         use.setEnabled(false);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, ui.controlHeight());
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
         p.setMargins(ui.dp(12), 0, ui.dp(12), ui.dp(12));
-        root.addView(use, p);
+        body.addView(use, p);
+        View content = ui.scroll(body);
+        content.setId(top.kuaner.pockete2.R.id.page_scroll);
+        root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
         return root;
     }
 

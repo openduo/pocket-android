@@ -1,0 +1,112 @@
+# 扩展验收记录
+
+更新日期：2026-11-14。本记录对应四类扩展验收；当前实现收尾目标见 [`status.md`](status.md)。Push 和
+Passport 暂缓。已通过只针对下列实际条件，不以断言数量替代完整场景覆盖。
+
+| 范围 | 当前结果 | 仍开放的范围 |
+| --- | --- | --- |
+| UI 窗口和字体 | 22 组截图/真实 IME，9,616 项检查通过；真实显示旋转 20 项、自由窗口 8 项、系统双应用分屏 12 项通过 | OEM、刘海/折叠/外接显示器、所有外部操作中的配置变化和系统权限弹窗 |
+| 无障碍 | 实际 TalkBack 15.0 最终运行 241 项；Google 源码 Switch Access 6.1.1 扫描/激活 11 项；E2 原生动作/键盘/采集专项 27 项通过 | 当前 Play 版 Switch Access、所有动态消息/长列表/滚动层级、系统权限对话框的全流程 |
+| 真实服务 | 既有实际历史/文本/文件/会话读取、合成语音 ASR/brain/tool/静音播放；新增 API 35 实际 Geocoder 搜索/反查通过 | 自然人声 ASR 和可听回复、真实 Sight 协商、session notify 收件、physical visit 和 E2 geocoder |
+| 身份、网络和生命周期 | 既有短 Wi-Fi 断开恢复、前后台、force-stop/cold-launch；新增 900 秒真 E2 idle 后台和 trim 请求后恢复 Online | 实际 logout/relogin、revoke/re-pair、两条真实网络切换、外部音频路由、过夜/长期 ambient、自然 LMK |
+
+## 窗口和字体
+
+API 35 Google APIs arm64 模拟器的 22 组组合全部通过：
+
+- 手机 360×740dp 和平板 1280×800dp：字体 0.85、1.0、1.15、1.3、1.5、1.8、2.0。
+- 窄窗 320×640、Medium 600×960、Expanded 840×600、横屏 740×360，以及 2 倍字体的 740×360、600×320。
+- 2 倍字体下另有手机/平板的中文/浅色组合；其他组合为英文/深色。
+- 八主页面及可滚动末端、Try 长回复/Markdown 表格/工具/文件、会话详情、附件和编辑 sheet；
+  对话/会话/配对/位置/编辑弹层使用真实 IME。
+
+矩阵不是字体、语言、主题和窗口的完整笛卡尔积。检查实际窗口 config 与请求一致，避免系统设置尚未落定或
+复用旧 JSON 造成假通过。截图已抽查，修复了大字裁切、键盘遮挡、配对底栏挤压和地图高度变成零等问题。
+结果：`.build/acceptance/ui/summary.json`，22/22，9,616 assertions。
+
+实际旋转以 `setRequestedOrientation` 触发 Activity 重建，同时确认最大显示和当前窗口方向、边界一致：
+740×360dp 横屏和 360×740dp 竖屏，20 项通过。最初模拟器忽略旋转，产生了竖屏中的横向信箱窗口；
+状态保存检查有效，但不足以作为实际显示旋转证据。最终 runner 保存/临时调整/恢复模拟器 orientation policy，
+重新验证了显示旋转、配对表单/选区、隐藏页面状态、controller 草稿和设置阅读位置。
+
+自由窗口实际运行于 `isInMultiWindowMode=true`，600×600、920×700、360×660dp，8 项通过。分屏通过
+系统 Recents 的 Split 操作选择 Settings + Pocket E2，早期 635×800dp pane、最终 runner 800×635dp pane，
+两次均有八页配置/截图和草稿保留，分别 12 项通过。
+结果：`.build/acceptance/ui/windows/summary.json`，各子目录保存截图与运行日志。
+
+```sh
+scripts/build-android.sh
+python3 scripts/test-ui-matrix.py --serial YOUR_API35_EMULATOR
+python3 scripts/test-window-ui.py --serial YOUR_API35_EMULATOR
+```
+
+两脚本拒绝真实设备，共享每个模拟器的独占锁，退出时恢复窗口、密度、字体、旋转与所改的开发设置。
+`--installed` 仅用于已经安装匹配 app/probe 的本地迭代。真实 E2 的显示设置没有修改。
+
+## 实际无障碍服务
+
+实际 TalkBack 15.0.0.639625893 下，八页加附件 sheet 的原始触屏滑动遍历通过，最终 runner 为 241 项。
+保留实际 accessibility focus 轨迹和截图。旧的直接 node/keyboard 证据单独保留，不能替代此次服务运行。
+
+Google 官方镜像不含 Switch Access，当前 Play APK 不可得；从未修改 Java 行为的官方开源 6.1.1 构建独立
+QA 服务，原始 uinput 两键输入完成八页扫描和 sheet 恰好一次激活，11 项通过。这是旧版实际服务证据，
+当前 Google Play 版本仍未验收。完整复现、源码 pin、输入路径和覆盖限制见
+[`accessibility.md`](accessibility.md)。
+
+证据：`.build/acceptance/accessibility/{talkback,switch}/run.json`。
+
+## 真 E2 与真实 Geocoder
+
+最终生产 APK 的采集/相机/paired-Try 完整回归通过 342 项，无障碍专项通过 27 项。使用真实 E2 microphone、
+JNI Opus、Camera2、Activity/SQLite；业务失败场景中的准备响应保持单独标注。完整回归曾发现音频测试在
+Listening 早于首包到达时提前断言的竞态，现等待其原断言的两个条件，原 7 秒期限未变，随后完整运行通过。
+
+API 35 模拟器的实际系统 `Geocoder` 公共地标搜索/反查各返回一条结果，耗时 5,664ms，没有替换后端或
+注入 fix。此时 enabled providers 仍为空；geocoder 可用不代表 GPS fix/physical visit 已验收。E2 之前查询
+为 `passive,gps` 且 enabled providers 为空。最终 E2 只读专项确认 `Geocoder.isPresent=false`，结果为
+`NOT_RUN actual geocoder unavailable`，没有计为通过；当前 E2 可继续手动坐标/地图选点，地点搜索和实际到达
+需要可用后端/位置源。证据：`.build/acceptance/e2-location-service/result.json`、`e2-geocoder-run.txt`。
+
+```sh
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_ACCESSIBILITY_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh
+ANDROID_SERIAL=YOUR_DEVICE POCKET_E2_TEST_LOCATION_SERVICE_ONLY=1 scripts/test-device.sh
+```
+
+## 有明确时长的真 E2 后台
+
+真实配对 E2 在 Online 后按 Home，观察 **900.0 秒**；60 次 pid 采样均存在，中间向系统请求
+`RUNNING_CRITICAL` trim，回前台后实际 UI 再次为 Online。期间没有运行其他 instrumentation、打开本 app、
+重启或改变显示/息屏配置。另留一次只读 Activity 状态确认仍在后台。
+
+证据：`.build/acceptance/lifetime/result.json`、`during-background-check.json` 和前后 UI XML。
+本次已运行代码只逐采样保存 processPresent，未逐采样保存 Activity 前后台；最终脚本已增加后者 guard，
+不能反过来宣称旧记录包含它。trim 是系统回调请求，不是自然内存不足或真实 LMK。此次没有持续收音，
+不能外推过夜 standby、长期 ambient 或电量表现。
+
+```sh
+python3 scripts/test-background-lifetime.py --serial YOUR_IDLE_E2 --seconds 900
+```
+
+## 仍需真实条件的验收
+
+| 场景 | 当前缺口及继续条件 |
+| --- | --- |
+| 自然语音 | 需要真实人声进入麦克风，验证识别和可听回复；既有合成 fixture、静音播放和 Try 不替代 |
+| Sight | 需要实际服务 ask/协商/帧/关闭和可识别画面；准备控制加真实 Camera2 不替代 |
+| Session notify | 当前自有 room 不满足通知资格，已有 probe 为 NOT_RUN，未发出通知；需明确自有可收件目标 |
+| 地点和到达 | E2 当前缺少系统 Geocoder、无 enabled provider；需可用位置源/后端与真实停留，验证 arrival header/settlement 和后台行为 |
+| 身份恢复 | 当前一次性配对链接已消费，未在缺少恢复路径时注销或撤销现有凭据 |
+| 跨网络与音频 | 当前没有第二条实际网络和连接的外部音频设备；不能以断网重连或模拟路由替代 |
+| 长期后台/低内存 | 短时后台、trim 回调、force-stop 是不同证据；仍需过夜/长期 ambient、自然进程回收和能耗测试 |
+
+## 证据约定
+
+- 每个 runner 报告记录 APK SHA；截图、节点树、日志、实际服务标识和录音保存在 ignored `.build/` 或 `dist/`。
+  不把不同摘要报告宣称为同一字节 APK 的全部证据；不提交个人数据。
+- 模拟器设置只在隔离模拟器上修改并恢复。真实 E2 的密度、overscan、launcher、息屏时间和 E2Studio 配置保持原状。
+- E2 采集前确认 E2Studio 无 RecordingService/WorkService；不抢其 Passport BLE。
+- 真实服务发送使用明确标记和一次性 journal，重复运行不重复发送；身份变更先具备可用恢复路径。
+- UI、协议准备响应、合成语音、自然声学、无障碍服务和生命周期证据分别记录，保留失败条件与原 deadline。
+
+此前逐功能实现和证据边界保留在 [`migration.md`](migration.md)，UI 架构见 [`ui.md`](ui.md)。

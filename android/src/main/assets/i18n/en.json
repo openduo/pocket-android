@@ -611,5 +611,8 @@
   "正在录音，再次激活发送": "Recording. Activate again to send.",
   "房间离线，收音已暂停": "Room offline. Listening paused.",
   "连接已恢复，回到前台继续收音": "Connected. Return to the app to resume listening.",
-  "频道拒绝了这个房间": "The channel refused this room"
+  "频道拒绝了这个房间": "The channel refused this room",
+  "消息操作": "Message actions",
+  "放大": "Zoom in",
+  "缩小": "Zoom out"
 }

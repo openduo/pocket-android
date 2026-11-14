@@ -27,17 +27,14 @@ final class AdaptivePage extends FrameLayout {
         int availableHeight = MeasureSpec.getSize(heightSpec);
         if (getChildCount() > 0) {
             View child = getChildAt(0);
-            int childHeightSpec;
-            if (heightMode == MeasureSpec.UNSPECIFIED)
-                childHeightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
-            else
-                childHeightSpec = MeasureSpec.makeMeasureSpec(availableHeight, MeasureSpec.EXACTLY);
+            int childHeightSpec =
+                    getChildMeasureSpec(heightSpec, 0, child.getLayoutParams().height);
             child.measure(
                     MeasureSpec.makeMeasureSpec(contentWidth, MeasureSpec.EXACTLY),
                     childHeightSpec);
         }
         int measuredHeight =
-                heightMode == MeasureSpec.UNSPECIFIED && getChildCount() > 0
+                heightMode != MeasureSpec.EXACTLY && getChildCount() > 0
                         ? getChildAt(0).getMeasuredHeight()
                         : availableHeight;
         setMeasuredDimension(

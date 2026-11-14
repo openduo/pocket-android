@@ -24,7 +24,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <queries><intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent></queries>
     <application android:label="Pocket E2" android:theme="@style/PocketTheme" android:allowBackup="false" android:supportsRtl="true" android:usesCleartextTraffic="false">
-        <activity android:name=".app.MainActivity" android:exported="true" android:screenOrientation="portrait" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
+        <activity android:name=".app.MainActivity" android:exported="true" android:resizeableActivity="true" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="duoduopocket" android:host="pair" /></intent-filter>
             <intent-filter><action android:name="android.intent.action.SEND" /><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter>

@@ -119,6 +119,8 @@ public final class Sheets {
                     @Override
                     protected void onMeasure(int width, int height) {
                         int maximum = ui.sheetHeight();
+                        if (View.MeasureSpec.getMode(height) != View.MeasureSpec.UNSPECIFIED)
+                            maximum = Math.min(maximum, View.MeasureSpec.getSize(height));
                         super.onMeasure(
                                 width,
                                 View.MeasureSpec.makeMeasureSpec(

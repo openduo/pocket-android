@@ -47,6 +47,7 @@ if [[ "${POCKET_E2_TEST_ROOM_ONLY:-0}" == 1 ]] && adb shell dumpsys activity ser
 fi
 if [[ "${POCKET_E2_TEST_CAMERA:-0}" == 1 ]]; then adb shell pm grant top.kuaner.pockete2 android.permission.CAMERA; fi
 adb install -r "$build/probe.apk"
+if [[ "${POCKET_E2_TEST_BUILD_ONLY:-0}" == 1 ]]; then exit; fi
 camera_location_flags=""
 cleanup_probe() {
   local restore_failed=0
@@ -79,6 +80,12 @@ if [[ "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
 fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n top.kuaner.pockete2.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
+  -e windowOnly "${POCKET_E2_TEST_WINDOW_ONLY:-0}"
+  -e screenReaderOnly "${POCKET_E2_TEST_SCREEN_READER_ONLY:-0}"
+  -e locationServiceOnly "${POCKET_E2_TEST_LOCATION_SERVICE_ONLY:-0}"
+  -e uiOnly "${POCKET_E2_TEST_UI_ONLY:-0}"
+  -e uiLanguage "${POCKET_E2_TEST_UI_LANGUAGE:-en}"
+  -e uiTheme "${POCKET_E2_TEST_UI_THEME:-dark}"
   -e capture "${POCKET_E2_TEST_CAPTURE:-0}"
   -e camera "${POCKET_E2_TEST_CAMERA:-0}"
   -e importUi "${POCKET_E2_TEST_IMPORT_UI:-0}"

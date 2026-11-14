@@ -20,6 +20,22 @@ public final class ZoomImageView extends ImageView {
         super(context);
         setScaleType(ScaleType.MATRIX);
         setContentDescription(top.kuaner.pockete2.text.AppText.get(context).t("图片，可双击或双指缩放，拖动查看"));
+        top.kuaner.pockete2.ui.ViewportNavigation.attach(
+                this,
+                new top.kuaner.pockete2.ui.ViewportNavigation.Target() {
+                    public void pan(int horizontal, int vertical) {
+                        transform.postTranslate(
+                                -horizontal * getWidth() * .25f, -vertical * getHeight() * .25f);
+                        constrain();
+                    }
+
+                    public void zoom(int step) {
+                        scale(
+                                zoom * (step > 0 ? 1.5f : 1 / 1.5f),
+                                getWidth() / 2f,
+                                getHeight() / 2f);
+                    }
+                });
         scales =
                 new ScaleGestureDetector(
                         context,

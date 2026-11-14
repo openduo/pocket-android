@@ -12,7 +12,9 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
 
 - Warm dark/light semantic tokens, system fonts, filled borderless surfaces, actual Lucide vectors.
 - Shared icon controls have 48 dp minimum touch targets and expose an accessibility button role.
-  Full screen-reader navigation and larger-font acceptance remain separate work.
+  The 22-case window/font matrix, actual TalkBack page traversal and legacy source Switch Access
+  scans now pass under [the documented conditions](acceptance.md); remaining dynamic-content and
+  system-dialog accessibility coverage is listed separately.
 - 48 dp controls, bottom navigation and composer, internally scrolling sheets capped at the adaptive
   sheet height (82% of a normal window and never taller than a short window). Hide bottom navigation
   for the IME. Measured Android-8 insets keep the
@@ -69,5 +71,6 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
 Device instrumentation checks the actual narrow viewport, native capture/playback/encoding and
 composer/IME visibility. Dark/light conversation screenshots and a scoped 1.35 font-scale view were
 inspected at the actual viewport without changing system preferences. The current real rear-camera
-preview was almost black; a recognisable-scene aiming trial, physical posture, more pages and larger
-accessibility font settings remain in the acceptance matrix.
+preview was almost black; a recognisable-scene aiming trial and physical posture remain in the
+acceptance matrix. The later API 35 matrix covers all eight pages at the listed window/font
+conditions; it does not replace real service Sight or E2 camera aiming acceptance.

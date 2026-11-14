@@ -48,6 +48,22 @@ public final class TileMapView extends View implements AutoCloseable {
         setContentDescription(
                 top.kuaner.pockete2.text.AppText.get(context).t("地图，拖动选择中心位置，缩放按钮在地图下方"));
         setFocusable(true);
+        setClickable(true);
+        top.kuaner.pockete2.ui.ViewportNavigation.attach(
+                this,
+                new top.kuaner.pockete2.ui.ViewportNavigation.Target() {
+                    public void pan(int horizontal, int vertical) {
+                        double scale = 256.0 * (1 << zoom);
+                        x = (x + horizontal * getWidth() * .25 / scale + 1) % 1;
+                        y = Math.max(0, Math.min(1, y + vertical * getHeight() * .25 / scale));
+                        invalidate();
+                        listener.center(latitude(), longitude());
+                    }
+
+                    public void zoom(int step) {
+                        TileMapView.this.zoom(step);
+                    }
+                });
     }
 
     public double latitude() {

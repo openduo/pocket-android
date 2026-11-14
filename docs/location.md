@@ -19,6 +19,26 @@ The real E2 coordinate/fallback run passed seven assertions. The app observed pr
 it establishes neither absent GPS hardware nor a functioning GPS fix. Live geocoding, tiles,
 permission combinations and offline behaviour require further acceptance.
 
+The 2026-11-14 read-only service probe confirms **no framework Geocoder on the E2**
+(`Geocoder.isPresent=false`, API 27), with the same disabled provider state. Its result is
+`NOT_RUN actual geocoder unavailable`, not a successful search. On a separate API 35 Google APIs
+emulator, the actual framework Geocoder returned one public-landmark search and reverse result in
+5,664ms without a substituted backend or fix. That accepts this emulator backend only; it does not
+establish E2 GPS, enabled location or physical arrival. Current E2 use can select coordinates/map
+positions; search/arrival needs a working geocoder and location source.
+
+The location body is scrollable under short windows/IME and large fonts; the map keeps a minimum
+area instead of disappearing. Keyboard/accessibility pan/zoom shares `ViewportNavigation` with
+image viewing. General window and service evidence is in [acceptance.md](acceptance.md).
+
+```sh
+ANDROID_SERIAL=YOUR_DEVICE POCKET_E2_TEST_LOCATION_SERVICE_ONLY=1 scripts/test-device.sh
+```
+
+Local evidence: `.build/acceptance/e2-location-service/result.json` and
+`.build/acceptance/ui/location-service/result.json`. Queries use a public landmark and do not
+record the user's location or send room messages.
+
 ## Arrivals
 
 `ArrivalMonitor` subscribes only to passive/network providers. Registration is retained for

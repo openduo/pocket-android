@@ -1,413 +1,150 @@
 # Pocket E2
 
 An independent native Android migration of [openduo/pocket-ios](https://github.com/openduo/pocket-ios),
-using E2Studio's visual and interaction conventions. **The target is 1:1 functional parity. The
-migration is in progress; this repository is not yet a parity-complete release.**
+using E2Studio's visual and interaction conventions. The current milestone closes the agreed P0/P1
+implementation and improves maintainability and general Android window adaptation. Complete 1:1
+parity is a documented future comparison, not this milestone's release requirement.
 
-The user deferred external Passport Bluetooth integration on 2026-11-14. The current scope is
-standalone E2 use; Passport shortcuts and prompts are omitted from conversation and settings, and
-the standalone policy does not automatically resume a remembered accessory or keep an accessory
-background service alive. Its existing implementation is retained for later, without reducing the
-remaining migration goal.
+Start with the Chinese [current status and handoff](docs/status.md). It separates implemented paths,
+verified conditions and the remaining real-use acceptance. [The migration matrix](docs/migration.md)
+retains the upstream comparison and historical evidence. The reference clone is `../pocket-ios`,
+initially pinned to `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`.
 
-Immediate Android push is also deferred by the user on 2026-11-14, alongside Passport. Push
-registration/relay/receiver and the upstream push crypto, identifiers, ledger and fixed-vector
-validation remain documented gaps for later. Existing local notifications and periodic catch-up
-remain available.
+The user deferred **immediate Android push and external Passport Bluetooth** on 2026-11-14. Push
+registration/relay/receiver, upstream push crypto/identifiers/ledger and fixed vectors remain future
+work. Existing local notifications and periodic catch-up remain. Passport code is retained, while
+standalone policy omits normal shortcuts, automatic accessory resume and accessory background work.
 
-The upstream clone is kept separately at `../pocket-ios`; the initial reference commit is
-`b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. `docs/migration.md` records both implemented paths and
-remaining gaps. Prepared try-mode replies never count as a real server response.
+## Current implementation
 
-The application includes the upstream tsnet bridge bound for Android, API-v2 HTTP and `/live`,
-SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStream read-aloud path,
-a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
-uplink. Each path has its own verification status in the matrix.
+- Embedded Tailscale/tsnet, native browser-free login QR/link/status, pairing, API-v2 HTTP and `/live`.
+- Transactional SQLite cache/outbox/cursor, stable retry identity, durable import/voice inboxes,
+  cleanup receipts, history reconciliation and generation-scoped cancellation/access rejection.
+- Native Opus and E2 array capture, voice-note upload/retry, ambient ASR/audio/tool flow and streamed
+  read-aloud with exclusive capture, focus handling and bounded foreground-service lifetimes.
+- Scoped sessions/rows/notify UI, Markdown/tools/reply/copy/share, attachments and Android
+  picker/camera/share handoff, native map/geocoder/coordinate insertion and arrival ledger.
+- Camera2 H.264 media-v1 uplink with ask/gate/refusal/recovery, viewfinder and backpressure policy.
+- Chinese/English, semantic light/dark/system themes, diagnostics, local notifications and Try mode.
+- Shared window policy and native page-state restoration for compact/medium/expanded widths,
+  landscape, IME, split/freeform windows and font scaling; keyboard and accessibility actions.
 
-The resumed P0/P1 checkpoint passed **213 host assertions**, Go vet/tests and the Android build.
-A complete capture/camera/import/paired-try run passed **295 device assertions**, including
-connection recovery under delayed metadata and occupied HTTP workers, actual 1/2/4/8/16/30-second
-retry deadlines, microphone ownership and compact-screen coordinate insertion. Final location
-fallback changes passed **seven targeted location UI assertions** after that full run. The complete
-suite was not repeated after these last location-only corrections. An earlier intermittent retry observation
-was 345 ms; its exact trigger remains unknown. A monotonic deadline now prevents passive checks
-from bypassing a scheduled retry. Tests are evidence for specific behaviours, not a parity score.
+Implementation does not imply all actual services and failure cases have been accepted. Known
+synthetic speech has traversed real ASR → brain/tool → reply → muted hardware playback; natural
+microphone recognition and audible replies remain unaccepted. Actual Sight negotiation, session
+notify delivery, physical visits and actual identity/cross-network/external-audio/long-term lifecycle
+scenarios also remain open. Prepared Try replies never count as real server responses.
 
-Live dialing/ping now use a dedicated bounded connector. Supplemental health and room-state HTTP
-cannot delay a live dial; stale metadata cannot update a replacement room. Retired Go handshakes
-cancel promptly, and foregrounding rebinds tsnet and clears idle HTTP connections. Nine read-only
-actual-room checks accepted cold launch, real Wi-Fi loss/restoration and an actual Activity
-background/return without re-pairing or losing the composer. The observed cold/restored/foreground
-Online times were 4058/4214/314 ms in that run, not an ongoing latency guarantee. See
-[connection.md](docs/connection.md).
+## Verification checkpoint
 
-Real-room authorization, history, text/delivery/reply, files, session list/rows and synthesis were
-accepted in earlier separate runs. The voice and reflex ambient tests use marked synthetic speech
-and retained once-only journals. A new **21-assertion actual ambient brain/tool run** accepted
-ASR → Bash date/time query → tool completion → reply → zero-volume hardware playback, followed by
-actual local-fault redial and room-microphone restoration. Server playback completion reached
-1500 and 9060 ms across the two actual speech blocks. Native capture supplied the clock, while
-surrounding microphone bytes were replaced by silence. **Natural microphone recognition and audible
-playback remain unaccepted.** See [audio.md](docs/audio.md) and the full evidence matrix in
-[migration.md](docs/migration.md). Earlier process-death acceptance covers an unfinished system-picked
-file across actual force-stop/cold-launch cycles; held-recording crash acceptance is documented
-below. Sustained low-memory/standby acceptance remains.
+| Verification | Accepted scope |
+| --- | --- |
+| Host / source checks | 325 contracts, architecture boundaries, 616-entry localization catalog, Go vet/test and Android build |
+| Emulator UI | 22 API 35 window/font/language/theme cases, 9,616 checks; actual display rotation 20, freeform 8 and system split 12 checks |
+| Actual accessibility services | TalkBack 15.0 final runner 241 checks; legacy Google source Switch Access 6.1.1 scan/activation 11 checks |
+| Physical E2 | Complete capture/camera/paired-Try regression 342 checks; native accessibility/capture target 27 checks |
+| Actual framework Geocoder | API 35 public-landmark forward/reverse query; not E2 GPS or physical visit acceptance |
+| Physical E2 lifetime | 900 seconds idle background, process present at 60 samples, trim request and actual foreground Online; not natural LMK/overnight/ambient acceptance |
 
-The final location probe queried `passive,gps` with no enabled providers on the E2. It accepted the
-disabled-location explanation, retained coordinates and a reachable insertion button, and appended
-the location without losing or sending the existing composer. This does not establish whether the
-device has working GPS hardware. New searches have a bounded queue, stale-result guards and a
-12-second fallback; current-location requests have a 15-second deadline and ignore old cached fixes.
-Coarse permission is supported where available, while legacy GPS requests precise permission.
-Shared icon controls now have 48 dp minimum targets and an explicit accessibility button role.
+Reports retain separate APK digests and exact conditions in ignored `.build/acceptance/`. See
+[acceptance](docs/acceptance.md), [UI architecture](docs/ui.md) and
+[accessibility evidence and limits](docs/accessibility.md). Current Play Switch Access, all OEMs and
+all system permission-dialog/lifecycle combinations are not covered by these runs. Remote CI has
+not run. There is no feature-parity percentage.
+The E2's final read-only location probe reports no framework Geocoder and no enabled providers;
+search/arrival needs an available backend/source. Coordinate insertion/map selection remains usable.
 
-The next Sight-only run passed **29 targeted assertions**. A prepared refusal stops real native
-camera output; a fresh ask resumes a key frame without restarting the connection's sequence.
-Camera explanations now remain visible independently of camera controls, heard/held-note/heat
-details and the expanded transcript. Room/transcript screenshots were inspected on the actual
-compact screen. `POCKET_E2_TEST_SIGHT_ONLY=1 POCKET_E2_TEST_CAMERA=1` runs this isolated acceptance;
-these prepared server controls do not establish actual service negotiation or recognisable scenes.
+## Build and install
 
-The following arrival update passed **215 host assertions** and **25 targeted device assertions**
-on its final APK. It rejects invalid/out-of-order fixes and late lookup results after off/on,
-missing permission or expiry, isolates a new opt-in from old acknowledgements, and bounds receiver
-work. Actual ordered-broadcast deadline/overflow checks pass while its worker is deliberately
-blocked. Settings distinguish missing permission, disabled sources and unavailable place lookup.
-`POCKET_E2_TEST_ARRIVAL_ONLY=1` uses isolated preferences and prepared fixes/permission/geocoder
-outcomes without changing actual location settings or sending a message; real visit/geocoder and
-background relaunch acceptance remains. See [location.md](docs/location.md). The complete device
-suite was not repeated for this arrival update.
-
-The next P0 fix restores the data-sync foreground service when a retained voice note starts retrying
-after the Activity has stopped. A denied service start now keeps voice queued without HTTP until
-foreground return, preserving its original id/body/surface. The same isolated probe reproduced
-the previous APK's missing service, then passed **15 native background-upload assertions** on the
-fixed APK using actual Activity/service transitions and prepared transport outcomes. No real
-message or microphone audio is sent by this test. Modern Android restrictions and process-death
-acceptance remain separate. See [audio.md](docs/audio.md).
-
-An expanded run passed **17 assertions on the final APK** after a focused native delay reproduced
-a service-start publication race. Current upload/ambient intent is now published before Android
-can create the service and deliver an earlier queued notification. This prevents that stale idle
-update from stopping the new service. The final probe also covers normal cleanup using the durable
-outbox changes below; the complete device suite was not repeated.
-
-Outbox file cleanup is now journaled in the row/removal transaction. Actual force-stop/cold-launch
-checks passed **24 native phase assertions and 10 host-controlled assertions** for rollback before
-commit and cleanup recovery after commit, including an introduced filesystem-denial case, discard
-and clear. These use prepared rows in separate SQLite namespaces without sending a real message.
-Ordinary startup retains one committed local row/cursor while cleaning owned bytes; pre-commit
-termination keeps the original pending id/body/surface intact. See [storage.md](docs/storage.md)
-for the exact boundary and remaining real-server replay/low-memory acceptance.
-
-The next P0 history update passed **226 host assertions** and **54 targeted E2 assertions**. Answer
-correlation survives attachments, identity replacement and SQLite reopen; day/older/periodic history
-ends a matching wait, and ready checks cached answers across midnight beyond the UI window.
-Provisional/log reconciliation preserves distinct same-turn answers and completed traces; retired
-history requests cannot keep loading or replace a newer result. Native Activity/background notice
-checks confirm one notice across live/attachment catch-up and silent initial history. Earlier APKs
-reproduced the attachment wait and stuck loading indicator. These are prepared outcomes through
-the real controller/storage/UI/NotificationManager; actual-server interruption, legacy ids already
-lost and physical handover remain separate. A broader no-capture/no-camera paired-try run passed
-**163 device assertions** on this APK after one first-reply assertion failed without row diagnostics.
-Added diagnostics keep the original condition/deadline; that first failure remains unlocated, and
-the full capture/camera/import suite was not repeated. See [history.md](docs/history.md).
-
-The following P0 fix gives outbox sends their own bounded worker, after the preceding APK reproduced
-a send blocked behind occupied ordinary HTTP workers. Native request scopes now cancel retired
-sends during node readiness, headers or body reads, and prevent queued work from starting late.
-Readiness/HTTP share the remaining deadline; retries preserve the original key/body/surface. A
-failed SQLite transition keeps voice queued with its original bytes and can resume on foreground
-return. The final APK passed **21 live-recovery**, **43 voice-upload**, **17 background-upload** and
-**eight actual-room read-only HTTP assertions**, with **234 host assertions** and Go vet/race checks.
-The actual-room checks send no message; cancellation faults use prepared transport or a local Go
-server. This independently reproduced send blockage does not diagnose the earlier intermittent
-first-reply failure. See [connection.md](docs/connection.md) and [audio.md](docs/audio.md).
-The complete capture/camera/import/paired-try regression then passed **311 device assertions** on
-this APK. Actual keyboard and 1.35-font conversation screenshots were inspected. The previous
-first-reply assertion passed in this run; its earlier intermittent failure remains unlocated.
-
-The next P0/P1 update pauses outbox requests on room rejection, node authorization loss and
-explicit logout, preserving their original bytes/identity and separating room credentials from
-Tailscale authorization. Late Running/HTTP callbacks cannot override the pause. A rejected SQLite
-pause write still releases resources and must recover durably before another dial. A native
-pending-foreground-start crash was reproduced and corrected: the service now promotes before
-stopping, and an old idle callback cannot stop a newer undelivered start. **33 native access
-assertions** and **17 background-upload assertions** pass with prepared access/HTTP outcomes;
-the actual node is not logged out or its credentials revoked. See [connection.md](docs/connection.md).
-
-Primary compact controls now have actual 48 dp bounds, including layouts that previously forced
-44 dp despite the icon helper's minimum. Voice can be started/sent by keyboard or accessibility
-activation and cancelled through a named native action; obsolete permission callbacks cannot start
-capture. Shared actions expose button semantics and navigation exposes selection. The new probe
-passes **27 targeted assertions** through real keyboard/node APIs, native capture and the disposable
-transport. The complete capture/camera/import/paired-try regression passes **336 device assertions**,
-with keyboard/large-font screenshots inspected. Host/architecture/localisation checks pass, and
-**eight actual-room read-only HTTP assertions** retain pairing/Online/composer. Natural acoustics,
-full screen-reader use and actual credential-revocation acceptance stay open. See
-[accessibility.md](docs/accessibility.md) and the migration matrix.
-
-Authenticated history, attachment, catch-up and speech now share one pure-Java credential generation.
-Exact authenticated unauthorized responses stop access; anonymous/other errors and stale-token
-responses cannot invalidate a new pairing. Node authorization loss cancels active ordinary requests
-and prevents queued ones from starting, with one job completion and retained retryable attachment
-files. Local originals and validated cache remain available offline. Android streaming uses the same
-registered native cancellation as HTTP, without cancellation tombstones. The expanded isolated
-access probe passes **77 native assertions** and **260 host assertions** pass alongside Go vet/race
-checks. The real node is not logged out or revoked; actual revocation/re-pairing and prolonged standby
-remain unaccepted. See [connection.md](docs/connection.md).
-
-The same final APK passes the complete **336-assertion** capture/camera/import/paired-try suite,
-**17 background-upload assertions**, **eight actual-room HTTP assertions** and **17 real-room
-session/file/speech assertions**. Real synthesis reaches muted AudioTrack completion and cancels
-cleanly; no new chat message or session notification is sent. The keyboard and 1.35-font compact
-screens were inspected. One earlier outage-release assertion failed without component diagnostics;
-the original-deadline wait now observes both native lease release and the controller callback.
-Subsequent targeted and complete runs pass; the earlier trigger remains unlocated.
-
-The next P0/P1 update gives held recordings a durable file inbox before microphone acquisition.
-SQLite admission failures now retain one visible retryable note; retries preserve its original
-identity and bytes, and continued failure sends no HTTP. Actual force-stop/cold-launch checks
-recover an unfinished native hold as failed for explicit retry, acknowledge a committed handoff
-without replay, and prevent cancelled recordings from returning. The final targeted runs pass
-**14 native storage assertions**, **23 native crash assertions** and **15 host-controlled crash
-assertions**, with **275 host assertions**. The small-screen outgoing voice labels now retain
-readable contrast and the failed-note action has an actual 48 dp native button target. Prepared
-HTTP receives the captured bytes; no surrounding recording is uploaded to the actual service.
-Unflushed tails, full physical disk/power-loss recovery, legacy orphan files and natural acoustics
-remain separate limits. See [storage.md](docs/storage.md) and [audio.md](docs/audio.md).
-The same production APK then passed the complete **336-assertion** capture/camera/import/paired-try
-regression. Actual compact keyboard and 1.35-font conversation screenshots were inspected.
-The final isolated regressions pass **77 access-recovery**, **18 background-upload** and **eight
-actual-room read-only HTTP assertions**. The first background run reached a foreground check
-after Android's existing 60-second screen timer had put the device to sleep. The harness now
-explicitly exercises screen-off, then wakes/unlocks before the actual return and checks native
-focus within the original deadline. It passes without changing production code or device settings;
-this does not retroactively diagnose earlier background-test failures. See [audio.md](docs/audio.md).
-
-Client API incompatibility now distinguishes **Update Pocket E2** from **Upgrade home service**,
-following the upstream messages 410/404 and live-ready rules. A separate small-screen explanation
-retains its 48 dp button target; recheck reads a fresh live ready. Pending messages and captured
-voice bytes stay retained, a transient notice cannot bypass compatibility, and Try cannot block
-the paired room. **300 host assertions** and **26 isolated upgrade assertions** pass. Version
-faults use prepared Try responses; the actual service is not downgraded and no public Android
-update installer is provided. See [connection.md](docs/connection.md).
-The capture-enabled **31-assertion live-recovery** run also checks recheck during an ambient/hold
-overlap: the old room microphone is restored before close, the replacement receives its current
-mute state, and the same native capture continues. This uses prepared Try wire outcomes.
-The same final APK passed **338 complete capture/camera/import/paired-try assertions**, including
-those two added microphone recheck checks. Actual keyboard and 1.35-font compact screenshots were
-inspected; the separate 26-assertion upgrade run is not included in that complete-suite count.
-The expanded final access run passes **78 assertions**, with an actual screen-off/wake return and
-retained real room/composer/compatibility state. **Eight actual-room scoped GET assertions** pass
-without sending a message. Its first restoration check ran after automatic screen-off; diagnostics
-and an explicit user-return flow now keep that case distinct from a connection failure. The
-original combined failure lacked component diagnostics; see [connection.md](docs/connection.md).
-
-The latest audio correction passes **39 native ambient-interruption assertions** and **27 read-aloud
-failure assertions** on the real E2. Ambient interruption notices now follow capture state and are
-withdrawn after focus recovery, foreground return, session stop, room rejection or process
-recreation. Read-aloud errors preserve the upstream 422 reason, and a real AudioTrack failure
-cancels its stream and clears the spinner before late packets arrive. These probes use prepared
-room outcomes and send no new real-room message. See [audio.md](docs/audio.md).
-
-`POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
-notification only to the exact currently paired room. The current service did not expose that room
-as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
-notification delivery/uncertainty remains unaccepted; choosing another real recipient requires an
-explicit user-selected test target. Existing pairing and session-list access remain usable.
-
-The checkpoint includes native Chinese/English switching, literal user-content preservation,
-language-aware notifications and retained Passport protocol frames, occupied-camera waiting/recovery,
-and a session viewer with source/activity, grouped lists and recipient-specific notification drafts.
-English conversation, settings and session screens were inspected at ~259 dp, including 1.35 font scale, light theme and
-the real E2 keyboard. Shares now use an atomic file inbox and transactional delivery receipts,
-preserve names/MIME and order, retain concurrent typing, and recover without duplication through
-recreation. Real system document-picker and camera returns exercise the same import path.
-Picker/camera routes survive recreation; media conversion preserves dimensions, while document
-selection preserves bytes. The composer reports observed import bytes and can cancel stalled external
-reads/opens without losing its existing draft or admitting part of a batch.
-Permanent import requests are saved in SQLite before provider work enters the queue. A force-stop
-during a real system-picked file copy now resumes on cold launch using Android's retained document
-grant; a second restart keeps one complete chip without rereading its source. Receipts keep source
-cleanup separate from draft admission, and expired temporary grants remain an explicit limit.
-For older servers that acknowledge an upload path without a SHA-256, the client retains the digest
-of the exact uploaded bytes; supplied digests must match. Actual authenticated download then verifies
-the original content without test-only metadata.
-`docs/migration.md` keeps external-service/hardware gaps separate; `docs/imports.md` describes the
-handoff and its remaining failure/lifecycle acceptance work.
-
-Ambient output follows the upstream mute/interrupt/read policy through an independent reducer.
-Muted new room blocks acknowledge immediately; native receipts carry playback generations through
-the state queue, and local press/hush events are distinct from remote stops. Focus loss retains
-ambient intent while releasing capture and reopening without room audio. A native competing focus
-request verifies pause, foreground gating, gain and renewed uplink. Ownership and the precise
-verification limits are recorded in [audio.md](docs/audio.md).
-Text/audio writer failures now retire even a still-open socket before redialling; old queued writes
-and delayed close callbacks cannot cross into the replacement connection. Ambient exit and focus
-loss give a pending room-microphone restoration one bounded writer turn before closing, without
-blocking the state executor or delaying local capture release.
-Live retry now uses the upstream 1/2/4/8/16/30-second backoff. Short outages retain the native
-microphone; continued failures reaching the cap release it. A recovered connection restarts capture
-only in the foreground, while a new press or explicit reopen retries immediately. Room refusal
-(1008) stays visible until explicit reopen without invalidating device credentials. A separate
-**39-assertion sustained-outage run** uses actual deadlines and native capture with prepared transport
-and background/focus stimuli; physical network changes remain separate acceptance. Ambient's three
-bottom controls retain their touch areas while fitting short labels on one line in the compact view.
-A separate 48 dp power control remains available when the primary action offers reopen/takeover,
-including in the expanded transcript, so retry never removes the way to end capture.
-Android now watches the default network path, rebinds tsnet on a path/interface change and pings an
-existing live socket before reusing it. A healthy socket is retained; a stale socket enters the same
-generation-safe retry path. The live recovery probe covers both outcomes in the disposable room.
-
-For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
-The native login sheet displays an authorization QR, copyable link and live backend state. Its QR
-was decoded from the actual E2 screenshot against the actual node's auth URL. The user has since
-authorized the node and supplied a room link:
-real pairing, historical rows, delivered text and an exact requested live reply were verified on
-the E2. Pairing remained intact through an in-place APK update.
-
-## Build
+Requirements: JDK 17, Go 1.27.4, the pinned x/mobile version in `bridge/tsbridge/go.mod`, Android
+Platform 35, Build Tools 35.0.0 and NDK 28.2.13676358. Only arm64-v8a is currently built. Scripts accept
+`ANDROID_SDK_ROOT`, `ANDROID_NDK_ROOT` and `POCKET_E2_SIGN_DIR`. A private signing identity is generated
+once outside the repository; keep it for in-place upgrades.
 
 ```sh
-scripts/build-android.sh       # dist/PocketE2.apk, package top.kuaner.pockete2
-scripts/test-host.sh           # pure protocol/reducer contracts
+scripts/build-android.sh
+scripts/test-host.sh
+python3 scripts/check-architecture.py
+python3 scripts/check-localization.py
 (cd bridge/tsbridge && go vet ./... && go test ./...)
-# Install the built app before device tests:
-adb install -r dist/PocketE2.apk
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 scripts/test-device.sh
-# Opt in to the isolated try/UI suite when a real room is already paired:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
-# Explicit real-service acceptance on an already paired, idle device:
-POCKET_E2_TEST_ROOM_ONLY=1 scripts/test-device.sh
-# Isolated voice faults/elapsed-time retries, optionally with real hold capture:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_ONLY=1 scripts/test-device.sh
-# Isolated live/day/older/catch-up settlement and actual local background notification checks:
-POCKET_E2_TEST_HISTORY_ONLY=1 scripts/test-device.sh
-# Explicitly send one marked synthetic voice fixture to the actual ASR/brain:
-POCKET_E2_TEST_VOICE_ROOM_ONLY=1 scripts/test-device.sh
-# Isolated live write/queue faults, optionally including native hold/ambient exit:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_LIVE_ONLY=1 scripts/test-device.sh
-# Actual retry deadlines/native mic with disposable outage/refusal/lifecycle stimuli:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_OUTAGE_ONLY=1 scripts/test-device.sh
-# Explicit actual ambient recognition/speech/redial with known synthetic audio only:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 scripts/test-device.sh
-# Explicitly force-stop/cold-start during a real system-picked provider copy:
-POCKET_E2_TEST_PROCESS_DEATH=1 scripts/test-device.sh
-# Isolated real hold/SQLite admission failure and compact failed-note controls:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_VOICE_STORAGE_ONLY=1 scripts/test-device.sh
-# Isolated client/channel upgrade classification, retained outbox and compact explanation sheet:
-POCKET_E2_TEST_UPGRADE_ONLY=1 scripts/test-device.sh
-# Ambient focus interruption, local-notice withdrawal and native capture recovery:
-POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_INTERRUPTION_ONLY=1 scripts/test-device.sh
-# Read-aloud HTTP reason mapping, AudioTrack failure cancellation and late-packet fencing:
-POCKET_E2_TEST_READ_FAILURE_ONLY=1 scripts/test-device.sh
-# Explicitly force-stop during real held capture and voice commit/acknowledgment:
-ANDROID_SERIAL=YOUR_E2_SERIAL POCKET_E2_TEST_VOICE_DEATH=1 scripts/test-device.sh
+adb -s YOUR_DEVICE_SERIAL install -r dist/PocketE2.apk
 ```
 
-Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
-Android Platform 35, Build Tools 35.0.0 and NDK 28.2.13676358. The scripts accept `ANDROID_SDK_ROOT`,
-`ANDROID_NDK_ROOT` and `POCKET_E2_SIGN_DIR`. A private signing identity is generated once outside the
-repository. Only arm64-v8a is currently built.
+Application: `top.kuaner.pockete2`; artifact: ignored `dist/PocketE2.apk`. Login/pairing instructions
+and actual-service boundaries are in [connection.md](docs/connection.md).
 
-The optional native import UI probe currently targets API 27, including a disposable document source
-in a separate UID. It declines the stock camera's optional location request and restores its prior
-user-decision permission flags with an Android-8-only shell helper. The helper, provider and test APK
-are removed after the run. The application APK does not include them.
-On a paired device the try/UI tests require `POCKET_E2_TEST_PAIRED_TRY=1`; they refuse active
-recording/camera work or a nonempty outbox and restore the original room, draft and presentation
-preferences. Their notifications and sends stay inside the disposable try transport. Omitting
-the flag runs the hardware/storage probes and cold start, which is a smaller acceptance scope.
+E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}` or
+through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the
+existing E2Studio build. They are not source dependencies or public redistribution assets. Without
+them, other devices can use standard Android input and E2 array capture reports the missing parts.
 
-The separate `POCKET_E2_TEST_ROOM_ONLY=1` run requires the previously accepted live integration reply.
-It reads sessions permitted by the existing scope, uploads one small clearly named random fixture,
-downloads/verifies it through the ordinary controller and removes its local draft/cache copies. The
-server's upload API has no client delete operation, so the small remote fixture remains. It also
-requests actual read-aloud synthesis and cancels a second request. Only its own AudioTrack is muted;
-system volume is untouched. It preserves the real room/draft/files and sends no room messages or
-session notifications. It refuses active work in either Pocket E2 or E2Studio.
+## Test commands
 
-`POCKET_E2_TEST_VOICE_ONLY=1` uses a disposable room, delayed HTTP, prepared recognition outcomes
-and actual 25-second retry budgets. With capture enabled it also verifies the real E2 hold path's
-cancel/background/focus-loss handling and retry of retained Opus bytes. It sends no real messages.
-The separate `POCKET_E2_TEST_VOICE_ROOM_ONLY=1` test sends **one clearly marked synthetic voice
-message** to actual ASR and requests the `语音链路验证成功` reply. It exercises a native Activity
-background transition and the foreground upload service, then checks recognition, delivery,
-outbox/file/service cleanup and a single server-log row. A private journal in the app's files retains
-the original key across repeats/restarts; keep it to verify the same message without sending again.
-This proves the actual API path for known synthetic speech. Acoustic recognition from the E2's
-microphone, real ASR failure outcomes and prolonged background/process-death handling remain separate
-acceptance work. See [audio.md](docs/audio.md).
+Select the device explicitly. Physical capture requires E2Studio recording/work and other active
+Pocket E2 work to be idle. Paired Try probes retain the actual room/draft and use a disposable
+transport; they refuse active capture/camera or a nonempty outbox. The test APK is built separately
+with the same local signing identity and does not enter the application build.
 
-`POCKET_E2_TEST_LIVE_ONLY=1` stays inside the disposable room. It fails text and binary writes while
-the transport still reports open, delays a superseded close and fills the bounded writer behind a
-stalled write. With capture enabled it checks an actual held note/ambient exit and a background
-callback, including a delayed final unmute while the state owner and capture teardown remain free.
-`POCKET_E2_TEST_OUTAGE_ONLY=1` requires capture and stays in that same disposable boundary. It observes
-failed live dials at approximately 1/3/7/15/31 elapsed seconds, then the actual 30-second capped pause, the same native capture lease
-through short failures, release at the sustained boundary, no dead-socket uplink, and foreground-only
-resume after a prepared background recovery. A separate budget-primed overlap checks that a local
-held note keeps recording, cancellation releases it, and a new press reconnects immediately. Prepared
-1008 and focus stimuli verify persistent refusal through ready/meta/gain/foreground and an actual
-small-screen reopen click. It also exits a refused room through the independent power control and
-observes native microphone release. These stimuli do not establish a physical network outage or call.
-The separate `POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1` run requires an unoccupied real room and ready
-services. Every outgoing microphone packet is replaced by silence or a single marked known fixture;
-no surrounding audio is uploaded. Actual synthesis is decoded and re-encoded to native 20 ms packets
-before it is paced by real capture. The test accepts ASR, the requested `环境模式连通成功` service reply,
-actual speech and hardware playback reports at zero local AudioTrack volume. The observed reply is
-a server `reflex`; this does not establish a brain/tool turn. A local write fault then exercises real
-server redial, a new capture seat and resumed silence. It also checks the actual server microphone
-switch before and after ending ambient during a cancelled native hold. Its private
-`ambient-room-20ms-once.json` journal retains completion through restart; repeat runs verify the same
-server row without replay.
-Keep both it and any older failed ambient journal. `POCKET_E2_TEST_AMBIENT_BRAIN=1` selects a
-separate marked tool fixture with its own `ambient-brain-20ms-once.json` journal; the accepted run
-observed an actual Bash call/completion and the requested answer. Acoustic recognition remains
-separate. `scripts/test-network-recovery.py` independently accepts a real short Wi-Fi outage and
-Activity background/return; explicitly select the E2 with `ANDROID_SERIAL` before running it.
+```sh
+# Full physical capture/camera/Try regression on an already paired, idle E2.
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
+# Native accessibility, capture, keyboard and cancellation.
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_ACCESSIBILITY_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh
+# Optional separate-UID picker/camera test; currently API 27 only.
+ANDROID_SERIAL=YOUR_IDLE_E2 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
+# Isolated emulator window/font/IME and real rotation/freeform/split acceptance.
+python3 scripts/test-ui-matrix.py --serial YOUR_API35_EMULATOR
+python3 scripts/test-window-ui.py --serial YOUR_API35_EMULATOR
+# Actual services on a rooted arm64 API 35+ Google APIs emulator.
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service talkback
+python3 scripts/prepare-switch-access.py --serial YOUR_ROOTED_API35_EMULATOR
+python3 scripts/test-accessibility-services.py --serial YOUR_ROOTED_API35_EMULATOR --service switch
+```
 
-`POCKET_E2_TEST_PROCESS_DEATH=1` selects one small synthetic document through the real file picker,
-force-stops Pocket E2 after a separate-UID provider emits partial bytes, then cold-starts it twice.
-It checks resumed complete bytes, one chip, retained draft/quote, released grants and no repeated
-provider read. Native setup/cleanup restore the original composer and input preference. The ordinary
-attachment path may upload this fixture; no chat or session message is sent. This is force-stop/cold
-launch evidence rather than low-memory task restoration. See [imports.md](docs/imports.md).
+The emulator runners restore changed display/font/rotation/accessibility settings. Use `--installed`
+only when matching app/probe APKs are already installed. Each emulator has one QA lock. Switch
+Access's pinned legacy source QA build is separate from the product and is not current Play-version
+acceptance. Details and additional opt-in probes live in the feature documents below.
 
-The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
-or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the
-existing E2Studio build. They are not source dependencies or public redistribution assets. A build
-without them can use standard Android input on other devices; E2 array capture reports the missing
-components explicitly.
+Real-service probes may create marked messages/uploads, while identity recovery requires a working
+login and fresh pairing path. Read each probe's documented scope before opting in. Once-only
+journals retain original identifiers across repeats; do not remove them to repeat a send.
+[Audio](docs/audio.md), [imports](docs/imports.md), [storage](docs/storage.md) and
+[connection](docs/connection.md) describe the relevant opt-in commands and limits.
 
-The observed E2 panel is 480×800 px at override density 210. **Current system overscan leaves a
-340 px application viewport (~259 dp wide).** The app measures insets and IME on that viewport;
-it never changes the user's density, overscan, launcher or E2Studio.
+The E2 panel observed in this workspace is 480×800 px at existing override density 210. Existing
+system overscan leaves a 340 px application viewport, approximately 259dp wide. The app uses its
+current window and insets and never changes density, overscan, launcher, screen timeout or
+E2Studio configuration. It does not take over E2Studio's Passport BLE connection.
 
-## Structure
+## Structure and maintenance
 
-- `core/`: immutable values, pure turn/session reducers, single-writer orchestration and SQLite.
-- `net/`, `bridge/tsbridge/`: scoped requests, embedded Tailscale and the actual `/live` socket.
-- `audio/`: exclusive input lease, firmware adapter, Opus, streamed packet parsing, hardware receipts.
-- `passport/`: protocol 1.3, GATT operation queue, press assembly and correlated replies.
-- `sight/`, `location/`: H.264 capture/framing and the location/map picker.
-- `trymode/`: disposable API-v2 channel behind the same HTTP/live/speech boundary; in-memory SQLite
-  room, isolated temporary files, idempotent receipts and prepared scenarios.
-- `text/`: immutable application-copy catalogs, scoped native language configuration and Markdown
-  processing. UI content and localization boundaries are documented in `docs/localization.md`.
-- `ui/`: retained native pages, compact sheets, semantic themes, Markdown and scroll anchoring.
+| Area | Responsibility |
+| --- | --- |
+| `core/` | Immutable values, pure reducers, single-writer controller, SQLite, durable draft/outbox/inboxes |
+| `net/`, `bridge/tsbridge/` | Scoped requests, embedded Tailscale and actual HTTP/live/speech transport |
+| `audio/` | Exclusive input, firmware adapter, Opus, incremental packet parsing and hardware receipts |
+| `sight/`, `location/` | Video capture/framing, map and location/arrival adapters |
+| `ui/` | Window policy, insets, containers, page-state restoration, shared controls and snapshot-driven pages |
+| `text/` | Scoped application copy/language catalogs and Markdown processing |
+| `trymode/` | Disposable API-v2 transport, in-memory room/storage and prepared scenarios |
+| `passport/` | Deferred BLE protocol/GATT/press/reply implementation |
+| `tests/`, `scripts/` | Host contracts, isolated device probes and reproducible acceptance runners |
 
-UI 尺寸和窗口适配策略见 [`docs/ui.md`](docs/ui.md)。页面通过 `AdaptiveMetrics`、`AdaptivePage` 和
-`Ui` token 共享断点、触控目标、sheet、媒体和字体策略；业务页面不应直接读取物理像素。当前适配层已
-通过 325 项 host contract assertions；适配层改造后的紧凑采集/相机/Try 回归通过 342 项，宽屏、横屏、
-分屏和完整 TalkBack 验收仍留待后续设备覆盖。
-- `tests/`: host contracts and a separately signed instrumentation APK with a disposable database.
+Use `AdaptiveMetrics` for size/font tokens, `AdaptivePage`/`AdaptiveColumn`/`InsetsFrame` for window
+layout, `PageStates` for native view state and `Ui`/`Sheets`/`ViewportNavigation` for shared controls.
+Business state and durable composer text belong to `PocketController`; it must not read window
+geometry. See [ui.md](docs/ui.md) for breakpoints and the architecture checks that enforce this.
 
-The bundled prepared Chinese/English audio and notes are pinned by `third_party/try-assets.sha256`.
-Regenerate them from the clean upstream clone with `python3 scripts/prepare-try-assets.py` and
-ffmpeg/libopus. Builds use the committed assets and verify their checksums; they do not require ffmpeg.
+Continue from [status.md](docs/status.md), then [acceptance.md](docs/acceptance.md) and
+[migration.md](docs/migration.md). Feature ownership and evidence remain in
+[connection](docs/connection.md), [audio](docs/audio.md), [storage](docs/storage.md),
+[history](docs/history.md), [imports](docs/imports.md), [location](docs/location.md),
+[protocol](docs/protocol.md), [design](docs/design.md) and [localization](docs/localization.md).
 
-No remote repository has been created or published. The upstream icon/mark are not reused; this
-project uses neutral Pocket E2 branding. Code follows the upstream FSL-1.1-Apache-2.0 terms;
-third-party components retain their licences.
+The prepared Chinese/English Try audio/notes are pinned by `third_party/try-assets.sha256`.
+`python3 scripts/prepare-try-assets.py` regenerates them from the clean upstream clone with
+ffmpeg/libopus; ordinary builds verify the committed assets and do not require ffmpeg.
+
+No remote repository has been created or published. Neutral Pocket E2 branding does not reuse the
+upstream icon/mark. Code follows FSL-1.1-Apache-2.0; third-party components retain their licences.

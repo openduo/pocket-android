@@ -102,12 +102,23 @@ final class AudioOutputProbe {
                         return null;
                     });
             controller.ambientToggle();
-            await(() -> controller.snapshot().ambient == PocketController.Ambient.LISTENING, 7000);
+            await(
+                    () ->
+                            controller.snapshot().ambient == PocketController.Ambient.LISTENING
+                                    && source.binary.get() > 0,
+                    7000);
             check(
                     controller.snapshot().ambient == PocketController.Ambient.LISTENING
                             && source.binary.get() > 0,
                     "the prepared output probe keeps the real array capture and ordinary"
-                            + " hello/uplink active");
+                            + " hello/uplink active: ambient="
+                            + controller.snapshot().ambient
+                            + ", packets="
+                            + source.binary.get()
+                            + ", capture="
+                            + top.kuaner.pockete2.audio.input.RecordingInput.isActive()
+                            + ", issue="
+                            + controller.snapshot().ambientError);
 
             controller.ambientMute();
             onState(

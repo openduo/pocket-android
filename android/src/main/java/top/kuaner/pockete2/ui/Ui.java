@@ -181,10 +181,27 @@ public final class Ui {
         return page;
     }
 
+    public View adaptiveWidth(View child) {
+        AdaptivePage page = new AdaptivePage(context, this);
+        page.addView(child, new FrameLayout.LayoutParams(-1, -2));
+        return page;
+    }
+
     public LinearLayout column() {
         LinearLayout view = new LinearLayout(context);
         view.setOrientation(LinearLayout.VERTICAL);
         return view;
+    }
+
+    public AdaptiveColumn adaptiveColumn() {
+        return new AdaptiveColumn(this);
+    }
+
+    /** A footer may scroll on very short windows instead of being clipped by a weighted body. */
+    public ScrollView scrollFooter(View child) {
+        ScrollView scroll = scroll(child);
+        scroll.setFillViewport(false);
+        return scroll;
     }
 
     public LinearLayout row() {
@@ -230,6 +247,7 @@ public final class Ui {
             field.setMaxLines(4);
             field.setGravity(Gravity.TOP);
         }
+        field.setMinimumHeight(controlHeight());
         return field;
     }
 
@@ -265,7 +283,7 @@ public final class Ui {
         TextView view = label(text, 14, fg, true);
         view.setGravity(Gravity.CENTER);
         view.setMinWidth(touchTarget());
-        view.setMinHeight(touchTarget());
+        view.setMinHeight(controlHeight());
         view.setPadding(dp(12), dp(10), dp(12), dp(10));
         clickable(view, bg, 12, action);
         return view;

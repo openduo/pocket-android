@@ -1,14 +1,16 @@
 # Pocket E2 engineering rules
 
-The product goal is a **1:1 functional migration** of `openduo/pocket-ios`, pinned initially to
-`b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. Milestones do not reduce this goal. Do not mark a
-placeholder, prepared reply, protocol test or compiled UI as an end-to-end feature completion.
-Maintain `docs/migration.md` with explicit implementation and verification gaps.
+The current user milestone is to close the agreed P0/P1 implementation, strengthen maintainability
+and support general Android window sizes. The user explicitly stopped requiring complete 1:1 parity
+for this milestone on 2026-11-14. Keep `openduo/pocket-ios`, initially pinned to
+`b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`, as the future parity comparison. Maintain
+`docs/status.md` and `docs/migration.md` with explicit implementation and verification gaps.
+Do not mark a placeholder, prepared reply, protocol test or compiled UI as end-to-end acceptance.
 
 The user deferred external Passport Bluetooth integration on 2026-11-14. Prioritize standalone E2
 use and omit Passport entry points from normal conversation/settings flows. Retain the existing
 implementation for later; external Passport hardware acceptance is not a current release blocker.
-This exception does not reduce the remaining 1:1 migration goal.
+Keep its remaining parity gaps for a possible later milestone.
 
 The user also deferred immediate Android push on 2026-11-14. Push transport registration, relay,
 receiver, upstream push crypto/identifiers/ledger and fixed-vector validation are outside the
@@ -19,6 +21,13 @@ The user resumed P0 and P1 work on 2026-11-14: connection reliability, natural v
 ambient turns first; then Sight, session notifications, location/arrival, compact-screen
 accessibility and failure recovery. Push and Passport remain deferred. Keep real acceptance gaps
 explicit when a physical action or unavailable service prevents local verification.
+
+The next acceptance scope is in `docs/acceptance.md`: phone/tablet/landscape/split/multi-window and
+font scaling (emulators are permitted), actual TalkBack/Switch Access and focus order, actual
+speech/Sight/session notify/visit, and actual identity/network/audio/lifecycle scenarios. Do not
+claim these complete from earlier compact-only, synthetic or fault-injection probes. Isolated
+emulator display/accessibility settings may be changed and restored by the acceptance harness;
+physical E2 display and E2Studio settings must remain untouched.
 
 - Follow E2Studio's filled surfaces, system fonts, real Lucide icons, bottom controls and bounded
   full-width sheets. Use the current viewport, not the physical panel size. Preserve scroll,

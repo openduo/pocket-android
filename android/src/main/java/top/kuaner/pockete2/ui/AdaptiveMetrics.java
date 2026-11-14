@@ -106,9 +106,13 @@ public final class AdaptiveMetrics {
     }
 
     public int controlHeightDp() {
-        if (shortHeight()) return 48;
         if (largeText()) return 56;
+        if (shortHeight()) return 48;
         return widthClass == WidthClass.COMPACT ? 50 : 52;
+    }
+
+    public int chromeMinWindowHeightDp() {
+        return largeText() ? 300 : 240;
     }
 
     public int rowMinHeightDp() {

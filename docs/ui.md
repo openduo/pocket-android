@@ -1,50 +1,76 @@
 # UI 适配与可维护性
 
-Pocket E2 的页面使用原生 Android View，但页面业务类不再根据物理像素决定布局。尺寸策略集中在
-`ui/AdaptiveMetrics.java`，页面容器集中在 `ui/AdaptivePage.java`，公共控件通过 `Ui` 暴露设计 token。
-这样同一套页面可以在当前 E2 小屏、普通手机、横屏、多窗口和平板窗口中复用，连接、房间和草稿状态不需要
-知道窗口尺寸。
+本阶段采用原生 Android View 的窗口适配方案：Window Size Class、窗口内 Insets、内容宽度上限、
+原生 View 状态保存和可滚动布局。没有为 E2、手机和平板复制三套业务页面，也没有按设备型号在 controller
+中分支。E2 固件的状态栏例外留在 UI 系统适配器中。
 
-## 窗口策略
+## 分层与职责
 
-窗口宽度使用 Android Window Size Class 的断点：
-
-| 宽度 | 类别 | 页面行为 |
+| 层 | 实现 | 责任 |
 | --- | --- | --- |
-| `< 600dp` | Compact | 页面占满窗口，优先保证单列和键盘可用 |
-| `600–839dp` | Medium | 页面列和 bottom sheet 限制在 640dp 以内并居中 |
-| `>= 840dp` | Expanded | 页面列和 sheet 限制在 720dp 以内并居中 |
+| 业务与协议 | `PocketController`、纯 Java reducer/codec、SQLite、Go transport | 房间、权限、消息、草稿、outbox、连接与设备资源；不读取窗口尺寸 |
+| 纯尺寸策略 | `ui/AdaptiveMetrics` | 当前窗口 dp、字体、宽高类别、控件/媒体/sheet 的设计 token；不依赖 Android 或业务状态 |
+| 窗口与容器 | `AdaptivePage`、`AdaptiveColumn`、`InsetsFrame` | 列宽、短窗口/IME 下的页头与编辑器布局、系统栏/键盘 inset |
+| 页面 UI 状态 | `PageStates`、原生 View 的固定资源 ID | 旋转/窗口重建时保存每个页面的表单、阅读位置、焦点和选区；业务草稿仍以 controller 为准 |
+| 公共控件 | `Ui`、`Sheets`、`ViewportNavigation` | 字体/颜色、至少 48dp 的公共操作控件、可增长按钮、弹层，以及地图/图片的键盘与无障碍手势替代 |
+| 页面 | `ui/pages` | 展示 snapshot、转发用户操作、组合上述容器；不自行读取物理面板像素 |
 
-`AdaptiveMetrics` 同时根据窗口高度和 `fontScale` 计算控件高度、最小行高、底部导航、viewfinder、
-内联图片、二维码、键盘判定阈值和附件名称上限。所有触控目标至少 48dp；大字体提高行高和控件高度，
-短屏会把 sheet 高度限制在当前窗口内。配置缺失或异常时会使用安全的 dp 和 fontScale 默认值。
+`scripts/check-architecture.py` 检查纯策略不引入 Android、适配容器不引入业务/协议 owner、controller
+不引入窗口尺寸，并阻止页面/组件直接读取物理像素。窗口和 IME 策略不应重新散落进业务代码。
 
-`AdaptivePage` 在中等和宽窗口中只约束页面内容列，外层仍然占满窗口，因此弹层、系统栏和页面切换不会
-依赖某一台设备的物理分辨率。页面只应使用 `Ui` 的 token（例如 `touchTarget()`、`rowHeight()`、
-`pagePadding()`、`sheetWidth()`、`inlineImageWidth()`），不要读取 `DisplayMetrics.widthPixels` 或
-写死用于交互的 48/50/52/56dp 高度。
+## 窗口与字体策略
 
-## 已完成和验证
+| 当前窗口宽度 | 类别 | 页面行为 |
+| --- | --- | --- |
+| `< 600dp` | Compact | 单列占满窗口，包括约 259dp 的 E2 |
+| `600–839dp` | Medium | 页面列最多 640dp，居中 |
+| `>= 840dp` | Expanded | 页面列最多 720dp，居中 |
 
-- 连接、历史、outbox、语音 handoff、ambient、Sight、附件、位置、arrival、后台上传、会话查看器和
-  兼容性提示等 P0/P1 业务仍由原来的 controller/state owner 管理，页面容器只负责尺寸和可见性。
-- 对话、环境、设置、会话、位置、配对、二维码、登录 sheet、底部导航和 hold-to-talk 已接入公共尺寸
-  token；输入框、附件图片/名称、viewfinder、sheet 和二维码不再从页面读取物理像素。
-- `tests/host/AdaptiveMetricsContracts.java` 覆盖 64/320/360/599/600/839/840dp 断点、宽度上限、
-  48dp 目标、大字体、短屏 sheet、媒体和二维码边界。`scripts/test-host.sh` 当前通过 325 项 host
-  contract assertions；架构、本地化和 Android APK 构建也通过。架构检查会阻止页面和组件直接读取
-  物理窗口像素。
-- 当前 E2 的约 259dp 应用窗口已经验证过紧凑布局、键盘、1.35 字体和中英文页面。适配层改造后，
-  采集/相机/Try 回归通过 342 项，另一个包含系统导入器的 Try 回归通过 211 项；环境中断专项 39 项、
-  朗读失败专项 27 项也通过。宽屏设备仍然没有实机证据。
+底部导航与正文遵守相同列宽上限；sheet 在手机中占满可用宽度，在宽窗口中限制为 640/720dp。页面高度
+由父窗口测量，不以物理屏幕高度替代。应用允许旋转和窗口调整。
 
-## 仍未验证的范围
+API 30+ 使用 `WindowInsets` 的 systemBars/displayCutout/ime 和 `isVisible(ime)`。API 26–29 使用
+本窗口可见区域的兼容计算；E2 返回零 stable top inset 时保留原有状态栏预留。没有使用整块 display 的
+`getRealSize()` 推断分屏键盘。
 
-当前真机不是适配策略的全部证据。后续需要在普通手机和平板上验证：横屏、分屏/自由窗口、系统字体
-`1.0–2.0`、动态状态栏/导航栏、硬件键盘、TalkBack 焦点顺序、外部显示器以及系统主题切换。还需要
-检查极短横屏窗口中环境页和输入法的滚动边界，以及宽窗口中 Markdown 表格、长文件名和会话列表的
-可读宽度。
+短窗口或打开 IME 后，`AdaptiveColumn` 会收起辅助页头、将编辑器压到一行；关闭键盘/放大窗口后恢复。
+草稿和选区不随布局改变。composer footer 可以滚动，配对表单和位置页也在滚动内容中，地图保留最小可用
+高度。按钮和行高允许随文字增长；单行 EditText 使用 View 的 minimumHeight，避免原生 `setSingleLine()`
+覆盖 TextView 的最小高度。
 
-这些属于 UI 和可访问性验收缺口，不影响已经完成的 P0/P1 协议、连接、存储和失败恢复工作。推送和
-Passport 按用户要求继续暂缓；它们在 `docs/migration.md` 中保留为 1:1 差距。
+## 验证结果
 
+- API 35 arm64：22 组真实 Activity 截图和 IME 验收，9,616 项几何检查通过。手机 360×740dp 与平板
+  1280×800dp 覆盖字体 0.85、1.0、1.15、1.3、1.5、1.8、2.0；另含 320×640、600×960、840×600、
+  740×360、600×320，以及中英文/明暗主题组合。内容包括 Try 的长回复、Markdown 表格、工具与文件，
+  八个页面、会话详情、附件 sheet、编辑 sheet，以及对话/会话/配对/位置/弹层的真实 IME。
+- 真实 Activity 重建和显示旋转的 20 项检查通过：配对字段、选区、隐藏页面表单、controller 草稿和设置阅读位置。
+  横屏 740×360dp、竖屏 360×740dp，当前窗口边界与最大显示边界一致，排除了竖屏中的信箱窗口。
+- 真正的自由窗口调整的 8 项检查通过：600×600、920×700、360×660dp，`isInMultiWindowMode=true`，
+  草稿保留。系统 Recents 的真实双应用分屏的 12 项检查通过：早期 635×800dp、最终 runner 800×635dp，
+  均留八个页面的实际 pane 配置和截图。
+- 实际 TalkBack 15.0 最终复现的 241 项检查通过；实际 Google 开源 Switch Access 6.1.1 的页面扫描与 sheet 激活
+  通过。后者不是当前 Google Play 版本。服务、原始输入、焦点轨迹与限制见 [`accessibility.md`](accessibility.md)。
+- 325 项 host contracts、架构/本地化、Go vet/test 和 Android 构建通过。最终 E2 的完整采集/相机/Try 回归
+  342 项通过，E2 无障碍专项 27 项通过。真实 E2 的显示密度、overscan、launcher 和 E2Studio 配置保持原状。
+
+这轮验收实际修复了强制竖屏、宽屏导航被拉满、短横屏大字按钮裁字、IME 遮住编辑器、地图高度被挤成零、
+配对固定底栏挤掉表单，以及旋转丢失 UI 状态的问题。首次完整 E2 回归遇到音频 probe 先检查 Listening、
+后立即要求首包已到的竞态；等待条件现与原断言一致，仍使用原来的 7 秒期限，随后 342 项通过。
+
+## 复现与后续边界
+
+```sh
+scripts/test-host.sh
+scripts/build-android.sh
+python3 scripts/test-ui-matrix.py --serial YOUR_EMULATOR
+python3 scripts/test-window-ui.py --serial YOUR_EMULATOR
+```
+
+模拟器脚本拒绝物理设备，并在退出时恢复所改的窗口、字体、旋转和窗口开发设置。一个模拟器只能被一个
+验收脚本占用。截图、JSON、APK 摘要和失败记录保存在 ignored 的 `.build/acceptance/`。
+
+本阶段验证了这些具体窗口和服务条件，尚未覆盖所有 OEM、刘海/折叠屏、外接显示器、所有硬件键盘组合、
+所有弹层/系统权限对话框的无障碍返回，以及进行中的配对/外部操作在任意配置切换下的全部生命周期。
+它们作为未来兼容性验收记录保留，不需要在业务 controller 中加入设备尺寸分支。当前实现和剩余功能差异见
+[`status.md`](status.md) 与 [`migration.md`](migration.md)。

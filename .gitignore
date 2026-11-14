@@ -1,5 +1,7 @@
 .build/
 dist/
+__pycache__/
+*.py[cod]
 local.properties
 *.keystore
 *.p12

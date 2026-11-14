@@ -100,8 +100,8 @@ public final class AmbientPage implements PocketController.Listener {
         hush = ui.button(ui.t("别说了"), ui.palette.text, ui.palette.raised, controller::ambientHush);
         compactControl(mute);
         compactControl(hush);
-        controls.addView(mute, new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ui.controlHeight(), 1);
+        controls.addView(mute, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, -2, 1);
         hp.leftMargin = ui.dp(8);
         controls.addView(hush, hp);
         transcriptToggle =
@@ -115,7 +115,7 @@ public final class AmbientPage implements PocketController.Listener {
                             changed();
                         });
         compactControl(transcriptToggle);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ui.controlHeight(), 1);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
         tp.leftMargin = ui.dp(8);
         controls.addView(transcriptToggle, tp);
         root.addView(controls);
@@ -167,7 +167,7 @@ public final class AmbientPage implements PocketController.Listener {
                                         new String[] {android.Manifest.permission.RECORD_AUDIO},
                                         controller::ambientToggle);
                         });
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, ui.controlHeight());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(ui.dp(12), ui.dp(4), ui.dp(12), ui.dp(12));
         root.addView(action, ap);
         controller.addListener(this);

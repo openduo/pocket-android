@@ -90,8 +90,12 @@ public final class ConversationPage implements PocketController.Listener {
 
     public View render() {
         if (root != null) return root;
-        root = ui.column();
+        top.kuaner.pockete2.ui.AdaptiveColumn adaptive = ui.adaptiveColumn();
+        root = adaptive;
         root.setBackgroundColor(ui.palette.background);
+        LinearLayout chrome = ui.column();
+        adaptive.chrome(chrome);
+        root.addView(chrome);
         LinearLayout header = ui.row();
         header.setPadding(ui.dp(8), 0, ui.dp(4), 0);
         LinearLayout heading = ui.column();
@@ -101,7 +105,8 @@ public final class ConversationPage implements PocketController.Listener {
         subtitle.setEllipsize(TextUtils.TruncateAt.END);
         heading.addView(title);
         ui.add(heading, subtitle, 4);
-        header.addView(heading, new LinearLayout.LayoutParams(0, ui.rowHeight(), 1));
+        heading.setMinimumHeight(ui.rowHeight());
+        header.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         heading.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(
                 ui.iconButton(
@@ -110,7 +115,7 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.palette.accent,
                         () -> host.navigate("ambient")),
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
-        root.addView(header);
+        chrome.addView(header);
         if (readOnly) header.setVisibility(View.GONE);
         upgradeNotice = ui.label("", 12, ui.palette.attention, true);
         upgradeNotice.setTag("upgrade-notice");
@@ -119,7 +124,7 @@ public final class ConversationPage implements PocketController.Listener {
         ui.inset(upgradeNotice, ui.pagePaddingDp(), 8);
         ui.clickable(upgradeNotice, ui.palette.attentionTint, 10, this::showUpgrade);
         upgradeNotice.setVisibility(View.GONE);
-        root.addView(upgradeNotice);
+        chrome.addView(upgradeNotice);
         banner = ui.label("", 12, ui.palette.attention, false);
         ui.inset(banner, ui.pagePaddingDp(), 8);
         banner.setBackground(ui.surface(ui.palette.attentionTint, 10));
@@ -134,12 +139,13 @@ public final class ConversationPage implements PocketController.Listener {
                         controller.start();
                     }
                 });
-        root.addView(banner);
+        chrome.addView(banner);
         FrameLayout thread = new FrameLayout(ui.context);
         feed = ui.column();
         feed.setPadding(ui.pagePadding(), ui.dp(8), ui.pagePadding(), ui.dp(16));
         feed.setFocusableInTouchMode(true);
         scroll = ui.scroll(feed);
+        scroll.setId(top.kuaner.pockete2.R.id.page_scroll);
         scroll.setDescendantFocusability(android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS);
         thread.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
         jump =
@@ -255,7 +261,11 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.t("发消息…"),
                         controller.draft(),
                         true);
+        input.setId(top.kuaner.pockete2.R.id.composer);
+        input.setSaveEnabled(
+                false); // The controller owns the durable text; the UI restores selection.
         input.setMaxLines(4);
+        adaptive.editor(input, 4);
         input.setMinHeight(ui.touchTarget());
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.addTextChangedListener(
@@ -293,7 +303,7 @@ public final class ConversationPage implements PocketController.Listener {
         textRow.addView(
                 send, new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         composer.addView(textRow);
-        root.addView(composer);
+        root.addView(ui.scrollFooter(composer));
         controller.addListener(this);
         changed();
         anchor.toBottom();
@@ -415,8 +425,12 @@ public final class ConversationPage implements PocketController.Listener {
                 if (a.inlineImage()) {
                     ImageView thumbnail = new ImageView(ui.context);
                     thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    chip.addView(thumbnail, new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
+                    chip.addView(
+                            thumbnail,
+                            new LinearLayout.LayoutParams(ui.touchTarget(), ui.touchTarget()));
                     images.bind(thumbnail, a, 128);
+                    thumbnail.setContentDescription(a.name);
+                    thumbnail.setFocusable(true);
                     thumbnail.setOnClickListener(v -> host.openAttachment(a));
                 }
                 TextView name =
@@ -680,6 +694,8 @@ public final class ConversationPage implements PocketController.Listener {
                         new LinearLayout.LayoutParams(
                                 ui.inlineImageWidth(), ui.inlineImageHeight()));
                 images.bind(thumbnail, a, 512);
+                thumbnail.setContentDescription(a.name);
+                thumbnail.setFocusable(true);
                 thumbnail.setOnClickListener(v -> host.openAttachment(a));
                 continue;
             }
@@ -746,7 +762,21 @@ public final class ConversationPage implements PocketController.Listener {
             }
             if (s.readingId.equals(m.id)) note.setOnClickListener(v -> controller.readAloud(m));
         }
-        row.setContentDescription((mine ? ui.t("我") : ui.t("回答")) + "，" + m.text + "，" + meta);
+        bubble.setFocusable(true);
+        bubble.setAccessibilityDelegate(
+                new View.AccessibilityDelegate() {
+                    @Override
+                    public void onInitializeAccessibilityNodeInfo(
+                            View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                        super.onInitializeAccessibilityNodeInfo(host, info);
+                        info.addAction(
+                                new android.view.accessibility.AccessibilityNodeInfo
+                                        .AccessibilityAction(
+                                        android.view.accessibility.AccessibilityNodeInfo
+                                                .ACTION_LONG_CLICK,
+                                        ui.t("消息操作")));
+                    }
+                });
         return row;
     }
 
