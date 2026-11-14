@@ -11,8 +11,11 @@ to keep testing. Complete 1:1 parity is a future comparison against iOS
 Actual session-notification receipt passed on the original-package E2 on 2026-11-15: one
 correlated delivery result and exactly one marked recipient row. The dedicated silent keepalive
 test job was subsequently archived. Preserve the private once-only journal; do not repeat that
-successful send without a relevant new failure/change. Natural speech/audible output and Sight
-remain pending independently.
+successful send without a relevant new failure/change. On the same date, one actual human
+hold-to-talk turn was recognized and delivered, and the user confirmed receiving the audible
+reply. The displayed recognition had a wording error. This accepts that bounded path on the local
+original-package E2 array build, not exact ASR accuracy, full hands-free ambient use or the public
+framework-audio APK. Do not repeat it without a relevant failure/change. Sight remains pending.
 
 The user confirmed on 2026-11-15 that no new room-service release is available. Actual Sight
 awaits a released media-capable service; do not assume the user missed an available update.

@@ -27,22 +27,31 @@ Earlier `top.kuaner.pockete2` builds had actual text/history/files/session readi
 
 The user-reported Wi-Fi incident was reproduced: tsnet retained a cached all-links-down state after Wi-Fi returned. Recovery now injects a netmon event before rebind/restun. One real E2 background outage/return recovered Online in about 2.7 seconds with the same process and an online peer observed from the computer. That evidence does not establish overnight stability.
 
-Natural speech with audible replies, actual Sight media negotiation, notification receipt, physical arrival, target smart-speaker acoustics and long-term background behavior remain open. Push and Passport are deferred. See [status](status.md) and [migration gaps](migration.md).
+One human voice-note/audible-reply turn and selected-session notification receipt now pass on the local original-package E2 build. Actual Sight media negotiation, full hands-free ambient conversation, physical arrival, target smart-speaker acoustics and long-term background behavior remain open. Push and Passport are deferred. See [status](status.md) and [migration gaps](migration.md).
 
 The unreleased client follow-up passes 331 JVM contracts, 618-entry localization/source checks
 and a signed Release build. It enforces device scope independently of recipient capability,
 explains a missing media declaration without requiring a camera frame and replaces the
 host-hidden own-room notification target with an explicit dedicated test recipient. The
-[short actual-service guide](service-acceptance.md) records what must still be verified. These
-client checks do not complete actual voice, Sight or notification acceptance.
+[short actual-service guide](service-acceptance.md) records the separate actual results. These
+client checks alone do not complete actual voice, Sight or notification acceptance.
 
 One targeted API 35 run passes 14 Sight UI assertions with microphone/camera capture disabled.
 Prepared metadata covers a master seat without any camera frame, clearing the warning after media
-support is declared, and the existing refusal/reset states. The notification probe compiles; it
-has not sent to an actual recipient.
+support is declared, and the existing refusal/reset states. At that checkpoint the notification
+probe compiled but had not sent to an actual recipient; the later actual result is recorded below.
 
 On 2026-11-15 the user confirmed that the required new room-service release is not available.
 Actual Sight therefore remains a release dependency; this does not prevent independent speech
 or scoped-notification work. The client wording was corrected to report missing video capability
 without claiming an update exists. Only source/localization checks were run for this copy change;
 the preceding build and prepared UI evidence were not repeated.
+
+The later same-signature original-package E2 run passed ten actual selected-session notification
+assertions: a correlated successful send, exactly one marked recipient row and preserved room
+composer/outbox. Its dedicated silent keepalive test job was subsequently archived. On the same
+date the user completed a human hold-to-talk turn: actual UI evidence shows a four-second voice
+note, recognition, delivery and a room reply; the user confirmed receiving the audible reply.
+Recognition had a wording error, so exact transcription accuracy is not accepted. These results
+apply to the local E2 array build, not the public Preview 2 framework-audio APK. No further audio
+or notification run was needed to record them; Sight still awaits the required service release.

@@ -3,14 +3,14 @@
 English · [简体中文](service-acceptance.zh-CN.md)
 
 The milestone covers natural microphone input with audible replies, actual Sight
-negotiation/uplink and receipt of a session notification. Notification receipt now has actual
-original-package E2 evidence; natural speech/audible output and Sight remain pending.
+negotiation/uplink and receipt of a session notification. One human voice-note/audible-reply turn
+and notification receipt now have actual original-package E2 evidence; Sight remains pending.
 Use one short check per path and fix observed failures. The earlier window matrices and overnight
 background task are outside this milestone.
 
 | Path | Actual result |
 | --- | --- |
-| 1. Microphone and audible reply | Pending one on-device human utterance, actual recognition and confirmation of audible output |
+| 1. Microphone and audible reply | Passed one human hold-to-talk turn on the local original-package E2: actual recognition/delivery, room reply and user-confirmed audible output; recognition had a wording error |
 | 2. Sight | Waiting for a released media-capable room service and its actual negotiation/uplink |
 | 3. Session notification | Passed on the original-package E2: correlated server success and exactly one marked notification row in the selected dedicated recipient |
 
@@ -68,15 +68,20 @@ identities belong only in private local evidence.
 
 ## Microphone and audible reply
 
-The retained E2 preference had spoken replies disabled. It was enabled through the app's existing
-**Play spoken replies** control, then the original hold-to-talk composer was restored. No recording
-or playback was started by that setup. The next actual human turn can use automatic foreground
-reply audio instead of requiring manual read-aloud.
+On 2026-11-15 the user completed one human hold-to-talk turn through the physical E2 microphone.
+The actual room UI shows a four-second voice note, recognition text, delivered status and the
+room's reply. The user then confirmed receiving the voice reply. The retained **Play spoken
+replies** preference had been off and was enabled through the app before this turn.
 
-Speak one short sentence through the device's actual microphone. Confirm recognition from the
-real service and hear the reply from the intended output. Record the result and any failed step.
+The displayed recognition had a wording error; this is acceptance of the microphone-to-room and
+audible-reply path, not exact transcription accuracy. It applies to the local original-package
+build with the optional E2 array payload. It does not accept full hands-free ambient conversation,
+other output routes or the public Preview 2 framework-audio path. The actual UI and user
+confirmation are retained in private ignored evidence; no additional recording or replay was
+needed. Do not repeat the accepted turn without a relevant failure or change.
+
 Injected synthetic samples, silent input and zero-volume AudioTrack progress remain separate
-evidence. Framework audio is the public default; an optional E2 firmware build is a different
+evidence. Framework audio is the public default; the local E2 firmware build is a different
 hardware path.
 
 ## Sight
@@ -124,5 +129,6 @@ remove journals to obtain another passing run.
 
 Record the APK identity, service capability, selected path and actual outcome in private ignored
 `.build/` evidence. Publish only a sanitized result and update [status](status.md) and the
-[migration gaps](migration.md). Track each path independently: notification receipt is accepted
-for the recorded local build; microphone/audible output and Sight still need their actual results.
+[migration gaps](migration.md). Track each path independently: one human voice-note/audible-reply
+turn and notification receipt are accepted for the recorded local build; Sight awaits its actual
+result after the required service release.

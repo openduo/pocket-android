@@ -4,6 +4,15 @@ The reference is the pinned upstream `PocketCore/AmbientEdge.swift`, `AmbientInt
 `VoiceUploader.swift` and `App/Engine/AmbientController.swift`. External Passport integration is
 deferred by the user; the standalone E2 microphone and output paths remain in scope.
 
+On 2026-11-15 one human hold-to-talk turn passed on the local original-package E2 array build.
+The actual room UI shows a four-second voice note, recognition, delivery and a reply; the user
+confirmed receiving the audible reply after **Play spoken replies** was enabled. Recognition had
+a wording error. This bounded result does not establish exact ASR accuracy, full hands-free
+ambient conversation, other routes or the public Preview 2 framework-audio path. It is separate
+from the historical prepared/synthetic and muted-playback evidence below. See
+[short service acceptance](service-acceptance.md); no repeat recording or replay was run to record
+the confirmation.
+
 `PocketController` admits protocol, focus and capture events on its state executor. `CaptureSession`
 owns its input lease and Opus encoder on the capture thread. `SpeechPlayer` owns its AudioTrack and
 hardware playback-head timeline on its worker. The state executor never blocks on playback or
