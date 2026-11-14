@@ -36,7 +36,7 @@ Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**.
 2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.
 3. Obtain a **fresh pairing link** from your ambient host, paste or scan it, then join the room.
 
-The earlier test package, `top.kuaner.pockete2`, and this app can coexist. Android does not transfer their private databases or AndroidKeyStore credentials across application IDs. The new app needs a fresh login/pairing; consumed one-time links cannot be reused. Keep the old app if you need its existing pairing/data. See [connection details](docs/connection.md).
+The earlier test package, `top.kuaner.pockete2`, and this app can coexist. Android does not transfer their private databases or AndroidKeyStore credentials across application IDs. The new app needs a fresh login/pairing; consumed one-time links cannot be reused. Existing E2 installations can instead use an explicit [same-package compatibility build](docs/devices.md#same-package-testing) signed with their original key to retain their node, pairing and data. See [connection details](docs/connection.md).
 
 ## Build
 

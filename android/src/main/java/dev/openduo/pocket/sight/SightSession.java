@@ -120,7 +120,8 @@ public final class SightSession {
                 frontAvailable
                         && (!rearAvailable
                                 || context.getSharedPreferences(
-                                                "duoduo-pocket.sight", Context.MODE_PRIVATE)
+                                                dev.openduo.pocket.app.AppIdentity.SIGHT,
+                                                Context.MODE_PRIVATE)
                                         .getBoolean("front", true));
         orientation =
                 new DeviceOrientation(
@@ -247,7 +248,7 @@ public final class SightSession {
         front = !front;
         watchCamera(false);
         recovery.reset();
-        context.getSharedPreferences("duoduo-pocket.sight", Context.MODE_PRIVATE)
+        context.getSharedPreferences(dev.openduo.pocket.app.AppIdentity.SIGHT, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean("front", front)
                 .apply();

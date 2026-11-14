@@ -51,21 +51,35 @@ acceptance steps.
 
 On 2026-11-15 the user confirmed there is no new room-service release to install. Sight is
 waiting for a released service with media support. Speech/audible replies and scoped notification
-delivery can proceed independently when work resumes; the new Android package still needs its
-own login/pairing. The video message now describes missing capability rather than asking for an
-available update. This wording-only correction is source/localization-checked; build and UI
-evidence above belongs to the preceding candidate.
+delivery can proceed independently. The video message now describes missing capability rather
+than asking for an available update; that correction is included in the later local builds.
+
+At the user's request, testing now uses an explicit compatibility build on the original
+`top.kuaner.pockete2` package. Its original signature, preferences, database, AndroidKeyStore alias
+and tailnet directory are retained. A same-signature update on the physical E2 reached actual
+Online state with the existing `pocket-e2` node, `notify` scope and 23 cached rows; the computer
+independently saw that one original node online. No new authorization or pairing was performed.
+The local E2 test APK explicitly includes the local array payload; it is not a public artifact.
+The public package remains `dev.openduo.pocket`; its default build was separately checked for
+that identity and public-only native payload after switching back from the opt-in firmware build.
+Both signed builds pass. Node-name UI now follows the selected build identity. See
+[same-package testing](devices.md#same-package-testing).
+
+The prerequisite check was read-only: no audio recording/playback, camera capture, room message
+or notification. No dedicated ambient/keepalive recipient accepting notifications is currently
+listed. The computer's local daemon is stopped and cannot administer the remote room. Natural
+speech/audible output and notification receipt remain unaccepted.
 
 ## Remaining work and priorities
 
 | Priority | Remaining or unverified | What a next milestone needs |
 | --- | --- | --- |
-| P0 actual use | Natural speech with audible replies/full ambient conversation and long-term background recovery are not fully accepted | Short target-device login/online/voice/reply checks first, then fix actual failures |
-| P1 actual services | Sight awaits a released media-capable room service; the old notification probe selected the host-hidden own room, so no notification was sent; physical visits unverified | Resume Sight after the required service release; independently complete notify-scoped pairing with an explicit dedicated recipient; visits need a device with location/geocoder |
+| P0 actual use | Natural speech with audible replies/full ambient conversation and long-term background recovery are not fully accepted | The original package is Online with retained credentials; next confirm one actual microphone/recognition/audible-reply turn |
+| P1 actual services | Sight awaits a released media-capable room service; notification receipt and physical visits remain unverified | Resume Sight after the required service release; existing E2 credentials already have notify scope, but a dedicated recipient is still needed; visits need a device with location/geocoder |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and remote/no-touch interaction remain open | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Android controller remains large; persistence/system services remain in app | Gradually split by business owner within the established protocol/window/hardware boundaries |
 | Deferred | Android push registration/relay/receiver, AES-GCM/HMAC/ledger/upstream vectors; external Passport Bluetooth | Explicitly resume those areas in a later milestone |
-| Old-package migration | No cross-package database/AndroidKeyStore migration | Fresh login and pairing in the new app; preserve the old app/data |
+| Old-package migration | No cross-package database/AndroidKeyStore migration | Use the explicit same-package/same-signature build to retain the original node and data; the separate public package requires its own login/pairing |
 
 Smart-speaker readiness currently means reusable architecture and framework paths. Wake words, kiosk/always-on launcher behavior, privileged background execution and OEM playback engines are not implemented. The [migration record](migration.md) preserves the longer-term 1:1 comparison; the preview version does not imply iOS feature parity.

@@ -9,6 +9,8 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import dev.openduo.pocket.app.AppIdentity;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -27,7 +29,7 @@ public final class RoomRepository extends SQLiteOpenHelper {
     private String room = "unpaired";
 
     public RoomRepository(Context context) {
-        this(context, "duoduo-pocket.db");
+        this(context, AppIdentity.DATABASE);
     }
 
     public RoomRepository(Context context, String database) {

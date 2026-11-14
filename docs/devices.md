@@ -40,6 +40,44 @@ firmware/
 
 This local build uses the same application ID as the generic app. Keep the proprietary result out of public Releases. Building without the property returns to the generic payload. `scripts/build-e2-adapter.sh` writes only to an ignored build directory. Local array JNI compilation passed; prior physical capture evidence is retained in [acceptance](acceptance.md).
 
+## Same-package testing
+
+An existing `top.kuaner.pockete2` installation can receive an explicit, same-signature compatibility
+build. This reuses its login, room pairing, cache and Tailscale node instead of registering another
+device. The Java namespace and shared application code remain `dev.openduo.pocket`; `AppIdentity`
+selects the original preference/database names, AndroidKeyStore alias and node hostname at build
+time. The tailnet state stays in the same no-backup directory. File-provider authorities follow
+the application ID.
+
+```sh
+POCKET_LEGACY_IDENTITY=1 scripts/build-android.sh
+adb -s YOUR_DEVICE_SERIAL install -r dist/PocketLegacy.apk
+```
+
+The original signing key and password must exist in `$HOME/.local/share/pocket-e2/signing`
+(`pocket-e2.p12`, alias `pocket-e2`, and `password`). `POCKET_E2_SIGN_DIR` can select another
+directory. The build fails if this key is absent; it never generates a replacement legacy key.
+Use `install -r`, without uninstalling or clearing data. This is an in-place update, not a
+cross-package credential transfer.
+
+For an E2 that used the local array integration, append
+`-Pe2FirmwareDir=/absolute/path/to/local/firmware` to the same command. That proprietary result
+is local-only. Without `POCKET_LEGACY_IDENTITY`, the build keeps the public `dev.openduo.pocket`
+identity and writes `dist/Pocket.apk`; no firmware is included unless explicitly requested.
+
+The original-package readiness check is read-only and does not record, play, capture or send:
+
+```sh
+ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
+POCKET_LEGACY_IDENTITY=1 \
+POCKET_TEST_SERVICE_READINESS_ONLY=1 \
+scripts/test-device.sh
+```
+
+Only targeted service checks are supported on the paired legacy installation; an unfiltered
+historical suite is refused. See [service acceptance](service-acceptance.md) for the pending
+microphone, Sight and explicitly selected notification paths.
+
 ## Adapter contract
 
 `DeviceAdapter` exposes matching, an input factory and the system-bar quirk. `AndroidDeviceAdapter` is the default. `DeviceRuntime.install` registers ordered adapters only in `PocketApplication.onCreate`; unmatched hardware uses Android. `DeviceCapabilities` discovers microphone, camera, location, geocoder and Bluetooth independently; diagnostics show the result. A feature flag is separate from permission and current driver availability.

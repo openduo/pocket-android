@@ -47,6 +47,39 @@ firmware/
 
 本地 E2 包与通用包使用相同应用 ID，请不要把带私有固件的产物上传公共 Release。去掉属性后重新构建即可回到通用版本。`scripts/build-e2-adapter.sh` 只向 ignored 模块 build 目录写产物。历史 E2 验证保存在[验收记录](acceptance.md)，不将其自动归给改包名后的 APK。
 
+## 原包覆盖测试
+
+已有 `top.kuaner.pockete2` 安装时，可以显式生成同签名兼容包，复用登录、房间配对、缓存和
+Tailscale 节点，无需再注册设备。Java namespace 和共用应用代码仍为 `dev.openduo.pocket`；
+`AppIdentity` 在构建时集中选择原来的 preferences/数据库名、AndroidKeyStore alias 和节点名，
+tailnet 状态继续使用同一个 no-backup 目录，文件 provider 的 authority 跟随实际包名。
+
+```sh
+POCKET_LEGACY_IDENTITY=1 scripts/build-android.sh
+adb -s YOUR_DEVICE_SERIAL install -r dist/PocketLegacy.apk
+```
+
+必须保留原签名目录 `$HOME/.local/share/pocket-e2/signing` 中的 `pocket-e2.p12`（alias 为
+`pocket-e2`）与 `password`，也可通过 `POCKET_E2_SIGN_DIR` 指定目录。缺少原签名时构建会失败，
+不会生成新的兼容包签名。只用 `install -r` 覆盖，不能先卸载或清数据；这是原地更新，不是跨包凭据迁移。
+
+原机使用本地 E2 阵列时，在上述构建命令后追加
+`-Pe2FirmwareDir=/absolute/path/to/local/firmware`，带私有固件的产物仅留本地。
+不设置 `POCKET_LEGACY_IDENTITY` 时仍构建公开包 `dev.openduo.pocket`，输出 `dist/Pocket.apk`；
+只有显式传入固件属性才包含固件。
+
+以下原包前置检查只读状态，不录音、不播放、不采集相机、不发送内容：
+
+```sh
+ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
+POCKET_LEGACY_IDENTITY=1 \
+POCKET_TEST_SERVICE_READINESS_ONLY=1 \
+scripts/test-device.sh
+```
+
+已配对旧包只支持指定的服务短检查，不指定范围的历史全量套件会被拒绝。
+实际麦克风、Sight 和明确指定收件目标的通知验收见[真实服务指南](service-acceptance.zh-CN.md)。
+
 ## 智能音箱后续接入
 
 先确认 Android 版本、ABI、可安装权限、AudioRecord/AudioTrack 与系统授权可用；不少封闭设备限制第三方录音或后台进程。确认设备有触屏还是遥控器/物理键，再决定是否补专门输入导航。默认前台使用不需要常驻 launcher、root、系统签名或修改设备密度。

@@ -437,7 +437,9 @@ public final class SettingsPage implements PocketController.Listener {
                                 + " · "
                                 + controller.settings.host()
                         : ui.t("尚未配对"));
-        Ui.updateText(tailnet, s.tailnetState + " · duoduo-pocket");
+        Ui.updateText(
+                tailnet,
+                s.tailnetState + " · " + dev.openduo.pocket.app.AppIdentity.TAILNET_HOSTNAME);
         Ui.updateText(cache, s.rows.size() + ui.t(" 条可见记录 · ") + s.outbox.size() + ui.t(" 条待同步"));
         Ui.updateText(
                 audioRoute,

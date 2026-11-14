@@ -83,7 +83,8 @@ public final class Ui {
 
     public static boolean lightTheme(Context context) {
         String appearance =
-                context.getSharedPreferences("duoduo-pocket.settings", Context.MODE_PRIVATE)
+                context.getSharedPreferences(
+                                dev.openduo.pocket.app.AppIdentity.SETTINGS, Context.MODE_PRIVATE)
                         .getString("appearance", "dark");
         return appearance.equals("light")
                 || appearance.equals("system")

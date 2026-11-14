@@ -12,12 +12,21 @@ On 2026-11-15 the user confirmed that no new room-service release is available. 
 waiting for a released service that offers the required media capability. This is a release
 dependency, not evidence that the user missed an available update. Existing speech/reply and
 session-reading evidence predates Sight support; microphone/audible-reply and scoped notification
-checks can proceed independently when resumed. Notification delivery itself remains unverified.
+checks can proceed independently. Notification delivery itself remains unverified.
+
+At the user's request, physical E2 checks now use a same-signature update of the original
+`top.kuaner.pockete2` package. The update retained the existing pairing, `pocket-e2` tailnet node
+and 23 cached rows, and reached actual Online state with `notify` scope. No extra node or new
+pairing is required. This was a read-only prerequisite check, without recording, playback,
+camera capture or notification delivery. The current list has no dedicated ambient/keepalive
+recipient accepting notifications. The computer's local daemon is stopped; it does not provide
+administrative access to the room host.
 
 ## Prerequisites
 
-- Sign in and pair `dev.openduo.pocket` itself. The older `top.kuaner.pockete2` retains its data;
-  Android private storage and AndroidKeyStore do not transfer across package IDs.
+- Continue physical E2 checks on `top.kuaner.pockete2` using the [same-package build](devices.md#same-package-testing).
+  Its existing login and pairing are reused. The public `dev.openduo.pocket` package is a
+  separate installation and needs its own credentials only when testing that package.
 - For notification acceptance, the device credential needs the `notify` scope. A `sessions`
   credential allows reading; the recipient's `notify: true` flag cannot grant device permission.
   The UI and controller share the Android-independent `SessionViewer.Access` policy.
@@ -29,7 +38,8 @@ checks can proceed independently when resumed. Notification delivery itself rema
   deliberately hides the connection's own `ambient:<room>` from its session list. The earlier
   own-room probe's `NOT_RUN` result did not diagnose notification delivery.
 
-The host-side CLI can issue a new scoped pairing link, for example:
+The current E2 credential already has `notify` scope. For a different installation that needs
+it, the host-side CLI can issue a new scoped pairing link, for example:
 
 ```sh
 duoduo channel ambient device add pocket-android \
@@ -65,16 +75,19 @@ automatically. This command sends real content to that selected test session:
 
 ```sh
 ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
+POCKET_LEGACY_IDENTITY=1 \
 POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1 \
 POCKET_TEST_NOTIFY_TARGET='ambient:notification-test' \
 scripts/test-device.sh
 ```
 
-The script requires a target before touching a device and Base64-encodes the key for the ADB shell
+Omit `POCKET_LEGACY_IDENTITY` when deliberately testing the public package. The script requires
+a target before touching a device and Base64-encodes the key for the ADB shell
 boundary. The probe requires actual Online state, `notify` credentials, idle outgoing/capture work
 and an exact listed recipient. It checks both the correlated delivery result and one uniquely
 marked notification row in that recipient. A generated reply is useful additional evidence but is
-not required to prove receipt.
+not required to prove receipt. The targeted readiness/notification runner reopens the paired app
+after instrumentation ends its process, so the user is returned to the app.
 
 The private `files/qa/session-notify-*.json` journal is specific to the source room and recipient.
 It records `dispatching` before sending and never automatically resends an uncertain attempt;

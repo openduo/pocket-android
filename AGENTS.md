@@ -41,6 +41,9 @@ Push (including crypto/identifiers/ledger) and external Passport remain explicit
   and `docs/migration.md`. Do not invent a parity percentage.
 - The old physical E2 app `top.kuaner.pockete2` retains its login/pairing. Do not uninstall, clear or
   replace its data while developing `dev.openduo.pocket`; package IDs cannot share AndroidKeyStore.
+  The user explicitly requested testing on the original package on 2026-11-15. A signed in-place
+  legacy-identity build may update it while preserving its storage names, key alias and tailnet.
+  Do not require another node or pairing for these tests.
 - Do not spawn subagents without an explicit user request. No unsolicited full regression, long
   wait, or notification/message to a person. Existing opt-in probes can send real room content;
   read their scope before use and never silently run them for a build/refactor.

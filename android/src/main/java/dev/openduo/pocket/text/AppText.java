@@ -6,6 +6,8 @@ package dev.openduo.pocket.text;
 import android.content.Context;
 import android.content.res.Configuration;
 
+import dev.openduo.pocket.app.AppIdentity;
+
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -47,7 +49,7 @@ public final class AppText {
     }
 
     private static String preference(Context context) {
-        return context.getSharedPreferences("duoduo-pocket.settings", Context.MODE_PRIVATE)
+        return context.getSharedPreferences(AppIdentity.SETTINGS, Context.MODE_PRIVATE)
                 .getString("language", "system");
     }
 

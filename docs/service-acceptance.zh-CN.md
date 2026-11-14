@@ -8,12 +8,18 @@
 
 2026-11-15 用户确认房间服务尚未发布新版本。真实 Sight 等待提供所需媒体能力的服务正式发布，
 属于上游发布依赖，不能据此认为用户漏装了可用更新。现有语音识别/回复和会话读取已有早期证据；
-恢复工作后，人声与可听回复、带权限的通知投递可独立推进。通知实际收件仍未验证。
+人声与可听回复、带权限的通知投递可独立推进。通知实际收件仍未验证。
+
+按用户要求，E2 真机检查现改用原包 `top.kuaner.pockete2` 的同签名覆盖更新，保留原配对、
+`pocket-e2` Tailscale 节点与 23 条缓存记录，实际房间已在线，凭据已有 `notify` 权限，
+不需要增加节点或重新配对。此次仅检查前置状态，没有录音、播放、相机采集或通知投递。
+当前会话列表中没有允许收件的专用 ambient/keepalive 目标；电脑上的本地 daemon 也未运行，
+不能通过它管理房间主机。
 
 ## 前置条件
 
-- 新包 `dev.openduo.pocket` 需要独立登录、配对。旧包 `top.kuaner.pockete2` 及其数据保留；
-  不同包名不能直接共用 Android 私有存储和 AndroidKeyStore。
+- E2 真机继续使用原包 `top.kuaner.pockete2` 的[同包名构建](devices.zh-CN.md#原包覆盖测试)，
+  复用现有登录与配对。公开包 `dev.openduo.pocket` 属于独立安装，只有专门测试该包时才需要其自己的凭据。
 - 通知验收需要 `notify` 范围的设备凭据。`sessions` 只允许读取；收件会话的
   `notify: true` 不能赋予设备发送权限。界面和 controller 共用纯 Java 的
   `SessionViewer.Access` 权限规则。
@@ -23,7 +29,7 @@
 - 选择一个专用测试 ambient 房间或 keepalive 任务，与配对房间不同。上游会刻意从列表隐藏
   当前连接自己的 `ambient:<room>`，因此旧探针对本房间返回 `NOT_RUN` 不能诊断通知投递能力。
 
-主机 CLI 可以生成新的指定范围配对链接，例如：
+当前 E2 凭据已经具备 `notify` 权限。其他安装需要新配对时，主机 CLI 可以生成指定范围链接，例如：
 
 ```sh
 duoduo channel ambient device add pocket-android \
@@ -52,15 +58,18 @@ duoduo channel ambient device add pocket-android \
 
 ```sh
 ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
+POCKET_LEGACY_IDENTITY=1 \
 POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1 \
 POCKET_TEST_NOTIFY_TARGET='ambient:notification-test' \
 scripts/test-device.sh
 ```
 
-脚本在操作设备前要求填写目标，并用 Base64 跨越 ADB shell 参数边界。探针要求实际在线、
+只有专门测试公开包时才去掉 `POCKET_LEGACY_IDENTITY`。脚本在操作设备前要求填写目标，
+并用 Base64 跨越 ADB shell 参数边界。探针要求实际在线、
 `notify` 凭据、没有进行中的采集或发送工作，以及与指定 key 完全一致的可通知收件会话。
 同时检查匹配发送 ID 的投递回执，以及目标会话中唯一标记的通知行。
 目标生成回复可以作为补充证据，但通知收件本身不依赖回复生成成功。
+定向的前置状态/通知探针会在 instrumentation 结束目标进程后重新打开已配对应用。
 
 私有 `files/qa/session-notify-*.json` 按来源房间和收件会话区分，发送前记录 `dispatching`。
 结果不确定时不会自动重发；AtomicFile 的备份恢复保证中断写入后仍遵守这一规则。

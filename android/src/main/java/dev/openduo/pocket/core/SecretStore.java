@@ -9,6 +9,8 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
 
+import dev.openduo.pocket.app.AppIdentity;
+
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 
@@ -19,7 +21,7 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /** AES-GCM key never leaves AndroidKeyStore. Connection secrets are excluded from backup. */
 final class SecretStore {
-    private static final String ALIAS = "duoduo-pocket.device-token.v1";
+    private static final String ALIAS = AppIdentity.TOKEN_KEY;
     private final SharedPreferences prefs;
 
     SecretStore(Context context) {

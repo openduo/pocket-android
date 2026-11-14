@@ -58,6 +58,16 @@ is recorded as waiting for a released media-capable service, rather than an upda
 failed to install. Existing audio and session access are separate capabilities; their pending
 natural-speech/audible-reply and notify-receipt checks do not depend on the Sight release.
 
+The user then requested testing on the original `top.kuaner.pockete2` package rather than
+registering another device. An explicit same-signature build preserves the original preference
+and database names, AndroidKeyStore alias, no-backup tailnet directory and `pocket-e2` hostname.
+The physical E2 update retained pairing and 23 cached rows, reached actual Online state with
+`notify` scope, and reused the one original node observed online from the computer. Its local
+array payload remains private. The default public build remains `dev.openduo.pocket`, with
+framework audio. This read-only prerequisite result is not microphone/audible-output or
+notification receipt acceptance; no dedicated accepting ambient/keepalive test recipient is
+currently listed. See [same-package testing](devices.md#same-package-testing).
+
 The user subsequently found a basic recovery defect: Wi-Fi was restored, but embedded Tailscale
 kept reporting `magicsock: network down`, the room retried and the computer saw the E2 offline.
 The room host remained healthy. `Rebind` now resamples netmon before socket rebind/restun instead

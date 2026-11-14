@@ -6,6 +6,8 @@ package dev.openduo.pocket.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import dev.openduo.pocket.app.AppIdentity;
+
 /** Presentation preferences and one paired room. Device tokens use AndroidKeyStore. */
 public final class Settings {
     private final SharedPreferences prefs;
@@ -13,7 +15,7 @@ public final class Settings {
     private String token;
 
     public Settings(Context context) {
-        prefs = context.getSharedPreferences("duoduo-pocket.settings", Context.MODE_PRIVATE);
+        prefs = context.getSharedPreferences(AppIdentity.SETTINGS, Context.MODE_PRIVATE);
         secrets = new SecretStore(context);
         token = secrets.read(hasEndpoint() ? endpoint().identity() + "|" + room() : "");
     }

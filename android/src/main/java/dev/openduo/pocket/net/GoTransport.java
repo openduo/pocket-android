@@ -54,7 +54,8 @@ public final class GoTransport implements ChannelConnection {
                         }
                     });
             Tsbridge.start(
-                    new File(context.getNoBackupFilesDir(), "tailnet").getPath(), "duoduo-pocket");
+                    new File(context.getNoBackupFilesDir(), "tailnet").getPath(),
+                    dev.openduo.pocket.app.AppIdentity.TAILNET_HOSTNAME);
             started = true;
         }
         reportStatus();

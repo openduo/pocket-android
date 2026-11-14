@@ -96,7 +96,9 @@ public final class TailnetLoginSheet {
         boolean available = !connected && !next.isEmpty();
         String heading =
                 connected
-                        ? ui.t("Tailscale 已连接，节点 duoduo-pocket")
+                        ? ui.format(
+                                "Tailscale 已连接，节点 %s",
+                                dev.openduo.pocket.app.AppIdentity.TAILNET_HOSTNAME)
                         : state.equals("NeedsMachineAuth")
                                 ? ui.t("等待管理员批准这台设备")
                                 : available
@@ -112,7 +114,9 @@ public final class TailnetLoginSheet {
                 connected
                         ? ui.t("下一步读取或扫描房间管理页生成的配对链接。")
                         : state.equals("NeedsMachineAuth")
-                                ? ui.t("请在 Tailscale 管理后台批准 duoduo-pocket，然后刷新状态。")
+                                ? ui.format(
+                                        "请在 Tailscale 管理后台批准 %s，然后刷新状态。",
+                                        dev.openduo.pocket.app.AppIdentity.TAILNET_HOSTNAME)
                                 : available
                                         ? hasBrowser
                                                 ? ui.t("在浏览器中登录与房间相同的 Tailscale 网络，也可以用手机扫描下方二维码。")

@@ -1,7 +1,9 @@
 # Login and room pairing
 
-Pocket E2 runs its own embedded Tailscale node, named `pocket-e2`. The app's login and
-room-pairing steps are separate. Authorizing this node does not pair it with a room.
+Pocket runs its own embedded Tailscale node. The public package uses `duoduo-pocket`; explicit
+[same-package E2 builds](devices.md#same-package-testing) retain the existing `pocket-e2` node.
+The app's login and room-pairing steps are separate. Authorizing a node does not pair it with a
+room. An in-place E2 update with the original signing key reuses both steps and needs no new node.
 
 1. Keep the E2 connected to Wi-Fi and choose **Log In to Tailscale** (`登录 Tailscale`).
 2. The login sheet displays the actual node's authorization QR and a selectable/copyable link.
@@ -9,10 +11,10 @@ room-pairing steps are separate. Authorizing this node does not pair it with a r
    containing the room server. On a device with a browser, the login action opens it and the
    sheet also retains an explicit browser button.
 3. Keep the app open while completing authorization. Backend changes update the sheet. If the
-   network requires device approval, approve `pocket-e2` in the Tailscale admin console.
+   network requires device approval, approve the node shown by this build in the Tailscale admin console.
    **Refresh login status** requests the current state without replacing a pending auth URL
    or signing out a connected node.
-4. After **Tailscale connected · pocket-e2**, choose **Continue to room pairing**.
+4. After **Tailscale connected** shows the node name, choose **Continue to room pairing**.
 5. Generate a fresh pairing link in the room management page. Paste the complete
    `duoduopocket://pair?...` link into **Pairing link**, then choose **Read link**; alternatively
    use **Scan room QR**. The link supplies host, port, HTTPS and the opaque pairing code.
@@ -25,7 +27,8 @@ The E2 has no browser registered for HTTPS in the observed firmware; copying a l
 the former failure. A native QR avoids depending on another installed application.
 
 For an ADB-assisted handoff, deliver the management page's **actual** pairing link as an Android
-`ACTION_VIEW` intent targeting `dev.openduo.pocket`. Treat pairing and login links as credentials:
+`ACTION_VIEW` intent targeting the installed application ID (`dev.openduo.pocket` for the public
+package, `top.kuaner.pockete2` for the compatibility build). Treat pairing and login links as credentials:
 keep them out of tracked scripts, logs and screenshots. The scanner decodes QR locally.
 
 `POCKET_E2_TEST_LOGIN_ONLY=1 scripts/test-device.sh` exercises the actual node and the rendered
