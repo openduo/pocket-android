@@ -40,7 +40,7 @@ public final class Sheets {
 
     public static Dialog content(Ui ui, String title, LinearLayout body) {
         Dialog dialog = build(ui, title, body);
-        show(dialog);
+        show(ui, dialog);
         return dialog;
     }
 
@@ -57,7 +57,7 @@ public final class Sheets {
                                 dialog.dismiss();
                                 action.run.run();
                             }));
-        show(dialog);
+        show(ui, dialog);
         return dialog;
     }
 
@@ -80,7 +80,7 @@ public final class Sheets {
                         }),
                 12);
         ui.add(body, ui.button(ui.t("取消"), ui.palette.secondary, 0, dialog::dismiss), 4);
-        show(dialog);
+        show(ui, dialog);
         return dialog;
     }
 
@@ -100,7 +100,7 @@ public final class Sheets {
                             dialog.dismiss();
                         }),
                 12);
-        show(dialog);
+        show(ui, dialog);
         return dialog;
     }
 
@@ -118,7 +118,7 @@ public final class Sheets {
                 new LinearLayout(ui.context) {
                     @Override
                     protected void onMeasure(int width, int height) {
-                        int maximum = (int) (getResources().getDisplayMetrics().heightPixels * .82);
+                        int maximum = ui.sheetHeight();
                         super.onMeasure(
                                 width,
                                 View.MeasureSpec.makeMeasureSpec(
@@ -133,7 +133,7 @@ public final class Sheets {
         heading.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
         heading.addView(
                 ui.iconButton("chevron_down", ui.t("关闭面板"), ui.palette.secondary, dialog::dismiss),
-                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         sheet.addView(heading);
         ScrollView scroll = new ScrollView(ui.context);
         scroll.addView(body);
@@ -147,9 +147,9 @@ public final class Sheets {
         return dialog;
     }
 
-    private static void show(Dialog dialog) {
+    private static void show(Ui ui, Dialog dialog) {
         dialog.show();
         Window window = dialog.getWindow();
-        window.setLayout(-1, -2);
+        window.setLayout(ui.sheetWidth(), -2);
     }
 }

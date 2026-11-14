@@ -846,6 +846,7 @@ public final class Contracts {
         checked += RoomAccessContracts.run();
         checked += VoiceInboxContracts.run();
         checked += UpgradeNoticeContracts.run();
+        checked += AdaptiveMetricsContracts.run();
         System.out.println("PASS " + checked + " contract assertions");
     }
 

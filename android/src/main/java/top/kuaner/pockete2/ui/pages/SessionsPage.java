@@ -103,7 +103,7 @@ public final class SessionsPage implements PocketController.Listener {
         root.addView(bar);
         roomReturn = ui.row();
         ui.inset(roomReturn, 12, 6);
-        roomReturn.setMinimumHeight(ui.dp(56));
+        roomReturn.setMinimumHeight(ui.rowHeight());
         roomReturn.addView(ui.icon("monitor_smartphone", ui.palette.accent, 22));
         LinearLayout roomLabels = ui.column();
         roomTitle = ui.label("", 14, ui.palette.text, true);
@@ -115,7 +115,7 @@ public final class SessionsPage implements PocketController.Listener {
         ui.clickable(roomReturn, ui.palette.surface, 12, () -> host.navigate("conversation"));
         root.addView(roomReturn);
         content = ui.column();
-        ui.inset(content, 12, 10);
+        ui.inset(content, ui.pagePaddingDp(), 10);
         ScrollView scroll = ui.scroll(content);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         anchor = new ScrollAnchor(scroll);
@@ -150,7 +150,9 @@ public final class SessionsPage implements PocketController.Listener {
                         ui.t("发送通知"),
                         ui.palette.accent,
                         () -> controller.notifySession(input.getText().toString()));
-        notifyRow.addView(sendNotify, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+        notifyRow.addView(
+                sendNotify,
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         ui.add(notify, notifyRow, 6);
         root.addView(notify);
         controller.addListener(this);
@@ -310,7 +312,7 @@ public final class SessionsPage implements PocketController.Listener {
         for (int i = 0; i < count; i++) {
             SessionViewer.Summary item = items.get(i);
             LinearLayout row = ui.row();
-            row.setMinimumHeight(ui.dp(56));
+            row.setMinimumHeight(ui.rowHeight());
             ui.inset(row, 12, 10);
             row.addView(
                     ui.icon(

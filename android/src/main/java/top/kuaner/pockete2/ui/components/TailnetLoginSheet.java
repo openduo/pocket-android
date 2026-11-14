@@ -177,8 +177,9 @@ public final class TailnetLoginSheet {
 
         @Override
         protected void onMeasure(int width, int height) {
-            int size = Math.min(MeasureSpec.getSize(width), ui.dp(216));
-            setMeasuredDimension(MeasureSpec.getSize(width), size);
+            int widthSize = MeasureSpec.getSize(width);
+            int size = Math.min(widthSize, ui.qrMaxWidth());
+            setMeasuredDimension(widthSize, size);
         }
 
         @Override

@@ -39,7 +39,7 @@ public final class QrScanner implements QrCapture.Listener {
         image = new ImageView(ui.context);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setContentDescription(ui.t("房间二维码相机画面"));
-        body.addView(image, new LinearLayout.LayoutParams(-1, ui.dp(230)));
+        body.addView(image, new LinearLayout.LayoutParams(-1, ui.viewfinderHeight()));
         hint =
                 ui.label(
                         ui.t("对准房间管理页的配对二维码。扫码在本机完成，读取后可检查地址再连接。"),

@@ -101,7 +101,7 @@ public final class ConversationPage implements PocketController.Listener {
         subtitle.setEllipsize(TextUtils.TruncateAt.END);
         heading.addView(title);
         ui.add(heading, subtitle, 4);
-        header.addView(heading, new LinearLayout.LayoutParams(0, ui.dp(56), 1));
+        header.addView(heading, new LinearLayout.LayoutParams(0, ui.rowHeight(), 1));
         heading.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(
                 ui.iconButton(
@@ -109,19 +109,19 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.t("环境模式"),
                         ui.palette.accent,
                         () -> host.navigate("ambient")),
-                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         root.addView(header);
         if (readOnly) header.setVisibility(View.GONE);
         upgradeNotice = ui.label("", 12, ui.palette.attention, true);
         upgradeNotice.setTag("upgrade-notice");
-        upgradeNotice.setMinHeight(ui.dp(48));
+        upgradeNotice.setMinHeight(ui.touchTarget());
         upgradeNotice.setGravity(Gravity.CENTER_VERTICAL);
-        ui.inset(upgradeNotice, 12, 8);
+        ui.inset(upgradeNotice, ui.pagePaddingDp(), 8);
         ui.clickable(upgradeNotice, ui.palette.attentionTint, 10, this::showUpgrade);
         upgradeNotice.setVisibility(View.GONE);
         root.addView(upgradeNotice);
         banner = ui.label("", 12, ui.palette.attention, false);
-        ui.inset(banner, 12, 8);
+        ui.inset(banner, ui.pagePaddingDp(), 8);
         banner.setBackground(ui.surface(ui.palette.attentionTint, 10));
         banner.setOnClickListener(
                 v -> {
@@ -137,7 +137,7 @@ public final class ConversationPage implements PocketController.Listener {
         root.addView(banner);
         FrameLayout thread = new FrameLayout(ui.context);
         feed = ui.column();
-        feed.setPadding(ui.dp(10), ui.dp(8), ui.dp(10), ui.dp(16));
+        feed.setPadding(ui.pagePadding(), ui.dp(8), ui.pagePadding(), ui.dp(16));
         feed.setFocusableInTouchMode(true);
         scroll = ui.scroll(feed);
         scroll.setDescendantFocusability(android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS);
@@ -153,7 +153,7 @@ public final class ConversationPage implements PocketController.Listener {
                         });
         FrameLayout.LayoutParams jp =
                 new FrameLayout.LayoutParams(
-                        -2, ui.dp(48), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                        -2, ui.touchTarget(), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         jp.bottomMargin = ui.dp(8);
         thread.addView(jump, jp);
         jump.setVisibility(View.GONE);
@@ -201,7 +201,7 @@ public final class ConversationPage implements PocketController.Listener {
         holdLabel.setGravity(Gravity.CENTER);
         holdPanel.addView(holdLabel);
         HoldToTalkView.Meter meter = new HoldToTalkView.Meter(ui, controller);
-        holdPanel.addView(meter, new LinearLayout.LayoutParams(-1, ui.dp(48)));
+        holdPanel.addView(meter, new LinearLayout.LayoutParams(-1, ui.controlHeight()));
         TextView hint = ui.label(ui.t("麦克风就绪后轻震 · 移出按钮取消"), 12, ui.palette.secondary, false);
         hint.setGravity(Gravity.CENTER);
         holdPanel.addView(hint);
@@ -218,7 +218,7 @@ public final class ConversationPage implements PocketController.Listener {
                         "minus", ui.t("取消引用"), ui.palette.secondary, () -> controller.quote("")));
         composer.addView(quoteRow);
         importRow = ui.row();
-        importRow.setMinimumHeight(ui.dp(48));
+        importRow.setMinimumHeight(ui.touchTarget());
         importRow.setBackground(ui.surface(ui.palette.raised, 10));
         importLabel = ui.label("", 12, ui.palette.secondary, false);
         ui.inset(importLabel, 8, 2);
@@ -231,7 +231,9 @@ public final class ConversationPage implements PocketController.Listener {
                         ui.t("取消导入"),
                         ui.palette.secondary,
                         () -> controller.cancelImport(importId));
-        importRow.addView(importCancel, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+        importRow.addView(
+                importCancel,
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         composer.addView(importRow);
         chipScroll = new HorizontalScrollView(ui.context);
         chipScroll.setHorizontalScrollBarEnabled(true);
@@ -244,7 +246,9 @@ public final class ConversationPage implements PocketController.Listener {
         voiceToggle =
                 ui.iconButton(
                         "mic", ui.t("切换语音或文字"), ui.palette.secondary, controller::toggleVoiceInput);
-        textRow.addView(voiceToggle, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+        textRow.addView(
+                voiceToggle,
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         input =
                 ui.configureInput(
                         new ComposerInput(ui.context, controller::importAttachment),
@@ -252,7 +256,7 @@ public final class ConversationPage implements PocketController.Listener {
                         controller.draft(),
                         true);
         input.setMaxLines(4);
-        input.setMinHeight(ui.dp(48));
+        input.setMinHeight(ui.touchTarget());
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.addTextChangedListener(
                 new TextWatcher() {
@@ -276,7 +280,7 @@ public final class ConversationPage implements PocketController.Listener {
         textRow.addView(
                 ui.iconButton(
                         "plus", ui.t("添加照片、拍照、文件或位置"), ui.palette.secondary, this::attachMenu),
-                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         send =
                 ui.iconButton(
                         "chevron_right",
@@ -286,7 +290,8 @@ public final class ConversationPage implements PocketController.Listener {
                             controller.sendDraft();
                             anchor.toBottom();
                         });
-        textRow.addView(send, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+        textRow.addView(
+                send, new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         composer.addView(textRow);
         root.addView(composer);
         controller.addListener(this);
@@ -427,11 +432,7 @@ public final class ConversationPage implements PocketController.Listener {
                                         ? ui.palette.attention
                                         : ui.palette.secondary,
                                 false);
-                int viewport = ui.context.getResources().getDisplayMetrics().widthPixels;
-                name.setMaxWidth(
-                        Math.min(
-                                ui.dp(180),
-                                Math.max(ui.dp(48), viewport - ui.dp(a.inlineImage() ? 120 : 84))));
+                name.setMaxWidth(ui.attachmentNameMaxWidth());
                 name.setMaxLines(1);
                 name.setEllipsize(TextUtils.TruncateAt.MIDDLE);
                 chip.addView(name);
@@ -674,7 +675,10 @@ public final class ConversationPage implements PocketController.Listener {
                 thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 thumbnail.setBackground(ui.surface(ui.palette.raised, 10));
                 thumbnail.setClipToOutline(true);
-                bubble.addView(thumbnail, new LinearLayout.LayoutParams(ui.dp(156), ui.dp(140)));
+                bubble.addView(
+                        thumbnail,
+                        new LinearLayout.LayoutParams(
+                                ui.inlineImageWidth(), ui.inlineImageHeight()));
                 images.bind(thumbnail, a, 512);
                 thumbnail.setOnClickListener(v -> host.openAttachment(a));
                 continue;
@@ -685,7 +689,7 @@ public final class ConversationPage implements PocketController.Listener {
             TextView name = ui.label(a.name, 13, ui.palette.text, false);
             name.setPadding(ui.dp(8), ui.dp(10), 0, ui.dp(10));
             file.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-            file.setMinimumHeight(ui.dp(48));
+            file.setMinimumHeight(ui.touchTarget());
             file.setOnClickListener(v -> host.openAttachment(a));
             file.setAlpha(a.sha256.isEmpty() ? .45f : 1);
             bubble.addView(file, new LinearLayout.LayoutParams(-1, -2));
@@ -736,7 +740,7 @@ public final class ConversationPage implements PocketController.Listener {
             note.setPadding(ui.dp(3), ui.dp(5), ui.dp(3), 0);
             row.addView(note);
             if (m.delivery == Message.FAILED) {
-                note.setMinHeight(ui.dp(48));
+                note.setMinHeight(ui.touchTarget());
                 note.setGravity(Gravity.CENTER_VERTICAL);
                 ui.clickable(note, 0, 8, () -> messageActions(m));
             }

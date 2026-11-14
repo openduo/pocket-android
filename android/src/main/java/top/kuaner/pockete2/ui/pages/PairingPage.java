@@ -41,7 +41,7 @@ public final class PairingPage implements PocketController.Listener {
         header.addView(ui.label(ui.t("连接房间"), 18, ui.palette.text, true));
         root.addView(header);
         LinearLayout body = ui.column();
-        ui.inset(body, 16, 10);
+        ui.inset(body, ui.pagePaddingDp(), 10);
         ui.add(
                 body,
                 ui.label(
@@ -86,7 +86,7 @@ public final class PairingPage implements PocketController.Listener {
         tls.setTextColor(ui.palette.text);
         tls.setChecked(controller.settings.tls());
         tls.setPadding(ui.dp(12), 0, 0, 0);
-        advanced.addView(tls, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+        advanced.addView(tls, new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
         ui.add(body, advanced, 8);
         code = field(body, ui.t("配对码"), "");
         code.setInputType(
@@ -95,7 +95,7 @@ public final class PairingPage implements PocketController.Listener {
         ui.add(body, error, 12);
         root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout actions = ui.column();
-        ui.inset(actions, 16, 8);
+        ui.inset(actions, ui.pagePaddingDp(), 8);
         commit = ui.button(ui.t("配对并连接"), ui.palette.onAccent, ui.palette.accent, this::pair);
         actions.addView(commit);
         ui.add(

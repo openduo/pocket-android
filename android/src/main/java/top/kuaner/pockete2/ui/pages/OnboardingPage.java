@@ -29,7 +29,7 @@ public final class OnboardingPage implements PocketController.Listener {
     public View render() {
         if (root != null) return root;
         root = ui.column();
-        ui.inset(root, 20, 12);
+        ui.inset(root, ui.pagePaddingDp(), 12);
         LinearLayout content = ui.column();
         content.setGravity(Gravity.CENTER_VERTICAL);
         View mark = ui.icon("audio_lines", ui.palette.accent, 54);

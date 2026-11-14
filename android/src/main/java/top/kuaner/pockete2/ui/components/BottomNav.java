@@ -25,7 +25,8 @@ public final class BottomNav {
 
     public View render(String selected) {
         LinearLayout root = ui.row();
-        root.setPadding(ui.dp(10), ui.dp(5), ui.dp(10), ui.dp(5));
+        root.setMinimumHeight(ui.navigationHeight());
+        root.setPadding(ui.dp(10), ui.dp(4), ui.dp(10), ui.dp(4));
         for (String[] item :
                 new String[][] {
                     {"messages_square", ui.t("对话"), "conversation"},
@@ -35,8 +36,8 @@ public final class BottomNav {
             boolean active = item[2].equals(selected);
             LinearLayout control = ui.column();
             control.setGravity(Gravity.CENTER);
-            control.setMinimumHeight(ui.dp(50));
-            control.setPadding(0, ui.dp(6), 0, ui.dp(6));
+            control.setMinimumHeight(ui.touchTarget());
+            control.setPadding(0, ui.dp(4), 0, ui.dp(4));
             control.addView(ui.icon(item[0], active ? ui.palette.accent : ui.palette.subtle, 21));
             TextView text =
                     ui.label(item[1], 11, active ? ui.palette.text : ui.palette.subtle, active);

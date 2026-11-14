@@ -30,7 +30,13 @@ public final class InsetsFrame extends FrameLayout {
         setWillNotDraw(false);
         systemBarPaint.setColor(ui.systemBarBackground);
         int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        setPadding(0, id == 0 ? ui.dp(24) : getResources().getDimensionPixelSize(id), 0, 0);
+        setPadding(
+                0,
+                id == 0
+                        ? ui.dp(ui.metrics.statusBarFallbackDp())
+                        : getResources().getDimensionPixelSize(id),
+                0,
+                0);
     }
 
     @Override
@@ -60,7 +66,7 @@ public final class InsetsFrame extends FrameLayout {
         getLocationOnScreen(position);
         int obscured = Math.max(0, position[1] + getHeight() - visible.bottom);
         display.getRealSize(displaySize);
-        boolean shown = displaySize.y - visible.bottom > ui.dp(100);
+        boolean shown = displaySize.y - visible.bottom > ui.dp(ui.metrics.keyboardThresholdDp());
         int inset = obscured;
         if (getPaddingBottom() != inset) setPadding(0, getPaddingTop(), 0, inset);
         if (shown != keyboardShown) {

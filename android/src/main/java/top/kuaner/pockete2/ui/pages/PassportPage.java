@@ -37,7 +37,7 @@ public final class PassportPage implements PocketController.Listener {
         bar.addView(ui.label("Passport", 18, ui.palette.text, true));
         root.addView(bar);
         LinearLayout body = ui.column();
-        ui.inset(body, 16, 12);
+        ui.inset(body, ui.pagePaddingDp(), 12);
         state = ui.label(ui.t("未连接"), 24, ui.palette.text, true);
         body.addView(state);
         detail = ui.label("", 13, ui.palette.secondary, false);
@@ -100,7 +100,7 @@ public final class PassportPage implements PocketController.Listener {
                                                     android.Manifest.permission.ACCESS_FINE_LOCATION
                                                 },
                                         controller::scanPassport));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, ui.dp(50));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, ui.controlHeight());
         lp.setMargins(ui.dp(16), ui.dp(8), ui.dp(16), ui.dp(12));
         root.addView(scan, lp);
         controller.addListener(this);

@@ -62,22 +62,22 @@ public final class AmbientPage implements PocketController.Listener {
                             controller.endAmbient();
                             host.navigate("conversation");
                         });
-        off.setMinimumWidth(ui.dp(48));
-        off.setMinimumHeight(ui.dp(48));
+        off.setMinimumWidth(ui.touchTarget());
+        off.setMinimumHeight(ui.touchTarget());
         bar.addView(off);
         root.addView(bar);
         LinearLayout center = ui.column();
-        ui.inset(center, 18, 12);
+        ui.inset(center, ui.pagePaddingDp(), 12);
         center.setGravity(Gravity.CENTER_VERTICAL);
         viewfinder =
                 new top.kuaner.pockete2.ui.components.SightViewfinder(
                         ui, controller::sightPreview, controller::sightPreviewVisible);
         viewfinder.setVisibility(View.GONE);
         ui.add(center, viewfinder, 0);
-        viewfinder.setLayoutParams(new LinearLayout.LayoutParams(-1, ui.dp(180)));
+        viewfinder.setLayoutParams(new LinearLayout.LayoutParams(-1, ui.viewfinderHeight()));
         center.addView(
                 new HoldToTalkView.Meter(ui, controller),
-                new LinearLayout.LayoutParams(-1, ui.dp(70)));
+                new LinearLayout.LayoutParams(-1, ui.controlHeight()));
         status = ui.label(ui.t("环境模式已关闭"), 24, ui.palette.text, true);
         status.setGravity(Gravity.CENTER);
         ui.add(center, status, 12);
@@ -95,13 +95,13 @@ public final class AmbientPage implements PocketController.Listener {
         transcript = thread.render();
         root.addView(transcript, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout controls = ui.row();
-        ui.inset(controls, 12, 6);
+        ui.inset(controls, ui.pagePaddingDp(), 6);
         mute = ui.button(ui.t("静音"), ui.palette.text, ui.palette.raised, controller::ambientMute);
         hush = ui.button(ui.t("别说了"), ui.palette.text, ui.palette.raised, controller::ambientHush);
         compactControl(mute);
         compactControl(hush);
-        controls.addView(mute, new LinearLayout.LayoutParams(0, ui.dp(52), 1));
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ui.dp(52), 1);
+        controls.addView(mute, new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ui.controlHeight(), 1);
         hp.leftMargin = ui.dp(8);
         controls.addView(hush, hp);
         transcriptToggle =
@@ -115,7 +115,7 @@ public final class AmbientPage implements PocketController.Listener {
                             changed();
                         });
         compactControl(transcriptToggle);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ui.dp(52), 1);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ui.controlHeight(), 1);
         tp.leftMargin = ui.dp(8);
         controls.addView(transcriptToggle, tp);
         root.addView(controls);
@@ -125,7 +125,7 @@ public final class AmbientPage implements PocketController.Listener {
         ui.inset(sightStatus, 16, 4);
         root.addView(sightStatus);
         cameras = ui.row();
-        ui.inset(cameras, 12, 4);
+        ui.inset(cameras, ui.pagePaddingDp(), 4);
         camera =
                 ui.button(
                         ui.t("开启相机"),
@@ -167,7 +167,7 @@ public final class AmbientPage implements PocketController.Listener {
                                         new String[] {android.Manifest.permission.RECORD_AUDIO},
                                         controller::ambientToggle);
                         });
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, ui.dp(50));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, ui.controlHeight());
         ap.setMargins(ui.dp(12), ui.dp(4), ui.dp(12), ui.dp(12));
         root.addView(action, ap);
         controller.addListener(this);

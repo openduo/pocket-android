@@ -44,10 +44,10 @@ public final class SettingsPage implements PocketController.Listener {
         if (root != null) return root;
         root = ui.column();
         TextView heading = ui.label(ui.t("设置"), 22, ui.palette.text, true);
-        ui.inset(heading, 16, 14);
+        ui.inset(heading, ui.pagePaddingDp(), 14);
         root.addView(heading);
         LinearLayout body = ui.column();
-        body.setPadding(ui.dp(12), 0, ui.dp(12), ui.dp(24));
+        body.setPadding(ui.pagePadding(), 0, ui.pagePadding(), ui.dp(24));
         root.addView(ui.scroll(body), new LinearLayout.LayoutParams(-1, 0, 1));
         Settings pref = controller.settings;
         section(body, ui.t("连接"));
@@ -316,7 +316,7 @@ public final class SettingsPage implements PocketController.Listener {
             LinearLayout parent, String icon, String title, String detail, Runnable action) {
         LinearLayout row = ui.row();
         ui.inset(row, 12, 10);
-        row.setMinimumHeight(ui.dp(56));
+        row.setMinimumHeight(ui.rowHeight());
         row.addView(ui.icon(icon, ui.palette.secondary, 20));
         LinearLayout labels = ui.column();
         TextView name = ui.label(title, 14, ui.palette.text, false);
@@ -350,7 +350,7 @@ public final class SettingsPage implements PocketController.Listener {
         Switch control = new Switch(ui.context);
         control.setChecked(value);
         control.setContentDescription(title);
-        control.setMinimumHeight(ui.dp(48));
+        control.setMinimumHeight(ui.touchTarget());
         control.setOnCheckedChangeListener((b, checked) -> action.accept(checked));
         row.addView(control);
         row.setOnClickListener(

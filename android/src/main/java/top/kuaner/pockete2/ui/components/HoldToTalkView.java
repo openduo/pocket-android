@@ -34,7 +34,7 @@ public final class HoldToTalkView extends LinearLayout {
         this.controller = controller;
         ui = host.ui();
         setGravity(Gravity.CENTER);
-        setMinimumHeight(ui.dp(48));
+        setMinimumHeight(ui.touchTarget());
         setOrientation(VERTICAL);
         label = ui.label(ui.t("按住说话"), 14, ui.palette.text, true);
         label.setGravity(Gravity.CENTER);

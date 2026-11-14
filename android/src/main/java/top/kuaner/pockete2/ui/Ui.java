@@ -9,6 +9,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
+import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
@@ -33,6 +34,7 @@ public final class Ui {
     public final Context context;
     public final ThemePalette palette;
     public final top.kuaner.pockete2.text.TextCatalog words;
+    public final AdaptiveMetrics metrics;
     public final int systemBarBackground;
     private final boolean lightSystemBars;
     private final float density;
@@ -49,6 +51,17 @@ public final class Ui {
         this.context = context;
         this.palette = palette;
         this.words = words;
+        Configuration configuration = context.getResources().getConfiguration();
+        android.util.DisplayMetrics display = context.getResources().getDisplayMetrics();
+        int widthDp =
+                configuration.screenWidthDp > 0
+                        ? configuration.screenWidthDp
+                        : Math.round(display.widthPixels / display.density);
+        int heightDp =
+                configuration.screenHeightDp > 0
+                        ? configuration.screenHeightDp
+                        : Math.round(display.heightPixels / display.density);
+        metrics = AdaptiveMetrics.of(widthDp, heightDp, configuration.fontScale);
         // E2 firmware keeps white system icons, including in a light application window.
         boolean e2 =
                 android.os.Build.VERSION.SDK_INT == 27
@@ -83,6 +96,73 @@ public final class Ui {
 
     public int dp(float value) {
         return Math.round(value * density);
+    }
+
+    public int touchTarget() {
+        return dp(metrics.minTouchTargetDp());
+    }
+
+    public int iconButtonSize() {
+        return dp(metrics.iconButtonDp());
+    }
+
+    public int controlHeight() {
+        return dp(metrics.controlHeightDp());
+    }
+
+    public int rowHeight() {
+        return dp(metrics.rowMinHeightDp());
+    }
+
+    public int pagePadding() {
+        return dp(metrics.pagePaddingDp());
+    }
+
+    public int pagePaddingDp() {
+        return metrics.pagePaddingDp();
+    }
+
+    public int sheetWidth() {
+        return dp(metrics.sheetMaxWidthDp());
+    }
+
+    public int sheetHeight() {
+        return dp(metrics.sheetMaxHeightDp());
+    }
+
+    public int screenWidth() {
+        return dp(metrics.widthDp());
+    }
+
+    public int navigationHeight() {
+        return dp(metrics.navigationHeightDp());
+    }
+
+    public int viewfinderHeight() {
+        return dp(metrics.viewfinderHeightDp());
+    }
+
+    public int inlineImageWidth() {
+        return dp(metrics.inlineImageWidthDp());
+    }
+
+    public int inlineImageHeight() {
+        return dp(metrics.inlineImageHeightDp());
+    }
+
+    public int qrMaxWidth() {
+        return dp(metrics.qrMaxWidthDp());
+    }
+
+    public int attachmentNameMaxWidth() {
+        return dp(metrics.attachmentNameMaxDp());
+    }
+
+    /** Constrains page content on medium and expanded windows while keeping phones full width. */
+    public View adaptivePage(View child) {
+        AdaptivePage page = new AdaptivePage(context, this);
+        page.addView(child, new FrameLayout.LayoutParams(-1, -1));
+        return page;
     }
 
     public LinearLayout column() {
@@ -121,6 +201,7 @@ public final class Ui {
         field.setHintTextColor(palette.subtle);
         field.setTextSize(15);
         field.setPadding(dp(12), dp(10), dp(12), dp(10));
+        field.setMinHeight(controlHeight());
         field.setBackground(surface(palette.raised, 12));
         field.setInputType(
                 InputType.TYPE_CLASS_TEXT
@@ -158,8 +239,8 @@ public final class Ui {
         View image = icon(icon, color, 21);
         wrap.addView(image, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
         wrap.setContentDescription(description);
-        wrap.setMinimumWidth(dp(48));
-        wrap.setMinimumHeight(dp(48));
+        wrap.setMinimumWidth(touchTarget());
+        wrap.setMinimumHeight(touchTarget());
         clickable(wrap, 0, 14, action);
         return wrap;
     }
@@ -167,8 +248,8 @@ public final class Ui {
     public TextView button(String text, int fg, int bg, Runnable action) {
         TextView view = label(text, 14, fg, true);
         view.setGravity(Gravity.CENTER);
-        view.setMinWidth(dp(48));
-        view.setMinHeight(dp(48));
+        view.setMinWidth(touchTarget());
+        view.setMinHeight(touchTarget());
         view.setPadding(dp(12), dp(10), dp(12), dp(10));
         clickable(view, bg, 12, action);
         return view;

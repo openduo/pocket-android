@@ -209,45 +209,47 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private void showPage() {
         View selected = views.get(page);
         if (selected == null) {
+            View pageView;
             switch (page) {
                 case "conversation":
                     conversation = new ConversationPage(this, controller);
-                    selected = conversation.render();
+                    pageView = conversation.render();
                     break;
                 case "ambient":
                     ambient = new AmbientPage(this, controller);
-                    selected = ambient.render();
+                    pageView = ambient.render();
                     break;
                 case "settings":
                     settings = new SettingsPage(this, controller);
-                    selected = settings.render();
+                    pageView = settings.render();
                     break;
                 case "location":
                     location = new top.kuaner.pockete2.ui.pages.LocationPage(this, controller);
-                    selected = location.render();
+                    pageView = location.render();
                     break;
                 case "passport":
                     passport = new top.kuaner.pockete2.ui.pages.PassportPage(this, controller);
-                    selected = passport.render();
+                    pageView = passport.render();
                     break;
                 case "sessions":
                     sessions = new top.kuaner.pockete2.ui.pages.SessionsPage(this, controller);
                     sessions.restore(sessionsState);
                     sessionsState = null;
-                    selected = sessions.render();
+                    pageView = sessions.render();
                     break;
                 case "pairing":
                     pairing = new PairingPage(this, controller);
-                    selected = pairing.render();
+                    pageView = pairing.render();
                     break;
                 case "onboarding":
                     onboarding = new OnboardingPage(this, controller);
-                    selected = onboarding.render();
+                    pageView = onboarding.render();
                     break;
                 default:
-                    selected = extraPage(page);
+                    pageView = extraPage(page);
                     break;
             }
+            selected = ui.adaptivePage(pageView);
             views.put(page, selected);
             pages.addView(selected, new FrameLayout.LayoutParams(-1, -1));
         }
@@ -268,7 +270,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     private View extraPage(String name) {
         LinearLayout body = ui.column();
-        ui.inset(body, 16, 10);
+        ui.inset(body, ui.pagePaddingDp(), 10);
         body.addView(ui.button(ui.t("返回"), ui.palette.secondary, 0, this::back));
         body.addView(
                 ui.label(

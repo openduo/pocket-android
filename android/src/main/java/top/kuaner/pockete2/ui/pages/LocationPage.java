@@ -90,13 +90,13 @@ public final class LocationPage implements AutoCloseable {
         LinearLayout controls = ui.row();
         controls.addView(
                 ui.button(ui.t("当前位置"), ui.palette.accent, 0, this::requestLocation),
-                new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+                new LinearLayout.LayoutParams(0, ui.controlHeight(), 1));
         controls.addView(
                 ui.iconButton("minus", ui.t("缩小地图"), ui.palette.secondary, () -> map.zoom(-1)),
-                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         controls.addView(
                 ui.iconButton("plus", ui.t("放大地图"), ui.palette.secondary, () -> map.zoom(1)),
-                new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         root.addView(controls);
         selected =
                 ui.label(
@@ -109,7 +109,7 @@ public final class LocationPage implements AutoCloseable {
         root.addView(selected);
         use = ui.button(ui.t("使用这个位置"), ui.palette.onAccent, ui.palette.accent, this::insert);
         use.setEnabled(false);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, ui.dp(50));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, ui.controlHeight());
         p.setMargins(ui.dp(12), 0, ui.dp(12), ui.dp(12));
         root.addView(use, p);
         return root;
