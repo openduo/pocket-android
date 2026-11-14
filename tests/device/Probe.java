@@ -9,6 +9,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
+import org.json.JSONObject;
+
 import top.kuaner.pockete2.audio.*;
 import top.kuaner.pockete2.core.*;
 
@@ -71,15 +73,18 @@ public final class Probe extends Instrumentation {
             }
             if (arguments != null
                     && ("1".equals(arguments.getString("voiceOnly"))
-                            || "1".equals(arguments.getString("locationOnly")))) {
-                voiceOnly(context);
+                            || "1".equals(arguments.getString("locationOnly"))
+                            || "1".equals(arguments.getString("sightOnly")))) {
+                isolatedRoom(context);
                 report.putString(
                         "result",
                         "PASS "
                                 + assertions
                                 + ("1".equals(arguments.getString("locationOnly"))
                                         ? " location UI assertions"
-                                        : " voice upload assertions"));
+                                        : "1".equals(arguments.getString("sightOnly"))
+                                                ? " Sight assertions"
+                                                : " voice upload assertions"));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -142,7 +147,7 @@ public final class Probe extends Instrumentation {
         }
     }
 
-    private void voiceOnly(Context context) throws Exception {
+    private void isolatedRoom(Context context) throws Exception {
         Activity screen =
                 startActivitySync(
                         new Intent(Intent.ACTION_MAIN)
@@ -179,6 +184,9 @@ public final class Probe extends Instrumentation {
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if ("1".equals(arguments.getString("locationOnly"))) {
                 assertions += new LocationUiProbe(this).run(context, screen, controller);
+            } else if ("1".equals(arguments.getString("sightOnly"))) {
+                if ("1".equals(arguments.getString("camera"))) sightSession(context);
+                assertions += new SightUiProbe(this).run(context, screen, controller);
             } else {
                 assertions +=
                         new VoiceUploadProbe(controller)
@@ -1771,7 +1779,8 @@ public final class Probe extends Instrumentation {
         CountDownLatch first = new CountDownLatch(2),
                 resumed = new CountDownLatch(1),
                 rotated = new CountDownLatch(1),
-                renegotiated = new CountDownLatch(1);
+                renegotiated = new CountDownLatch(1),
+                afterRefusal = new CountDownLatch(1);
         AtomicInteger phase = new AtomicInteger(1), declines = new AtomicInteger();
         java.util.concurrent.atomic.AtomicReference<String> lastDecline =
                 new java.util.concurrent.atomic.AtomicReference<>("");
@@ -1828,6 +1837,8 @@ public final class Probe extends Instrumentation {
                                     rotated.countDown();
                                 else if (phase.get() == 4 && (frame[1] & 1) != 0)
                                     renegotiated.countDown();
+                                else if (phase.get() == 5 && (frame[1] & 1) != 0)
+                                    afterRefusal.countDown();
                             }
                         });
         org.json.JSONObject ask =
@@ -1990,6 +2001,47 @@ public final class Probe extends Instrumentation {
                     renegotiated.await(10, TimeUnit.SECONDS) && monotone.get(),
                     "a valid replacement ask resumes with a key frame and the existing connection"
                             + " sequence");
+
+            int beforeRefusal = declines.get();
+            serial.submit(
+                            () ->
+                                    session.asked(
+                                            Json.object(
+                                                    "capture",
+                                                    JSONObject.NULL,
+                                                    "reason",
+                                                    "nonconforming")))
+                    .get(3, TimeUnit.SECONDS);
+            closer.submit(() -> {}).get(5, TimeUnit.SECONDS);
+            long refusedSeq = lastSeq.get();
+            Thread.sleep(400);
+            check(
+                    serial.submit(
+                                            () ->
+                                                    !session.snapshot().offered
+                                                            && !session.snapshot().on
+                                                            && session.snapshot().requested
+                                                            && session.snapshot().statusVisible
+                                                            && session.snapshot()
+                                                                    .refusal
+                                                                    .equals("nonconforming"))
+                                    .get(3, TimeUnit.SECONDS)
+                            && declines.get() == beforeRefusal
+                            && lastSeq.get() == refusedSeq,
+                    "a server refusal stops native video, retains the reason and opt-in, and sends"
+                            + " no reciprocal decline or late chunks");
+            serial.submit(
+                            () -> {
+                                phase.set(5);
+                                session.asked(ask);
+                            })
+                    .get(3, TimeUnit.SECONDS);
+            check(
+                    afterRefusal.await(10, TimeUnit.SECONDS)
+                            && serial.submit(() -> session.snapshot().refusal.isEmpty())
+                                    .get(3, TimeUnit.SECONDS)
+                            && monotone.get(),
+                    "a fresh ask clears the refusal and resumes a key frame without renumbering");
 
             serial.submit(() -> session.update(true, true, true, false, 0))
                     .get(3, TimeUnit.SECONDS);

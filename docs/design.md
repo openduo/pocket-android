@@ -44,6 +44,12 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   Releasing the camera resumes from a key frame while opt-in is still on. Temporary native failures
   use a finite backoff; unsupported parameters wait for another ask/lens. Switching off, leaving
   the foreground or ending the ask cancels recovery and unregisters camera observation.
+- Camera state has a separate wrapping line above the bottom camera controls, also visible while
+  the full conversation is expanded. A server refusal keeps its explanation after the controls
+  disappear; hearing, held-note and heat details cannot overwrite it. Unknown reasons are literal
+  server content inside translated application copy. An ordinary stop or socket replacement clears
+  the explanation. The compact room/transcript layouts and native refusal/re-ask recovery passed
+  a separate 29-assertion targeted run using prepared camera control frames.
 - Session lists show source/activity and fold each group after five rows. Notifications name their
   recipient and keep separate drafts. Drafts and expanded groups survive theme/configuration
   recreation without retaining a View or Activity; replacing the room discards that UI state.

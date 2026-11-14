@@ -112,7 +112,7 @@ final class LocationUiProbe {
                                         != null
                                 && use[0].isEnabled(),
                         "the real E2 without an enabled location source explains the fallback and"
-                            + " retains the selected coordinates");
+                                + " retains the selected coordinates");
             }
             probe.screenshot(context, "location-coordinate-fallback");
             probe.runOnMainSync(use[0]::performClick);

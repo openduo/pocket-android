@@ -29,18 +29,21 @@ public final class SightSession {
     }
 
     public static final class Snapshot {
-        public final boolean offered, on, requested, retry, front, canFlip;
-        public final String status;
+        public final boolean offered, statusVisible, on, requested, retry, front, canFlip;
+        public final String status, refusal;
         public final int rotation;
 
         Snapshot(SightSession session) {
             offered = session.ask != null && session.active && session.master;
+            statusVisible =
+                    session.active && session.master && (session.ask != null || session.notice);
             on = session.capture != null && session.transmitting;
             requested = session.enabled;
             retry = session.recovery.exhausted();
             front = session.front;
             canFlip = session.frontAvailable && session.rearAvailable;
             status = session.status;
+            refusal = session.refusal;
             rotation = session.deviceOrientation;
         }
     }
@@ -63,13 +66,14 @@ public final class SightSession {
     private SightProtocol.Ask ask;
     private SightCapture capture;
     private boolean active, master, framed, foreground, enabled, front, stopping, transmitting;
+    private boolean notice;
     private final boolean frontAvailable, rearAvailable;
     private final DeviceOrientation orientation;
     private volatile boolean previewWanted;
     private volatile PreviewFrame preview;
     private int heat, maxBytes, deviceOrientation;
     private volatile int epoch;
-    private String status = "相机未开启", declined = "";
+    private String status = "相机未开启", declined = "", refusal = "";
 
     public SightSession(
             Context context,
@@ -167,6 +171,9 @@ public final class SightSession {
         ask = null;
         framed = false;
         declined = "";
+        refusal = "";
+        notice = false;
+        status = "相机未开启";
         uplink.reset();
         stop("");
     }
@@ -183,11 +190,16 @@ public final class SightSession {
         if (frame.isNull("capture")) {
             ask = null;
             stop("");
-            status = frame.optString("reason", "相机请求已结束");
+            Object reason = frame.opt("reason");
+            refusal = reason instanceof String ? (String) reason : "";
+            notice = !refusal.isEmpty();
+            status = "相机请求已结束";
         } else if (!framed) {
             ask = null;
             stop("");
             listener.text(Json.object("type", "camera_declined", "reason", "unframed_channel"));
+            refusal = "";
+            notice = true;
             status = "房间不支持视频，请更新 ambient";
         } else {
             int bound = frame.optInt("max_frame_bytes", 0);
@@ -198,11 +210,15 @@ public final class SightSession {
                 if (!same) recovery.reset();
                 maxBytes = bound;
                 ask = next;
+                refusal = "";
+                notice = false;
                 if (same && capture != null) capture.requestKey();
                 else stop("");
             } catch (IllegalArgumentException invalid) {
                 ask = null;
                 stop("");
+                refusal = "";
+                notice = true;
                 status = "服务器相机参数无效";
                 listener.text(Json.object("type", "camera_declined", "reason", "no_format"));
             }

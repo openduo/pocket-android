@@ -60,6 +60,13 @@ device has working GPS hardware. New searches have a bounded queue, stale-result
 Coarse permission is supported where available, while legacy GPS requests precise permission.
 Shared icon controls now have 48 dp minimum targets and an explicit accessibility button role.
 
+The next Sight-only run passed **29 targeted assertions**. A prepared refusal stops real native
+camera output; a fresh ask resumes a key frame without restarting the connection's sequence.
+Camera explanations now remain visible independently of camera controls, heard/held-note/heat
+details and the expanded transcript. Room/transcript screenshots were inspected on the actual
+compact screen. `POCKET_E2_TEST_SIGHT_ONLY=1 POCKET_E2_TEST_CAMERA=1` runs this isolated acceptance;
+these prepared server controls do not establish actual service negotiation or recognisable scenes.
+
 `POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
 notification only to the exact currently paired room. The current service did not expose that room
 as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual

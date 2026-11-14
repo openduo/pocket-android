@@ -21,7 +21,7 @@ public final class AmbientPage implements PocketController.Listener {
     private final PocketController controller;
     private final Ui ui;
     private LinearLayout root;
-    private TextView status, caption, action, mute, detail, hush, camera, flip;
+    private TextView status, caption, action, mute, detail, hush, camera, flip, sightStatus;
     private LinearLayout cameras;
     private View room, transcript, off;
     private ConversationPage thread;
@@ -119,6 +119,11 @@ public final class AmbientPage implements PocketController.Listener {
         tp.leftMargin = ui.dp(8);
         controls.addView(transcriptToggle, tp);
         root.addView(controls);
+        sightStatus = ui.label("", 13, ui.palette.secondary, false);
+        sightStatus.setGravity(Gravity.CENTER);
+        sightStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        ui.inset(sightStatus, 16, 4);
+        root.addView(sightStatus);
         cameras = ui.row();
         ui.inset(cameras, 12, 4);
         camera =
@@ -235,7 +240,17 @@ public final class AmbientPage implements PocketController.Listener {
         Ui.updateText(
                 camera,
                 s.cameraRetry ? ui.t("重试相机") : s.cameraRequested ? ui.t("关闭相机") : ui.t("开启相机"));
-        camera.setContentDescription(camera.getText() + " · " + ui.explain(s.sight));
+        String cameraLine =
+                s.sightRefusal.equals("nonconforming")
+                        ? ui.t("房间未接收这台设备的画面，相机已关闭")
+                        : s.sightRefusal.equals("unframed_channel")
+                                ? ui.t("房间不支持视频，请更新 ambient")
+                                : s.sightRefusal.isEmpty()
+                                        ? ui.explain(s.sight)
+                                        : ui.format("房间关闭了这台设备的相机：%s", s.sightRefusal);
+        camera.setContentDescription(camera.getText() + " · " + cameraLine);
+        Ui.updateText(sightStatus, cameraLine);
+        sightStatus.setVisibility(s.cameraStatusVisible ? View.VISIBLE : View.GONE);
         Ui.updateText(status, phase);
         Ui.updateText(
                 action,
@@ -271,8 +286,7 @@ public final class AmbientPage implements PocketController.Listener {
                     latest = s.rows.get(i).text;
                     break;
                 }
-        if (s.cameraOffered && !blocked) Ui.updateText(detail, ui.explain(s.sight));
-        else if (!blocked && !s.lastHeard.isEmpty() && s.working == null)
+        if (!blocked && !s.lastHeard.isEmpty() && s.working == null)
             Ui.updateText(detail, ui.t("听到 · ") + s.lastHeard);
         if (s.pressMuted && !blocked) Ui.updateText(detail, ui.t("按键语音进行中，房间收音暂时静音"));
         else if (s.heatLevel > 0 && !blocked)

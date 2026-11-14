@@ -93,12 +93,14 @@ public final class PocketController {
                 authUrl,
                 olderLabel,
                 readingId,
-                sight;
+                sight,
+                sightRefusal;
         public final String ambientError;
         public final String importTarget;
         public final String lastHeard;
         public final String audioRoute;
         public final boolean cameraOffered,
+                cameraStatusVisible,
                 cameraOn,
                 cameraRequested,
                 cameraRetry,
@@ -139,9 +141,11 @@ public final class PocketController {
             status = c.presence();
             top.kuaner.pockete2.sight.SightSession.Snapshot camera = c.sightSession.snapshot();
             sight = camera.status;
+            sightRefusal = camera.refusal;
             lastHeard = c.lastHeard;
             audioRoute = (c.capture == null ? "" : c.capture.route() + " → ") + c.outputRoute;
             cameraOffered = camera.offered;
+            cameraStatusVisible = camera.statusVisible;
             cameraOn = camera.on;
             cameraRequested = camera.requested;
             cameraRetry = camera.retry;
