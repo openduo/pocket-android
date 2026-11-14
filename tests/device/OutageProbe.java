@@ -125,16 +125,24 @@ final class OutageProbe {
             source.listener.closed("Prepared sustained transport outage");
             await(() -> !online(), 1000);
             Thread.sleep(100);
+            onState(
+                    () -> {
+                        invoke("connect");
+                        return null;
+                    });
+            check(
+                    source.failedDials.isEmpty(),
+                    "a passive connection check cannot bypass the pending retry deadline");
             int uplink = source.binary.get();
             long previous = closedAt;
             long[] delays = {1000, 2000, 4000, 8000, 16_000};
             for (int i = 0; i < delays.length; i++) {
                 final int attempt = i + 1;
-                await(() -> source.failedHealth.size() >= attempt, delays[i] + 3500);
+                await(() -> source.failedDials.size() >= attempt, delays[i] + 3500);
                 check(
-                        source.failedHealth.size() == attempt,
-                        "the scheduled retry reaches failed health attempt " + attempt);
-                long at = source.failedHealth.get(i);
+                        source.failedDials.size() == attempt,
+                        "the scheduled retry reaches failed live attempt " + attempt);
+                long at = source.failedDials.get(i);
                 long delay = at - previous;
                 check(
                         delay >= delays[i] - 150 && delay <= delays[i] + 2500,
@@ -180,10 +188,15 @@ final class OutageProbe {
                     () -> {
                         set("foreground", false);
                         source.unreachable.set(false);
-                        invoke("connect");
                         return null;
                     });
-            await(this::online, 5000);
+            await(this::online, 35_000);
+            long cappedDelay = SystemClock.elapsedRealtime() - previous;
+            check(
+                    cappedDelay >= 29_850 && cappedDelay <= 34_000,
+                    "the capped retry honors its actual 30-second deadline: "
+                            + cappedDelay
+                            + " ms");
             Thread.sleep(350);
             check(
                     online()
@@ -458,7 +471,7 @@ final class OutageProbe {
         final AtomicBoolean unreachable = new AtomicBoolean();
         final AtomicInteger opens = new AtomicInteger(), hellos = new AtomicInteger();
         final AtomicInteger binary = new AtomicInteger();
-        final List<Long> failedHealth = new CopyOnWriteArrayList<>();
+        final List<Long> failedDials = new CopyOnWriteArrayList<>();
         volatile LiveListener listener;
 
         Observed(ChannelConnection delegate) {
@@ -474,10 +487,6 @@ final class OutageProbe {
                 byte[] body,
                 long timeout)
                 throws Exception {
-            if (path.equals("/healthz") && unreachable.get()) {
-                failedHealth.add(SystemClock.elapsedRealtime());
-                throw new java.io.IOException("Prepared unreachable health endpoint");
-            }
             return delegate.request(endpoint, token, method, path, headers, body, timeout);
         }
 
@@ -505,6 +514,10 @@ final class OutageProbe {
                 LiveListener listener,
                 BooleanSupplier current)
                 throws Exception {
+            if (unreachable.get()) {
+                failedDials.add(SystemClock.elapsedRealtime());
+                throw new java.io.IOException("Prepared unreachable live endpoint");
+            }
             opens.incrementAndGet();
             this.listener = listener;
             delegate.live(endpoint, token, path, headers, listener, current);

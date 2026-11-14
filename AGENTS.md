@@ -10,6 +10,16 @@ use and omit Passport entry points from normal conversation/settings flows. Reta
 implementation for later; external Passport hardware acceptance is not a current release blocker.
 This exception does not reduce the remaining 1:1 migration goal.
 
+The user also deferred immediate Android push on 2026-11-14. Push transport registration, relay,
+receiver, upstream push crypto/identifiers/ledger and fixed-vector validation are outside the
+current implementation scope until explicitly resumed. Keep existing local notifications and
+periodic catch-up, and record the deferred push gaps alongside Passport in `docs/migration.md`.
+
+The user resumed P0 and P1 work on 2026-11-14: connection reliability, natural voice and full
+ambient turns first; then Sight, session notifications, location/arrival, compact-screen
+accessibility and failure recovery. Push and Passport remain deferred. Keep real acceptance gaps
+explicit when a physical action or unavailable service prevents local verification.
+
 - Follow E2Studio's filled surfaces, system fonts, real Lucide icons, bottom controls and bounded
   full-width sheets. Use the current viewport, not the physical panel size. Preserve scroll,
   drafts and focus. Do not change device density, overscan, launcher or another app's settings.

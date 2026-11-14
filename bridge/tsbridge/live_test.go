@@ -146,8 +146,15 @@ func TestLiveExplicitCloseIsNotReported(t *testing.T) {
 
 func TestLiveCloseDuringDialDropsTheNewSocket(t *testing.T) {
 	release := make(chan struct{})
+	entered := make(chan struct{})
+	defer close(release)
 	setupUpstream(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-release
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
 		c, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			return
@@ -160,14 +167,75 @@ func TestLiveCloseDuringDialDropsTheNewSocket(t *testing.T) {
 	t.Cleanup(func() { LiveClose(); SetLiveHandler(nil) })
 	done := make(chan error, 1)
 	go func() { done <- LiveOpen("/live?room=a", "", 2000) }()
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("dial never reached the held handshake")
+	}
 	LiveClose()
-	close(release)
-	if err := <-done; err == nil {
-		t.Fatal("open succeeded after a close during the dial")
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("open succeeded after a close during the dial")
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("closing a held handshake did not release its dialing worker promptly")
 	}
 	if LiveIsOpen() {
 		t.Fatal("a socket closed during its dial is held")
+	}
+}
+
+func TestNewLiveDialCancelsPreviousHandshake(t *testing.T) {
+	entered := make(chan struct{})
+	setupUpstream(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("held") {
+			close(entered)
+			<-r.Context().Done()
+			return
+		}
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.CloseNow()
+		for {
+			typ, body, err := c.Read(context.Background())
+			if err != nil {
+				return
+			}
+			if c.Write(context.Background(), typ, body) != nil {
+				return
+			}
+		}
+	}))
+	h := &liveRecorder{}
+	SetLiveHandler(h)
+	t.Cleanup(func() { LiveClose(); SetLiveHandler(nil) })
+	done := make(chan error, 1)
+	go func() { done <- LiveOpen("/live?held=1", "", 2000) }()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("first dial never reached the held handshake")
+	}
+	if err := LiveOpen("/live", "", 2000); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("superseded dial succeeded")
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("replacement did not cancel the old handshake")
+	}
+	if err := LiveSendText("replacement"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { texts, _, _ := h.snapshot(); return len(texts) == 1 })
+	if texts, _, closed := h.snapshot(); texts[0] != "replacement" || len(closed) != 0 || !LiveIsOpen() {
+		t.Fatalf("replacement was affected by the stale dial: texts=%v closed=%v", texts, closed)
 	}
 }
 

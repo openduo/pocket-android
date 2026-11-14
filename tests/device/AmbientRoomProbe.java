@@ -30,15 +30,26 @@ import java.util.function.BooleanSupplier;
 
 /** Opt-in actual ambient service acceptance. Native microphone packets are never uploaded. */
 final class AmbientRoomProbe {
-    private static final String EXPECTED = "环境模式连通成功";
-    private static final String TEXT = "多多这是Pocket E2环境语音链路集成测试请只回复" + EXPECTED + "。";
+    private final String expected, text, fixtureName;
+    private final boolean brain;
     private final Probe probe;
     private PocketController controller;
     private Executor state;
     private int assertions;
 
     AmbientRoomProbe(Probe probe) {
+        this(probe, false);
+    }
+
+    AmbientRoomProbe(Probe probe, boolean brain) {
         this.probe = probe;
+        this.brain = brain;
+        expected = brain ? "环境工具验证成功" : "环境模式连通成功";
+        text =
+                brain
+                        ? "多多，这是Pocket E2环境工具集成测试。请调用工具查询电脑现在的日期和时间，告诉我查询结果，最后说" + expected + "。"
+                        : "多多这是Pocket E2环境语音链路集成测试请只回复" + expected + "。";
+        fixtureName = brain ? "ambient-brain-20ms" : "ambient-room-20ms";
     }
 
     private Object field(String name) throws Exception {
@@ -123,20 +134,20 @@ final class AmbientRoomProbe {
         }
     }
 
-    private static boolean heard(Message row, long since) {
+    private boolean heard(Message row, long since) {
         return row.seq > since
                 && row.kind == Message.HEARD
                 && row.text.contains("环境")
                 && row.text.contains("测试")
-                && row.text.contains(EXPECTED);
+                && row.text.contains(expected);
     }
 
-    private static boolean answer(Message row, long since) {
-        return row.seq > since && row.kind == Message.DUODUO && row.text.contains(EXPECTED);
+    private boolean answer(Message row, long since) {
+        return row.seq > since && row.kind == Message.DUODUO && row.text.contains(expected);
     }
 
     /** Recover completed output evidence if acceptance stopped after the real response arrived. */
-    private static JSONObject retainedOutput(File events, long since) throws Exception {
+    private JSONObject retainedOutput(File events, long since) throws Exception {
         if (!events.exists()) return null;
         org.json.JSONArray frames =
                 new org.json.JSONArray(
@@ -150,7 +161,7 @@ final class AmbientRoomProbe {
             if (type.equals("speech")) speeches.add(frame.optString("speech_id"));
             if (type.equals("transcript")) {
                 JSONObject row = frame.optJSONObject("row");
-                if (row != null && row.optString("text").contains(EXPECTED)) transcript = true;
+                if (row != null && row.optString("text").contains(expected)) transcript = true;
             }
             if (type.equals("row")) {
                 Message row =
@@ -217,8 +228,8 @@ final class AmbientRoomProbe {
         ChannelClient client = new ChannelClient(controller.settings, original);
         File qa = new File(context.getFilesDir(), "qa");
         qa.mkdirs();
-        File journal = new File(qa, "ambient-room-20ms-once.json");
-        File fixture = new File(qa, "ambient-room-20ms-fixture.packets");
+        File journal = new File(qa, fixtureName + "-once.json");
+        File fixture = new File(qa, fixtureName + "-fixture.packets");
         boolean fresh = !journal.exists();
         JSONObject record =
                 fresh
@@ -241,7 +252,11 @@ final class AmbientRoomProbe {
         if (!fresh && !record.optBoolean("actualOutput")) {
             JSONObject retained =
                     retainedOutput(
-                            new File(context.getExternalCacheDir(), "qa/ambient-room-events.json"),
+                            new File(
+                                    context.getExternalCacheDir(),
+                                    "qa/"
+                                            + (brain ? "ambient-brain" : "ambient-room")
+                                            + "-events.json"),
                             record.getLong("since"));
             if (retained != null) {
                 record.put("actualOutput", true);
@@ -282,7 +297,7 @@ final class AmbientRoomProbe {
                                 + server.optBoolean("daemon_ok"));
                 if (record.optString("stage").equals("prepared")) {
                     if (!fixture.exists()) {
-                        byte[] body = KnownSpeech.nativePackets(client.readAloud(TEXT));
+                        byte[] body = KnownSpeech.nativePackets(client.readAloud(text));
                         try (java.io.FileOutputStream out = new java.io.FileOutputStream(fixture)) {
                             out.write(body);
                             out.getFD().sync();
@@ -378,13 +393,52 @@ final class AmbientRoomProbe {
                                                 .anyMatch(row -> heard(row, since))
                                         && controller.snapshot().rows.stream()
                                                 .anyMatch(row -> answer(row, since)),
-                        90_000);
+                        brain ? 180_000 : 90_000);
                 check(
                         controller.snapshot().rows.stream().anyMatch(row -> heard(row, since)),
                         "actual ambient ASR logs the known marked speech");
                 check(
                         controller.snapshot().rows.stream().anyMatch(row -> answer(row, since)),
                         "the actual service supplies the requested ambient-test answer");
+                if (brain) {
+                    if (transmitted) {
+                        boolean tool =
+                                source.events.stream()
+                                        .anyMatch(
+                                                frame ->
+                                                        frame.optString("type").equals("turn")
+                                                                && frame.optString("phase")
+                                                                        .equals("tool")
+                                                                && !frame.optString("label")
+                                                                        .isEmpty());
+                        boolean toolDone =
+                                source.events.stream()
+                                        .anyMatch(
+                                                frame ->
+                                                        frame.optString("type").equals("turn")
+                                                                && frame.optString("phase")
+                                                                        .equals("tool")
+                                                                && frame.optString("label")
+                                                                        .endsWith(" ✓"));
+                        check(
+                                tool && toolDone,
+                                "the actual ambient brain emits a tool call and its completion");
+                        check(
+                                controller.snapshot().traces.values().stream()
+                                        .anyMatch(
+                                                trace ->
+                                                        !trace.steps.isEmpty()
+                                                                && trace.steps.stream()
+                                                                        .allMatch(
+                                                                                step -> step.done)),
+                                "the production reducer retains the completed real tool trace");
+                        record.put("actualTool", true);
+                        save(journal, record);
+                    } else
+                        check(
+                                record.optBoolean("actualTool"),
+                                "the retained once-only journal contains actual tool acceptance");
+                }
                 if (transmitted) {
                     await(() -> source.downPackets.get() > 0 && source.played.get() > 0, 30_000);
                     check(
@@ -509,7 +563,10 @@ final class AmbientRoomProbe {
                 await(() -> !top.kuaner.pockete2.audio.input.RecordingInput.isActive(), 4000);
                 File eventDir = new File(context.getExternalCacheDir(), "qa");
                 eventDir.mkdirs();
-                File evidence = new File(eventDir, "ambient-room-events.json");
+                File evidence =
+                        new File(
+                                eventDir,
+                                (brain ? "ambient-brain" : "ambient-room") + "-events.json");
                 source.events.add(
                         Json.object(
                                 "type", "qa_summary",

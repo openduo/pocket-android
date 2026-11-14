@@ -10,6 +10,11 @@ the standalone policy does not automatically resume a remembered accessory or ke
 background service alive. Its existing implementation is retained for later, without reducing the
 remaining migration goal.
 
+Immediate Android push is also deferred by the user on 2026-11-14, alongside Passport. Push
+registration/relay/receiver and the upstream push crypto, identifiers, ledger and fixed-vector
+validation remain documented gaps for later. Existing local notifications and periodic catch-up
+remain available.
+
 The upstream clone is kept separately at `../pocket-ios`; the initial reference commit is
 `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`. `docs/migration.md` records both implemented paths and
 remaining gaps. Prepared try-mode replies never count as a real server response.
@@ -19,28 +24,47 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checks passed **213 host contract assertions**, Go vet/tests and the Android build.
-The standalone-policy APK also passed the complete capture/camera/import/paired-try device run with
-**283 assertions**, including no Passport activity or BLE thread. An earlier attempt failed the first
-outage retry timing check at 345 ms; the unchanged standalone outage run passed all 39 assertions,
-and the complete suite subsequently passed. The intermittent timing failure remains unlocated;
-these results do not establish consistently reproducible device acceptance.
-The final policy correction also removes remembered accessory waits from background connection
-gates; that APK passed **21 live-recovery assertions**. The complete suite was not repeated after
-this last correction. A separate two-assertion run verified the actual Tailscale login QR.
-Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
-passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
-and streamed synthesis/completion/cancellation with muted hardware playback. A further **15 real-voice
-assertions** verified one marked synthetic note through actual ASR/delivery/reply and native background
-upload. **11 cold-restart assertions** reused its journal without sending again. A separate
-**18-assertion actual ambient run** accepted marked synthetic speech, the requested service reply,
-real synthesized downlink/playback completion, redial after an injected local write failure, and
-actual server mic restoration on held-note exit. **21 isolated live-recovery assertions** cover
-writer failures, queue overflow
-and restoring the room microphone before teardown. Acoustic recognition from the E2 microphone
-remains unverified. These checks are regression evidence, not a parity-completion claim.
-An independent process-death run passed **27 host-controlled and 12 native-phase assertions**, including
-two actual force-stop/cold-launch cycles around an unfinished system-picked document copy.
+The resumed P0/P1 checkpoint passed **213 host assertions**, Go vet/tests and the Android build.
+A complete capture/camera/import/paired-try run passed **295 device assertions**, including
+connection recovery under delayed metadata and occupied HTTP workers, actual 1/2/4/8/16/30-second
+retry deadlines, microphone ownership and compact-screen coordinate insertion. Final location
+fallback changes passed **seven targeted location UI assertions** after that full run. The complete
+suite was not repeated after these last location-only corrections. An earlier intermittent retry observation
+was 345 ms; its exact trigger remains unknown. A monotonic deadline now prevents passive checks
+from bypassing a scheduled retry. Tests are evidence for specific behaviours, not a parity score.
+
+Live dialing/ping now use a dedicated bounded connector. Supplemental health and room-state HTTP
+cannot delay a live dial; stale metadata cannot update a replacement room. Retired Go handshakes
+cancel promptly, and foregrounding rebinds tsnet and clears idle HTTP connections. Nine read-only
+actual-room checks accepted cold launch, real Wi-Fi loss/restoration and an actual Activity
+background/return without re-pairing or losing the composer. The observed cold/restored/foreground
+Online times were 4058/4214/314 ms in that run, not an ongoing latency guarantee. See
+[connection.md](docs/connection.md).
+
+Real-room authorization, history, text/delivery/reply, files, session list/rows and synthesis were
+accepted in earlier separate runs. The voice and reflex ambient tests use marked synthetic speech
+and retained once-only journals. A new **21-assertion actual ambient brain/tool run** accepted
+ASR → Bash date/time query → tool completion → reply → zero-volume hardware playback, followed by
+actual local-fault redial and room-microphone restoration. Server playback completion reached
+1500 and 9060 ms across the two actual speech blocks. Native capture supplied the clock, while
+surrounding microphone bytes were replaced by silence. **Natural microphone recognition and audible
+playback remain unaccepted.** See [audio.md](docs/audio.md) and the full evidence matrix in
+[migration.md](docs/migration.md). Earlier process-death acceptance covers an unfinished system-picked
+file across actual force-stop/cold-launch cycles; sustained low-memory/standby acceptance remains.
+
+The final location probe queried `passive,gps` with no enabled providers on the E2. It accepted the
+disabled-location explanation, retained coordinates and a reachable insertion button, and appended
+the location without losing or sending the existing composer. This does not establish whether the
+device has working GPS hardware. New searches have a bounded queue, stale-result guards and a
+12-second fallback; current-location requests have a 15-second deadline and ignore old cached fixes.
+Coarse permission is supported where available, while legacy GPS requests precise permission.
+Shared icon controls now have 48 dp minimum targets and an explicit accessibility button role.
+
+`POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1` checks the actual session list and can send one journaled test
+notification only to the exact currently paired room. The current service did not expose that room
+as an eligible notification target, so this run returned **NOT_RUN** and sent nothing. Actual
+notification delivery/uncertainty remains unaccepted; choosing another real recipient requires an
+explicit user-selected test target. Existing pairing and session-list access remain usable.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
 language-aware notifications and retained Passport protocol frames, occupied-camera waiting/recovery,
@@ -158,7 +182,7 @@ the transport still reports open, delays a superseded close and fills the bounde
 stalled write. With capture enabled it checks an actual held note/ambient exit and a background
 callback, including a delayed final unmute while the state owner and capture teardown remain free.
 `POCKET_E2_TEST_OUTAGE_ONLY=1` requires capture and stays in that same disposable boundary. It observes
-failed health attempts at approximately 1/3/7/15/31 elapsed seconds, the same native capture lease
+failed live dials at approximately 1/3/7/15/31 elapsed seconds, then the actual 30-second capped pause, the same native capture lease
 through short failures, release at the sustained boundary, no dead-socket uplink, and foreground-only
 resume after a prepared background recovery. A separate budget-primed overlap checks that a local
 held note keeps recording, cancellation releases it, and a new press reconnects immediately. Prepared
@@ -175,8 +199,11 @@ server redial, a new capture seat and resumed silence. It also checks the actual
 switch before and after ending ambient during a cancelled native hold. Its private
 `ambient-room-20ms-once.json` journal retains completion through restart; repeat runs verify the same
 server row without replay.
-Keep both it and any older failed ambient journal. Physical network outages and microphone acoustics
-remain separate acceptance work.
+Keep both it and any older failed ambient journal. `POCKET_E2_TEST_AMBIENT_BRAIN=1` selects a
+separate marked tool fixture with its own `ambient-brain-20ms-once.json` journal; the accepted run
+observed an actual Bash call/completion and the requested answer. Acoustic recognition remains
+separate. `scripts/test-network-recovery.py` independently accepts a real short Wi-Fi outage and
+Activity background/return; explicitly select the E2 with `ANDROID_SERIAL` before running it.
 
 `POCKET_E2_TEST_PROCESS_DEATH=1` selects one small synthetic document through the real file picker,
 force-stops Pocket E2 after a separate-UID provider emits partial bytes, then cold-starts it twice.

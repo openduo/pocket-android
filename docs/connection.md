@@ -44,3 +44,31 @@ handoff on a browser-equipped Android device still need separate acceptance. Act
 URLs, pairing links, room identities and conversation captures remain local ignored artifacts. The
 live client now monitors Android's default path and probes stale sockets; physical path switching
 and Passport BLE-wake ping acceptance remain separate hardware/network checks.
+
+The resumed P0 work on 2026-11-14 reproduced two independent sources of connection delay: the
+controller waited for `/healthz` and `/api/state` before dialing `/live`, and a retired Go handshake
+kept its dialing worker until the full timeout. `/live` now dials first on a dedicated, bounded
+connector that also owns live pings. Health latency and room metadata run separately; metadata
+failures retry without dropping a working live connection, while explicit unauthorized responses
+still stop access. Metadata callbacks and retries belong to their connection generation. History
+bootstrap runs after the room metadata arrives. A healthy foreground ping refreshes metadata too.
+Foreground recovery rebinds tsnet and clears idle HTTP connections. Closing/replacing a Go live
+cancels its in-flight handshake promptly; host regressions verified both cancellation paths.
+
+A monotonic retry deadline prevents passive backend-status/connection checks from bypassing an
+outstanding 1/2/4/8/16/30-second pause. Foreground, a network path change and explicit user recovery
+reset it. The device probe observes failed live dials, rather than using health requests as a proxy,
+and now exercises the actual 30-second capped pause as well as the earlier retry intervals. The
+source of the earlier intermittent 345 ms observation remains unknown; these changes do not
+retroactively diagnose that run. Diagnostics record only generation numbers, delay and reset labels.
+
+`ANDROID_SERIAL=<E2 serial> python3 scripts/test-network-recovery.py` is an explicit real-room
+hardware check. It cycles Wi-Fi once, restores Wi-Fi and its persisted preference even on failure,
+then backgrounds and returns the actual Activity. It sends no message or notification. The accepted
+nine-assertion run observed cold Online in 4058 ms, physical Wi-Fi loss/offline in 4143 ms, restored
+Wi-Fi/Online in 4214 ms, and actual foreground/Online in 314 ms. The room, draft, quote and attachment
+count survived without reauthorization or pairing. An earlier attempt accepted the physical outage
+but failed to wait for asynchronous Activity stopping; the revised probe waits for the actual state
+owner and uses a real task-background transition. These are bounded observations in the current
+environment, not a latency guarantee or prolonged lockscreen/cross-network acceptance. The original
+cold-launch incident's exact trigger remains unproven.

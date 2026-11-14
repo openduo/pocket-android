@@ -111,6 +111,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     protected void onStart() {
         super.onStart();
         controller.onForeground(true);
+        if (location != null && page.equals("location")) location.visible();
         inputs.started();
         if (controller.settings.keepAwake())
             getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -253,6 +254,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         for (Map.Entry<String, View> entry : views.entrySet())
             entry.getValue().setVisibility(entry.getKey().equals(page) ? View.VISIBLE : View.GONE);
         if (sessions != null && page.equals("sessions")) sessions.visible(true);
+        if (location != null && page.equals("location")) location.visible();
         navSlot.removeAllViews();
         boolean navigation =
                 page.equals("conversation") || page.equals("ambient") || page.equals("settings");

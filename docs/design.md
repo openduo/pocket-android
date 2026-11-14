@@ -7,6 +7,8 @@ overscan of 70 px each. The **application viewport is 340 px (~259 dp)**. Do not
 with dp, assume a phone-sized canvas, or change the user's display settings to make a layout fit.
 
 - Warm dark/light semantic tokens, system fonts, filled borderless surfaces, actual Lucide vectors.
+- Shared icon controls have 48 dp minimum touch targets and expose an accessibility button role.
+  Full screen-reader navigation and larger-font acceptance remain separate work.
 - 44–48 dp controls, bottom navigation and composer, full-width internally scrolling sheets capped
   at 82% of screen height. Hide bottom navigation for the IME. Measured Android-8 insets keep the
   composer above the keyboard. Bottom controls can grow with the font scale. Detached windows stop
@@ -24,6 +26,12 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
 - Geographical selection appends editable text on the state owner. Sight streaming starts only
   after a server ask, capture-master ownership, foreground state and explicit opt-in/permission.
   Still photos use a separate explicit native-camera action and its granted output URI.
+- Location selection keeps the existing pin usable when providers are unavailable or disabled.
+  Legacy GPS asks for precise permission; supported providers can use coarse fixes. Only fresh
+  cached fixes are shown. Search and location waits have 12/15-second fallbacks; hidden pages stop
+  location updates and invalidate late geocoder results. Searches cannot enqueue unbounded work.
+  Actual E2 coordinate insertion and the disabled-provider fallback passed a separate seven-assertion
+  probe; this does not establish real GPS, tile, geocoder or visit-monitor reliability.
 - External shares enter the composer as a complete ordered batch, without sending. Focused editors
   apply acknowledged draft updates and preserve typing that overlaps an incoming append; room/send
   resets invalidate stale editor changes. Attachment chips expose horizontal overflow and size their

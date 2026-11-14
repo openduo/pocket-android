@@ -93,6 +93,7 @@ final class LiveRecoveryProbe {
                     });
             await(() -> source.opens.get() == 1 && online(), 5000);
             check(source.opens.get() == 1 && online(), "the observed live connection is ready");
+            startup();
             int opened = source.opens.get(), closed = source.closes.get();
             ChannelConnection.LiveListener stale = source.listeners.get(0);
             source.failText.set(true);
@@ -214,6 +215,8 @@ final class LiveRecoveryProbe {
                     "a stale path is redialled after the ping failure");
             return assertions;
         } finally {
+            source.metadataRelease.countDown();
+            source.workerRelease.countDown();
             source.release.countDown();
             source.restoreRelease.countDown();
             controller.releaseHold(true);
@@ -226,6 +229,72 @@ final class LiveRecoveryProbe {
                         return null;
                     });
         }
+    }
+
+    private void startup() throws Exception {
+        source.blockHealth.set(true);
+        source.blockState.set(true);
+        int opened = source.opens.get();
+        onState(
+                () -> {
+                    invoke("reconnect");
+                    return null;
+                });
+        await(() -> source.opens.get() > opened && online(), 3000);
+        check(
+                source.opens.get() == opened + 1 && online(),
+                "slow health/state requests cannot delay the real-time connection");
+        check(
+                source.metadataEntered.await(2, TimeUnit.SECONDS),
+                "both supplemental metadata requests are actually held at the transport boundary");
+        CountDownLatch workerEntered = new CountDownLatch(1);
+        ((ExecutorService) field("network"))
+                .execute(
+                        () -> {
+                            workerEntered.countDown();
+                            try {
+                                source.workerRelease.await(8, TimeUnit.SECONDS);
+                            } catch (InterruptedException failure) {
+                                Thread.currentThread().interrupt();
+                            }
+                        });
+        check(
+                workerEntered.await(2, TimeUnit.SECONDS),
+                "all ordinary HTTP workers are occupied before recovery");
+        int beforeRecovery = source.opens.get();
+        onState(
+                () -> {
+                    invoke("reconnect");
+                    return null;
+                });
+        await(() -> source.opens.get() > beforeRecovery && online(), 3000);
+        check(
+                source.opens.get() == beforeRecovery + 1 && online(),
+                "reconnection has its own worker when every HTTP worker is occupied");
+        int rebound = source.rebinds.get(), pinged = source.pings.get();
+        int foregroundOpened = source.opens.get();
+        controller.onForeground(true);
+        await(() -> source.pings.get() > pinged, 2000);
+        check(
+                source.rebinds.get() == rebound + 1
+                        && source.pings.get() == pinged + 1
+                        && source.opens.get() == foregroundOpened
+                        && online(),
+                "foreground rebind and live ping do not wait behind occupied HTTP workers");
+        source.metadataRelease.countDown();
+        source.workerRelease.countDown();
+        await(() -> source.states.get() >= 2, 3000);
+        check(
+                onState(
+                                () -> {
+                                    top.kuaner.pockete2.net.ChannelClient.State room =
+                                            (top.kuaner.pockete2.net.ChannelClient.State)
+                                                    field("roomState");
+                                    return room != null
+                                            && !room.roomName.equals("Expired metadata");
+                                })
+                        && online(),
+                "late metadata from the replaced connection cannot overwrite the current room");
     }
 
     private void ambientExit() throws Exception {
@@ -324,12 +393,17 @@ final class LiveRecoveryProbe {
         final ChannelConnection delegate;
         final AtomicInteger opens = new AtomicInteger(), closes = new AtomicInteger();
         final AtomicInteger pings = new AtomicInteger();
+        final AtomicInteger rebinds = new AtomicInteger(), states = new AtomicInteger();
         final AtomicInteger pressureDelivered = new AtomicInteger();
         final AtomicInteger binary = new AtomicInteger();
         final AtomicBoolean failText = new AtomicBoolean(), failBinary = new AtomicBoolean();
         final AtomicBoolean failPing = new AtomicBoolean();
         final AtomicBoolean blockText = new AtomicBoolean(), failedWhileOpen = new AtomicBoolean();
         final AtomicBoolean blockRestore = new AtomicBoolean();
+        final AtomicBoolean blockHealth = new AtomicBoolean(), blockState = new AtomicBoolean();
+        final CountDownLatch metadataEntered = new CountDownLatch(2);
+        final CountDownLatch metadataRelease = new CountDownLatch(1);
+        final CountDownLatch workerRelease = new CountDownLatch(1);
         final CountDownLatch blocked = new CountDownLatch(1), release = new CountDownLatch(1);
         final CountDownLatch restoreEntered = new CountDownLatch(1),
                 restoreRelease = new CountDownLatch(1);
@@ -349,6 +423,22 @@ final class LiveRecoveryProbe {
                 byte[] body,
                 long timeout)
                 throws Exception {
+            boolean heldState =
+                    path.startsWith("/api/state") && blockState.compareAndSet(true, false);
+            if (heldState || path.equals("/healthz") && blockHealth.compareAndSet(true, false)) {
+                metadataEntered.countDown();
+                if (!metadataRelease.await(8, TimeUnit.SECONDS))
+                    throw new java.io.IOException("Prepared metadata delay expired");
+                if (heldState) {
+                    states.incrementAndGet();
+                    return new Response(
+                            200,
+                            Json.object("room", "try", "room_name", "Expired metadata")
+                                    .toString()
+                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+            if (path.startsWith("/api/state")) states.incrementAndGet();
             return delegate.request(endpoint, token, method, path, headers, body, timeout);
         }
 
@@ -422,6 +512,11 @@ final class LiveRecoveryProbe {
             pings.incrementAndGet();
             if (failPing.get()) throw new java.io.IOException("Prepared stale network path");
             delegate.ping(timeoutMs);
+        }
+
+        public void rebind() {
+            rebinds.incrementAndGet();
+            delegate.rebind();
         }
 
         public void closeLive() {

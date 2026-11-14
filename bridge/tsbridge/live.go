@@ -39,6 +39,9 @@ var (
 	// liveGen counts opens and closes. A dial that finishes after a later
 	// open or close is stale and its socket is dropped.
 	liveGen uint64
+	// A retired generation must release the dialing worker before the full
+	// handshake timeout; foreground/path recovery may already need that worker.
+	liveDialCancel context.CancelFunc
 	// liveWriteTimeout bounds one frame write. A write that cannot finish in
 	// this time is on a dead path; the reader notices the close.
 	liveWriteTimeout = 5 * time.Second
@@ -87,6 +90,20 @@ func LiveOpen(path, headersJSON string, timeoutMs int64) error {
 	gen := liveDrop()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
+	liveMu.Lock()
+	if liveGen != gen {
+		liveMu.Unlock()
+		return errors.New("tsbridge: live dial superseded")
+	}
+	liveDialCancel = cancel
+	liveMu.Unlock()
+	defer func() {
+		liveMu.Lock()
+		if liveGen == gen {
+			liveDialCancel = nil
+		}
+		liveMu.Unlock()
+	}()
 	// A transport of its own, so the socket's connection is wrapped (corkConn).
 	t2 := c.Transport.(*http.Transport).Clone()
 	base := t2.DialContext
@@ -247,9 +264,14 @@ func liveDrop() uint64 {
 	liveGen++
 	gen := liveGen
 	c := liveConn
+	cancel := liveDialCancel
+	liveDialCancel = nil
 	liveConn = nil
 	liveCork = nil
 	liveMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	if c != nil {
 		c.CloseNow()
 	}

@@ -158,8 +158,17 @@ public final class Ui {
         View image = icon(icon, color, 21);
         wrap.addView(image, new FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER));
         wrap.setContentDescription(description);
-        wrap.setMinimumWidth(dp(44));
-        wrap.setMinimumHeight(dp(44));
+        wrap.setMinimumWidth(dp(48));
+        wrap.setMinimumHeight(dp(48));
+        wrap.setAccessibilityDelegate(
+                new View.AccessibilityDelegate() {
+                    @Override
+                    public void onInitializeAccessibilityNodeInfo(
+                            View host, android.view.accessibility.AccessibilityNodeInfo info) {
+                        super.onInitializeAccessibilityNodeInfo(host, info);
+                        info.setClassName(android.widget.Button.class.getName());
+                    }
+                });
         clickable(wrap, 0, 14, action);
         return wrap;
     }

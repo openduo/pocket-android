@@ -178,7 +178,22 @@ can settle acceptance after a test interruption without synthesizing another res
 journal and the earlier failed fixture journal. The earlier unnormalized attempt is not ASR evidence.
 
 Remaining acceptance includes acoustic microphone-to-room recognition and actual empty/failure outcomes,
-ambient brain/tool turns, physical network outages/path changes and live ping, long streams, actual
+natural ambient brain/tool turns, cross-network handover, long streams, actual
 calls and external route changes, prolonged background/process death and energy trials. Native
 protocol faults, synthetic API speech and zero-volume hardware
 watermarks do not prove audible acoustics or recognition of the E2 microphone's speech.
+
+On the resumed P0 run, `POCKET_E2_TEST_AMBIENT_ROOM_ONLY=1 POCKET_E2_TEST_AMBIENT_BRAIN=1` accepted a
+distinct once-only actual ambient brain/tool turn with **21 assertions**. The clearly marked
+synthetic fixture requested a read-only query of the computer's current date/time and a known
+completion phrase. Actual ASR logged the request; the actual service emitted `received`, `thinking`,
+`tool`, `speaking`, `done` and `idle`, with a `Bash` call and `Bash ✓` completion. The production
+reducer retained a completed tool trace, and the requested answer arrived in the real log. Actual
+downlink carried 176 packets; the server echoed two completed playback watermarks at 1500 and
+9060 ms. Local playback stayed at zero volume. A deliberate local write failure then redialled the
+actual service, and held-note/ambient exit restored the actual room microphone. Native capture
+clocked the stream, but all surrounding microphone packets were replaced by silence. The separate
+`ambient-brain-20ms-once.json` app-files journal prevents automatic retransmission; preserve it and
+the earlier reflex-test journal. This closes the synthetic actual-service brain/tool gap, while
+natural acoustic recognition and audible playback remain unaccepted. Physical Wi-Fi and real
+Activity background/return connection acceptance are recorded separately in `connection.md`.

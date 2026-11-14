@@ -225,6 +225,15 @@ public final class PocketController {
             Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "Pocket E2 state"));
     private final ExecutorService network =
             Executors.newFixedThreadPool(3, r -> new Thread(r, "Pocket E2 network"));
+    private final ExecutorService liveConnector =
+            new java.util.concurrent.ThreadPoolExecutor(
+                    1,
+                    1,
+                    0,
+                    TimeUnit.MILLISECONDS,
+                    new java.util.concurrent.ArrayBlockingQueue<>(1),
+                    r -> new Thread(r, "Pocket E2 live connector"),
+                    new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
     private final java.util.concurrent.ThreadPoolExecutor socketWriter =
             new java.util.concurrent.ThreadPoolExecutor(
                     1,
@@ -256,10 +265,12 @@ public final class PocketController {
     private final AmbientInput ambientInput = new AmbientInput();
     private final AmbientOutput ambientOutput = new AmbientOutput();
     private final RedialBackoff redial = new RedialBackoff();
+    private long retryNotBefore;
     private int latencyMs, visibleLimit = 200;
     private boolean ambientLinkPaused;
     private String ambientFailure = "";
     private volatile int connectionEpoch;
+    private int roomStateRequestEpoch = -1;
     private volatile int closingEpoch = -1, closingSourceEpoch = -1;
     private volatile long sendEpoch;
     private long revision, holdPackets, lastHoldPublish;
@@ -540,7 +551,7 @@ public final class PocketController {
     public void start() {
         state.execute(
                 () -> {
-                    redial.reset();
+                    resetRedial("start");
                     if (!trying) {
                         transport.rebind();
                         startNetwork();
@@ -551,23 +562,31 @@ public final class PocketController {
     /** Rechecks a held live socket after Android reports a default-network/path change. */
     private void networkPathChanged() {
         if (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()) return;
-        redial.reset();
+        resetRedial("network_path");
         channel.rebind();
         verifyLiveOnState();
     }
 
     /** Mirrors the upstream foreground/keepalive check without blocking the state executor. */
     private void verifyLiveOnState() {
+        if (opening) return;
         if (!channel.isOpen()) {
             connect();
             return;
         }
         final int epoch = connectionEpoch;
         final ChannelConnection target = channel;
-        network.execute(
+        liveConnector.execute(
                 () -> {
+                    if (epoch != connectionEpoch || target != channel) return;
                     try {
                         target.ping(3000);
+                        state.execute(
+                                () -> {
+                                    if (epoch == connectionEpoch && target == channel)
+                                        refreshRoomState(
+                                                epoch, target, client(), true, new RedialBackoff());
+                                });
                     } catch (Exception failure) {
                         state.execute(
                                 () -> {
@@ -620,9 +639,11 @@ public final class PocketController {
                             channel.closeLive();
                             connectionEpoch++;
                             opening = false;
+                            connection = Connection.OFFLINE;
                         }
                     } else if (trying || settings.isComplete()) {
-                        redial.reset();
+                        resetRedial("foreground");
+                        channel.rebind();
                         if (trying) connect();
                         else startNetwork();
                         verifyLiveOnState();
@@ -818,6 +839,7 @@ public final class PocketController {
 
     private void connect() {
         if (opening
+                || android.os.SystemClock.elapsedRealtime() < retryNotBefore
                 || channel.isOpen()
                 || pairingActive
                 || !trying && (!settings.isComplete() || settings.unauthorized())
@@ -839,20 +861,13 @@ public final class PocketController {
         boolean resume = repo.hasCursor();
         boolean audio =
                 !audioSuspended && (ambientWanted || foreground && settings.ambientOutput());
+        liveCerebellumOk = null;
+        log.event("live_dial", "generation=" + epoch);
         publish();
-        network.execute(
+        liveConnector.execute(
                 () -> {
+                    if (epoch != connectionEpoch || target != channel) return;
                     try {
-                        int latency = client.health();
-                        ChannelClient.State room = client.state();
-                        state.execute(
-                                () -> {
-                                    if (epoch == connectionEpoch) {
-                                        roomState = room;
-                                        liveCerebellumOk = null;
-                                        latencyMs = latency;
-                                    }
-                                });
                         target.live(
                                 endpoint,
                                 token,
@@ -897,6 +912,9 @@ public final class PocketController {
                                         opening = false;
                                         if (!demo) arrivals.settle(place);
                                         log.event("live", "opened");
+                                        refreshRoomState(
+                                                epoch, target, client, resume, new RedialBackoff());
+                                        refreshLatency(epoch, target, client);
                                         surface();
                                     }
                                 });
@@ -913,6 +931,73 @@ public final class PocketController {
                                         unauthorized();
                                     else linkClosed("暂时无法连接房间", epoch);
                                 });
+                    }
+                });
+    }
+
+    /** Supplemental HTTP cannot hold the live dial or retire a working socket on a timeout. */
+    private void refreshRoomState(
+            int epoch,
+            ChannelConnection target,
+            ChannelClient client,
+            boolean resumed,
+            RedialBackoff retry) {
+        if (roomStateRequestEpoch == epoch) return;
+        roomStateRequestEpoch = epoch;
+        network.execute(
+                () -> {
+                    if (epoch != connectionEpoch || target != channel) return;
+                    try {
+                        ChannelClient.State room = client.state();
+                        state.execute(
+                                () -> {
+                                    if (epoch != connectionEpoch || target != channel) return;
+                                    roomStateRequestEpoch = -1;
+                                    roomState = room;
+                                    if (!resumed || !repo.metadata("history_loaded").equals("1"))
+                                        historyToday();
+                                    publish();
+                                });
+                    } catch (ChannelClient.Failure failure) {
+                        state.execute(
+                                () -> {
+                                    if (epoch != connectionEpoch || target != channel) return;
+                                    roomStateRequestEpoch = -1;
+                                    if (failure.unauthorized()) {
+                                        unauthorized();
+                                        return;
+                                    }
+                                    long delay = retry.failedMs();
+                                    log.event("room_state", "retry_ms=" + delay);
+                                    state.schedule(
+                                            () -> {
+                                                if (epoch == connectionEpoch
+                                                        && target == channel
+                                                        && target.isOpen())
+                                                    refreshRoomState(
+                                                            epoch, target, client, resumed, retry);
+                                            },
+                                            delay,
+                                            TimeUnit.MILLISECONDS);
+                                });
+                    }
+                });
+    }
+
+    private void refreshLatency(int epoch, ChannelConnection target, ChannelClient client) {
+        network.execute(
+                () -> {
+                    if (epoch != connectionEpoch || target != channel) return;
+                    try {
+                        int latency = client.health();
+                        state.execute(
+                                () -> {
+                                    if (epoch != connectionEpoch || target != channel) return;
+                                    latencyMs = latency;
+                                    publish();
+                                });
+                    } catch (ChannelClient.Failure failure) {
+                        log.event("health", "unavailable");
                     }
                 });
     }
@@ -987,6 +1072,8 @@ public final class PocketController {
         if (ambientWanted && (reason.contains("PolicyViolation") || reason.contains("1008")))
             ambientFailure = "频道拒绝了这个房间";
         long delay = redial.failedMs();
+        retryNotBefore = android.os.SystemClock.elapsedRealtime() + delay;
+        log.event("live_retry", "generation=" + retryEpoch + " delay_ms=" + delay);
         if (ambientWanted && redial.sustained() && ambientFailure.isEmpty() && !audioSuspended) {
             ambientLinkPaused = true;
             ambientInput.captureStopped();
@@ -1001,6 +1088,12 @@ public final class PocketController {
                 },
                 delay,
                 TimeUnit.MILLISECONDS);
+    }
+
+    private void resetRedial(String reason) {
+        redial.reset();
+        retryNotBefore = 0;
+        log.event("live_redial_reset", reason);
     }
 
     private void unauthorized() {
@@ -1046,13 +1139,12 @@ public final class PocketController {
                 connection = Connection.ONLINE;
                 if (PassportPolicy.ENABLED && !trying) passport.online(true);
                 opening = false;
-                redial.reset();
+                resetRedial("ready");
                 lastError =
                         frame.optInt("api", 0) < 2 ? "家里的 ambient 需要升级（API v2）" : ambientFailure;
                 repo.admit(Collections.<Message>emptyList(), frame.optLong("seq"));
                 turn.restore(frame.optJSONObject("turn"));
                 if (resumed) reconcileReady(frame);
-                if (!resumed || !repo.metadata("history_loaded").equals("1")) historyToday();
                 viewer.dropPending();
                 if (foreground && viewer.snapshot().watching) send(viewer.watchFrame());
                 resumeAmbientLink();
@@ -1390,7 +1482,10 @@ public final class PocketController {
                     reload();
                     publish();
                     if (connection == Connection.ONLINE) pump();
-                    else connect();
+                    else {
+                        resetRedial("message_retry");
+                        connect();
+                    }
                 });
     }
 
@@ -1761,7 +1856,7 @@ public final class PocketController {
                         holdPackets = 0;
                         lastHoldPublish = 0;
                         audioSuspended = false;
-                        redial.reset();
+                        resetRedial("local_press");
                         if (!channel.isOpen()) connect();
                         for (JSONObject outgoing : ambientInput.press("phone", true))
                             send(outgoing);
@@ -1972,7 +2067,7 @@ public final class PocketController {
                         ambientWanted = true;
                         ambientLinkPaused = false;
                         ambientFailure = "";
-                        redial.reset();
+                        resetRedial("ambient_start");
                         ambient = Ambient.STARTING;
                         audioSuspended = false;
                         setOutputMuted(false);
@@ -2068,7 +2163,7 @@ public final class PocketController {
         if (lastError.equals(ambientFailure)) lastError = "";
         ambientFailure = "";
         ambientLinkPaused = audioSuspended = false;
-        redial.reset();
+        resetRedial("ambient_reopen");
         stopCapture();
         reconnect(restoreMic);
         publish();
@@ -3098,7 +3193,7 @@ public final class PocketController {
     }
 
     private void resetRoomTransient() {
-        redial.reset();
+        resetRedial("room_reset");
         ambientLinkPaused = false;
         ambientFailure = "";
         setOutputMuted(false);

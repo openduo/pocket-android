@@ -39,6 +39,16 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("notifyRoomOnly"))) {
+                report.putString("result", new SessionNotifyRoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
+            if (arguments != null && "1".equals(arguments.getString("networkRoomOnly"))) {
+                report.putString("result", new NetworkRoomProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && arguments.getString("processPhase") != null) {
                 report.putAll(
                         new ProcessDeathProbe(this)
@@ -52,13 +62,24 @@ public final class Probe extends Instrumentation {
                 return;
             }
             if (arguments != null && "1".equals(arguments.getString("ambientRoomOnly"))) {
-                report.putString("result", new AmbientRoomProbe(this).run(context));
+                report.putString(
+                        "result",
+                        new AmbientRoomProbe(this, "1".equals(arguments.getString("ambientBrain")))
+                                .run(context));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
-            if (arguments != null && "1".equals(arguments.getString("voiceOnly"))) {
+            if (arguments != null
+                    && ("1".equals(arguments.getString("voiceOnly"))
+                            || "1".equals(arguments.getString("locationOnly")))) {
                 voiceOnly(context);
-                report.putString("result", "PASS " + assertions + " voice upload assertions");
+                report.putString(
+                        "result",
+                        "PASS "
+                                + assertions
+                                + ("1".equals(arguments.getString("locationOnly"))
+                                        ? " location UI assertions"
+                                        : " voice upload assertions"));
                 finish(Activity.RESULT_OK, report);
                 return;
             }
@@ -156,12 +177,13 @@ public final class Probe extends Instrumentation {
                             || controller.snapshot().connection
                                     != PocketController.Connection.ONLINE)
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            assertions +=
-                    new VoiceUploadProbe(controller)
-                            .run(
-                                    context,
-                                    arguments != null
-                                            && "1".equals(arguments.getString("capture")));
+            if ("1".equals(arguments.getString("locationOnly"))) {
+                assertions += new LocationUiProbe(this).run(context, screen, controller);
+            } else {
+                assertions +=
+                        new VoiceUploadProbe(controller)
+                                .run(context, "1".equals(arguments.getString("capture")));
+            }
         } finally {
             controller.stopTrying();
             until = android.os.SystemClock.elapsedRealtime() + 5000;
@@ -1043,6 +1065,7 @@ public final class Probe extends Instrumentation {
                                         context,
                                         arguments != null
                                                 && "1".equals(arguments.getString("capture")));
+                assertions += new LocationUiProbe(this).run(context, screen, controller);
                 assertions +=
                         new LiveRecoveryProbe(controller)
                                 .run(

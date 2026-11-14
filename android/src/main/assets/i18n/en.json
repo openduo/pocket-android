@@ -1,4 +1,6 @@
 {
+  "暂时无法获取当前位置，可在地图选点或输入坐标": "Current location is unavailable. Choose a point on the map or enter coordinates.",
+  "这台设备没有可用的定位来源，可在地图选点或输入坐标": "No location source is available on this device. Choose a point on the map or enter coordinates.",
   "\n固件 ": "\nFirmware ",
   "\n地图坐标：%.6f, %.6f%s": "\nMap coordinates: %.6f, %.6f%s",
   "\n预录 ": "\nPre-roll ",
