@@ -20,6 +20,11 @@ successful run rather than a claim of consistently reproducible acceptance.
 The final standalone correction excludes remembered Passport waits from background connection
 gates. That APK passed **21 live-recovery assertions**; the complete suite was not repeated after
 this last correction.
+After final installation and cold launch, the actual room initially remained offline/retrying.
+Android reported validated Wi-Fi and a separate computer received HTTP 200 from the channel's
+health endpoint. A later wake/UI inspection showed Online again without login, re-pairing or
+network changes. This is recovery evidence, not a diagnosis; the cold-launch delay remains
+unlocated and does not establish bounded connection startup.
 A separate **two-assertion real-node login run**
 decoded the rendered QR to the node's actual authorization URL. The device checks cover SQLite
 recovery/isolation,
