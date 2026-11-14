@@ -212,6 +212,27 @@ final class ImportProbe {
                             && repo.metadata("chips").equals("[]"),
                     "receipt-write failure rolls back text, quote and chips together");
             repo.getWritableDatabase().execSQL("DROP TRIGGER reject_import");
+            String cancelled = UUID.randomUUID().toString();
+            check(
+                    repo.cancelImport(cancelled)
+                            && repo.importDestination(cancelled)
+                                    .equals(RoomRepository.IMPORT_CANCELLED)
+                            && !repo.importDraft(cancelled, "cancelled content", "", "[]")
+                            && repo.metadata("draft").equals("other"),
+                    "a durable cancellation receipt prevents later manifest admission without"
+                            + " clearing the existing draft");
+            boolean reserved = false;
+            try {
+                repo.reserveTransientImport(cancelled, "try:" + UUID.randomUUID());
+            } catch (IllegalStateException expected) {
+                reserved = true;
+            }
+            check(
+                    reserved
+                            && !repo.cancelImport(id)
+                            && repo.importDestination(id).equals("received"),
+                    "try reservation cannot overwrite cancellation and late cancellation cannot"
+                            + " delete an admitted draft");
             Attachment a =
                     new Attachment("one", "text/plain", "/qa/one", "", "", 1, Attachment.FAILED);
             Attachment b =
@@ -259,6 +280,8 @@ final class ImportProbe {
             check(
                     repo.imported(id)
                             && repo.imported(transientId)
+                            && repo.importDestination(cancelled)
+                                    .equals(RoomRepository.IMPORT_CANCELLED)
                             && repo.importReceipts().contains(id),
                     "room-cache clearing retains content-free delivery receipts");
         } finally {

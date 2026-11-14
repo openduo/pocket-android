@@ -18,6 +18,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import top.kuaner.pockete2.core.Attachment;
+import top.kuaner.pockete2.core.ImportProgress;
 import top.kuaner.pockete2.core.Json;
 import top.kuaner.pockete2.core.Message;
 import top.kuaner.pockete2.core.PocketController;
@@ -48,8 +49,18 @@ public final class ConversationPage implements PocketController.Listener {
     private final Map<String, View> keyed = new LinkedHashMap<>();
     private final Map<String, String> fingerprints = new LinkedHashMap<>();
     private final java.util.Set<String> expandedHeard = new java.util.HashSet<>();
-    private LinearLayout root, feed, composer, textRow, chipRow, quoteRow, holdPanel;
-    private TextView title, subtitle, banner, older, working, jump, holdLabel, quoteText;
+    private LinearLayout root, feed, composer, textRow, chipRow, quoteRow, holdPanel, importRow;
+    private TextView title,
+            subtitle,
+            banner,
+            older,
+            working,
+            jump,
+            holdLabel,
+            quoteText,
+            importLabel;
+    private View importCancel;
+    private String importId = "";
     private EditText input;
     private View voiceToggle, send, holdSend;
     private HoldToTalkView hold;
@@ -203,6 +214,22 @@ public final class ConversationPage implements PocketController.Listener {
                 ui.iconButton(
                         "minus", ui.t("取消引用"), ui.palette.secondary, () -> controller.quote("")));
         composer.addView(quoteRow);
+        importRow = ui.row();
+        importRow.setMinimumHeight(ui.dp(44));
+        importRow.setBackground(ui.surface(ui.palette.raised, 10));
+        importLabel = ui.label("", 12, ui.palette.secondary, false);
+        ui.inset(importLabel, 8, 2);
+        importLabel.setMaxLines(2);
+        importLabel.setEllipsize(TextUtils.TruncateAt.END);
+        importRow.addView(importLabel, new LinearLayout.LayoutParams(0, -2, 1));
+        importCancel =
+                ui.iconButton(
+                        "minus",
+                        ui.t("取消导入"),
+                        ui.palette.secondary,
+                        () -> controller.cancelImport(importId));
+        importRow.addView(importCancel, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(44)));
+        composer.addView(importRow);
         chipScroll = new HorizontalScrollView(ui.context);
         chipScroll.setHorizontalScrollBarEnabled(true);
         chipScroll.setScrollbarFadingEnabled(false);
@@ -321,6 +348,34 @@ public final class ConversationPage implements PocketController.Listener {
                 (!voice && !s.draft.trim().isEmpty() || !s.chips.isEmpty())
                         ? View.VISIBLE
                         : View.GONE);
+        send.setEnabled(s.imports.isEmpty());
+        send.setAlpha(s.imports.isEmpty() ? 1f : .4f);
+        importRow.setVisibility(s.imports.isEmpty() ? View.GONE : View.VISIBLE);
+        if (!s.imports.isEmpty()) {
+            ImportProgress progress = s.imports.get(0);
+            importId = progress.id;
+            String status =
+                    progress.cancelling
+                            ? ui.t("正在取消导入…")
+                            : !progress.started
+                                    ? ui.t("等待导入…")
+                                    : progress.total == 0
+                                            ? ui.t("正在导入…")
+                                            : ui.format(
+                                                    "正在导入 %d/%d · %s",
+                                                    progress.index + 1,
+                                                    progress.total,
+                                                    ui.format(
+                                                            "%d KB",
+                                                            (progress.bytes + 1023) / 1024));
+            String detail =
+                    s.imports.size() > 1
+                            ? ui.format("还有 %d 项等待导入", s.imports.size() - 1)
+                            : progress.name;
+            Ui.updateText(importLabel, status + (detail.isEmpty() ? "" : "\n" + detail));
+            importCancel.setEnabled(!progress.cancelling);
+            importCancel.setAlpha(progress.cancelling ? .4f : 1f);
+        } else importId = "";
         quoteRow.setVisibility(s.quote.isEmpty() ? View.GONE : View.VISIBLE);
         Ui.updateText(quoteText, ui.t("回复：") + s.quote);
         StringBuilder ck = new StringBuilder();

@@ -26,6 +26,10 @@ public final class ImportInbox {
         Attachment copy(int index, File destination) throws IOException;
     }
 
+    public interface Guard {
+        void check() throws IOException;
+    }
+
     public static final class Scan {
         public final List<ImportBatch> batches;
         public final int unreadable;
@@ -48,6 +52,19 @@ public final class ImportInbox {
     public ImportBatch prepare(
             String id, String scope, String text, String ownedPhoto, int count, Copier copier)
             throws IOException {
+        return prepare(id, scope, text, ownedPhoto, count, copier, () -> {});
+    }
+
+    public ImportBatch prepare(
+            String id,
+            String scope,
+            String text,
+            String ownedPhoto,
+            int count,
+            Copier copier,
+            Guard guard)
+            throws IOException {
+        guard.check();
         ImportBatch.requireId(id);
         ImportBatch.requirePhotoName(ownedPhoto);
         if (count < 0) throw new IllegalArgumentException("Invalid import file count");
@@ -62,6 +79,7 @@ public final class ImportInbox {
         try {
             JSONArray entries = new JSONArray();
             for (int i = 0; i < count; i++) {
+                guard.check();
                 File destination = new File(staged, "file-" + i);
                 Attachment a = copier.copy(i, destination);
                 if (!destination.isFile()
@@ -77,6 +95,7 @@ public final class ImportInbox {
                                 .put("mime", a.mime)
                                 .put("size", a.size));
             }
+            guard.check();
             JSONObject manifest =
                     new JSONObject()
                             .put("version", 1)
@@ -93,6 +112,7 @@ public final class ImportInbox {
                 out.write(bytes);
                 out.getFD().sync();
             }
+            guard.check();
             if (!staged.renameTo(committed)) throw new IOException("Cannot commit import delivery");
             complete = true;
             return find(id);

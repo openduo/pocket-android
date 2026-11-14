@@ -24,12 +24,22 @@ queue with 32 waiting slots. It does not compete with HTTP/upload tasks. It copi
 `<delivery>.partial`, syncs each file and the manifest, then renames the directory to `<delivery>`.
 Only the final directory is eligible for admission. A source failure removes the entire partial
 batch; it cannot append only half its text/files. Each file is bounded by 64 MiB and any known room
-upload limit. Original names and MIME are recorded separately from the stored path.
+upload limit. Original names and MIME are recorded separately from the stored path. For a media
+selection, decodable image types outside JPEG/PNG/GIF/WebP are converted to full-resolution JPEG
+at quality 90, matching the upstream media path. A document selection keeps the original bytes.
+Camera photos are re-encoded as JPEG with orientation applied and location metadata omitted.
+Conversion can read at most 64 MiB of source bytes; the room limit applies to the final encoded
+attachment. A bounded full-resolution decode budget avoids silently shrinking imported images.
+Unsupported or over-budget native decodes remain their original files, subject to the final limit.
+Valid HEIC decoding on the E2 remains an explicit gap; a deliberately undecodable fixture proves
+the file fallback only.
 
 `RoomRepository.importDraft` commits text, quote, ordered chips and a delivery receipt in one SQLite
 transaction. The receipt is independent of the current room, so recreating a share-launched Activity
 cannot append it again after changing rooms, sending, or clearing the room cache. Receipts contain
 only the random delivery id and a consumed marker; try deliveries record their disposable generation.
+Cancellation stores a terminal receipt before signalling the provider, so reopening an intent
+cannot restart a cancelled delivery. A completed admission cannot be replaced by a late cancel.
 Acknowledging a manifest retains its files for the draft/outbox. Normal removal/settlement deletes
 those files, and startup prunes empty directories. Pending manifests recover oldest first, including
 when the wall clock moves backwards. Receipt recovery does not require already-settled files to exist.
@@ -41,11 +51,30 @@ delivery is reserved durably before copying, while its text/chips stay in the in
 and temporary inbox. Leaving/replacing try removes its owned files. A restored old try intent cannot
 replay into a real composer.
 
+`core/ImportRoute` captures the delivery, destination and media/file policy before an external
+picker or camera is opened. `app/ExternalInputs` saves that route and the photo permission/camera/
+import stage through Activity recreation. A returned result belongs to its original room or try
+generation. An expired try result is discarded. A restored permission stage resumes once granted;
+a late permission callback cannot open a second camera. On Android 8 a stopped Activity's explicit
+recreation may be deferred until the picker result resumes it.
+
 Photos use the same handoff after the native camera's result. The manifest remembers only the safe
 basename of the app-owned `cache/shared/photo-*.jpg` source. Cleanup validates its canonical parent,
 deletes it after a durable copy, then acknowledges the manifest. A crash before acknowledgement can
 repeat this cleanup. The Activity retains the pending photo path/id through recreation. Camera
 launch requests this app's camera permission and handles a refused launch without crashing.
+
+The composer observes queued/running imports through immutable `ImportProgress` snapshots. It
+shows the actual filename, file number and bytes read, with a 44 dp cancel control above the text
+row. Updates are coalesced; there is no fabricated total-byte percentage. Draft editing remains
+available while sending waits for the import to settle or be cancelled. Provider query/open calls
+receive an Android cancellation signal. Pipe reads poll at bounded intervals so cancellation does
+not wait for a stalled writer's EOF. Binder cancellation runs on a separate bounded executor rather
+than the UI or state thread. `ImportSource` calls a document provider's cancellable file API directly:
+Android 8's wildcard typed-asset helper drops the signal before `openDocument`. The provider lease
+remains held until the descriptor closes. Other content retains asset-offset/length semantics.
+Providers that ignore cancellation inside an unsupported Binder call
+(including `getType`, which has no cancellation parameter) remain a limitation.
 
 `DraftText` reconciles native edits with content appended before the editor's acknowledgement. The
 controller acknowledges edit ids; full draft/room/send resets advance an editor generation. The
@@ -65,14 +94,22 @@ failure, actual ContentResolver copies, native focused typing interleavings, Act
 picker/photo result callbacks and try cleanup. `POCKET_E2_TEST_IMPORT_UI=1` additionally drives the
 system document picker against a disposable provider in a separate UID, checks grant release, and
 opens the real camera/capture confirmation. The test APK/provider is uninstalled at the end.
+The current paired-device suite explicitly opts in with `POCKET_E2_TEST_PAIRED_TRY=1`. It preserves
+the real room/draft and uses the disposable try transport for uploads and sends. The real picker
+result survives Android's deferred recreation; a restored granted permission stage launches the
+camera once despite a late callback. The separate-UID provider also stalls after 8192 actual bytes
+and while opening a second file. The visible cancel action releases both within two seconds,
+removes partial files, preserves existing text/chips and rejects a repeated cancelled delivery.
+The next normal import succeeds. Native image checks distinguish unchanged inline/document bytes
+from converted media/camera pixels and test the encoded upload limit. These are provider/UI and
+native-codec checks; their uploads are prepared rather than real-room attachment acceptance.
 The optional UI probe currently runs on API 27: a narrowly scoped shell helper saves/restores the
 stock camera's location user-decision flags. The test declines optional location access and disables
 location tagging in its first-use screen. The helper and test source never ship in the application.
 
 Remaining acceptance work includes process kill during an unfinished external-provider copy,
-recreation during an unanswered first permission request or picker, a
-provider that blocks or revokes its stream, low-storage/large-batch cancellation, modern Android,
-import-progress UI, and real-room upload/retry/removal. An incomplete copy has no durable content manifest: its recovery
-still depends on the OS restoring the source intent/permission. The inbox does not claim to preserve
-an expired temporary URI before copying completes. Non-inline image formats remain original files;
-upstream's conversion of additional decodable image types to JPEG is still a migration gap.
+recreation during an unanswered first permission dialog, revoked/noncooperative providers,
+low-storage/large-batch cancellation, modern Android, valid HEIC conversion, and real-room
+upload/retry/removal. An incomplete copy has no durable content manifest: its recovery still depends
+on the OS restoring the source intent/permission. The inbox does not claim to preserve an expired
+temporary URI before copying completes.

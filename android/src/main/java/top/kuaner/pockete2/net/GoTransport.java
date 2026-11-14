@@ -189,6 +189,11 @@ public final class GoTransport implements ChannelConnection {
         reportStatus();
     }
 
+    public void login() throws Exception {
+        Tsbridge.login();
+        reportStatus();
+    }
+
     public void logging(boolean value) {
         Tsbridge.setLogging(value);
     }

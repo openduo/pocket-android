@@ -20,10 +20,47 @@ public final class ImportInboxContracts {
     }
 
     public static int run() throws Exception {
+        routes();
         Path temporary = Files.createTempDirectory("pocket-e2-import-");
         try {
             File root = temporary.resolve("inbox").toFile();
             ImportInbox inbox = new ImportInbox(root);
+            String cancelledId = UUID.randomUUID().toString();
+            boolean[] cancelled = {false};
+            boolean rejectedCopy = false;
+            try {
+                inbox.prepare(
+                        cancelledId,
+                        "room-one",
+                        "never append",
+                        "",
+                        1,
+                        (index, file) -> {
+                            write(file, "copied bytes before cancellation");
+                            cancelled[0] = true;
+                            return new Attachment(
+                                    "cancelled.txt",
+                                    "text/plain",
+                                    file.getPath(),
+                                    "",
+                                    "",
+                                    file.length(),
+                                    Attachment.UPLOADING);
+                        },
+                        () -> {
+                            if (cancelled[0])
+                                throw new InterruptedIOException(
+                                        "cancelled before manifest commit");
+                        });
+            } catch (InterruptedIOException expected) {
+                rejectedCopy = true;
+            }
+            check(
+                    rejectedCopy
+                            && inbox.find(cancelledId) == null
+                            && !new File(root, cancelledId + ".partial").exists(),
+                    "cancellation after the last copied byte cannot publish a manifest or retain"
+                            + " partial files");
             String first = "ffffffff-ffff-4fff-8fff-ffffffffffff";
             String second = "00000000-0000-4000-8000-000000000001";
             List<Integer> copied = new ArrayList<>();
@@ -252,5 +289,41 @@ public final class ImportInboxContracts {
 
     private static void write(File file, String text) throws IOException {
         Files.write(file.toPath(), text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void routes() {
+        String id = UUID.randomUUID().toString();
+        ImportRoute picked = new ImportRoute(id, "room-one", ImportRoute.Kind.FILES);
+        ImportRoute restored = ImportRoute.from(picked.json());
+        check(
+                restored.id.equals(id)
+                        && restored.target.equals("room-one")
+                        && restored.kind == ImportRoute.Kind.FILES,
+                "saved picker routes preserve the original delivery, room and import policy");
+        check(
+                picked.visibleIn("room-one", false)
+                        && !picked.visibleIn("room-two", false)
+                        && !picked.visibleIn("room-one", true),
+                "real-room results cannot enter a different room or a disposable room");
+        ImportRoute unpaired = new ImportRoute(id, "", ImportRoute.Kind.MEDIA);
+        check(
+                unpaired.visibleIn("unpaired", false)
+                        && unpaired.visibleIn("room-one", false)
+                        && !unpaired.visibleIn("try:" + id, true),
+                "unassigned imports follow the first real pairing without entering try mode");
+        ImportRoute demo = new ImportRoute(id, "try:" + id, ImportRoute.Kind.CAMERA);
+        check(
+                demo.trying()
+                        && demo.visibleIn("try:" + id, true)
+                        && !demo.visibleIn("try:" + UUID.randomUUID(), true)
+                        && !demo.visibleIn("room-one", false),
+                "try results are bound to exactly their original disposable generation");
+        boolean invalid = false;
+        try {
+            new ImportRoute(id, "try:invalid", ImportRoute.Kind.MEDIA);
+        } catch (IllegalArgumentException expected) {
+            invalid = true;
+        }
+        check(invalid, "restored try routes reject malformed generation identifiers");
     }
 }

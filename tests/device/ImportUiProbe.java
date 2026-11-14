@@ -139,7 +139,7 @@ final class ImportUiProbe {
                     revealed.width()
                             >= Math.round(40 * context.getResources().getDisplayMetrics().density),
                     "newly imported files automatically reveal the last chip and its removal target"
-                        + " on the narrow viewport");
+                            + " on the narrow viewport");
             android.widget.HorizontalScrollView strip =
                     horizontalScroll(current.get().getWindow().getDecorView());
             probe.runOnMainSync(() -> strip.scrollTo(strip.getChildAt(0).getWidth(), 0));
@@ -247,6 +247,10 @@ final class ImportUiProbe {
             probe.runOnMainSync(
                     () -> {
                         try {
+                            externalField(
+                                    current.get(),
+                                    "pickerRoute",
+                                    controller.importRoute(ImportRoute.Kind.FILES));
                             result.invoke(current.get(), 10, Activity.RESULT_OK, selection);
                         } catch (ReflectiveOperationException failure) {
                             throw new AssertionError(failure);
@@ -282,16 +286,12 @@ final class ImportUiProbe {
             probe.runOnMainSync(
                     () -> {
                         try {
-                            java.lang.reflect.Field photo =
-                                    top.kuaner.pockete2.app.MainActivity.class.getDeclaredField(
-                                            "cameraFile");
-                            java.lang.reflect.Field photoId =
-                                    top.kuaner.pockete2.app.MainActivity.class.getDeclaredField(
-                                            "cameraDeliveryId");
-                            photo.setAccessible(true);
-                            photoId.setAccessible(true);
-                            photo.set(current.get(), cameraOriginal);
-                            photoId.set(current.get(), UUID.randomUUID().toString());
+                            externalField(current.get(), "cameraFile", cameraOriginal);
+                            externalField(
+                                    current.get(),
+                                    "photoRoute",
+                                    controller.importRoute(ImportRoute.Kind.CAMERA));
+                            externalField(current.get(), "photoStage", "camera");
                             result.invoke(current.get(), 11, Activity.RESULT_OK, null);
                         } catch (ReflectiveOperationException failure) {
                             throw new AssertionError(failure);
@@ -342,14 +342,30 @@ final class ImportUiProbe {
                             && !new java.io.File(removed).exists(),
                     "removing an imported chip removes its copied file without upload-result"
                             + " resurrection");
-            if (arguments != null && "1".equals(arguments.getString("importUi")))
+            if (arguments != null && "1".equals(arguments.getString("importUi"))) {
                 nativeImports(context, current, controller);
+                assertions +=
+                        new ImportCancellationProbe(probe, context, current, controller).run();
+            }
             List<String> tryFiles = new ArrayList<>();
             for (Attachment a : controller.snapshot().chips) tryFiles.add(a.localPath);
+            ImportRoute stalePicker = controller.importRoute(ImportRoute.Kind.FILES);
             controller.stopTrying();
             until = android.os.SystemClock.elapsedRealtime() + 4000;
             while (controller.snapshot().trying && android.os.SystemClock.elapsedRealtime() < until)
                 Thread.sleep(20);
+            CountDownLatch staleReturned = new CountDownLatch(1);
+            controller.importContent(
+                    stalePicker,
+                    "stale picker text",
+                    Collections.singletonList(one),
+                    staleReturned::countDown);
+            check(
+                    staleReturned.await(2, TimeUnit.SECONDS)
+                            && controller.draft().equals(realDraft)
+                            && controller.snapshot().chips.size() == realChips,
+                    "an external result from an ended try generation cannot add its files or text"
+                            + " to the real composer");
             Activity inTry = current.get();
             probe.runOnMainSync(inTry::recreate);
             until = android.os.SystemClock.elapsedRealtime() + 5000;
@@ -390,6 +406,17 @@ final class ImportUiProbe {
                             ((top.kuaner.pockete2.app.MainActivity) current.get())
                                     .pickAttachment("*/*"));
             Thread.sleep(500);
+            ImportRoute launchedPicker = (ImportRoute) externalField(current.get(), "pickerRoute");
+            Activity beforePicker = current.get();
+            probe.runOnMainSync(beforePicker::recreate);
+            probe.waitForIdleSync();
+            ImportRoute restoredPicker = (ImportRoute) externalField(current.get(), "pickerRoute");
+            check(
+                    launchedPicker.id.equals(restoredPicker.id)
+                            && launchedPicker.target.equals(restoredPicker.target)
+                            && restoredPicker.kind == ImportRoute.Kind.FILES,
+                    "requesting Activity recreation while the real picker is open retains its"
+                            + " delivery, room and file policy until the result resumes it");
             probe.screenshot(context, "native-file-picker");
             if (!clickNative(
                     node -> node.getText() != null && Documents.TITLE.contentEquals(node.getText()),
@@ -440,7 +467,8 @@ final class ImportUiProbe {
                     "the real system picker can select a document owned by a separate application"
                             + " UID");
             long until = android.os.SystemClock.elapsedRealtime() + 5000;
-            while (controller.snapshot().chips.size() != before + 1
+            while ((controller.snapshot().chips.size() != before + 1
+                            || current.get() == beforePicker)
                     && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             if (controller.snapshot().chips.size() != before + 1) {
                 probe.screenshot(context, "native-file-picker-return-failed");
@@ -450,15 +478,16 @@ final class ImportUiProbe {
             }
             Attachment document = controller.snapshot().chips.get(before);
             check(
-                    document.name.equals(Documents.NAME)
+                    current.get() != beforePicker
+                            && document.name.equals(Documents.NAME)
                             && document.mime.equals("text/plain")
                             && new String(
                                             java.nio.file.Files.readAllBytes(
                                                     new java.io.File(document.localPath).toPath()),
                                             java.nio.charset.StandardCharsets.UTF_8)
                                     .equals(Documents.CONTENT),
-                    "a real picker return copies the external provider stream and original name"
-                            + " into the normal composer");
+                    "a real picker result survives Android's deferred Activity recreation and"
+                            + " copies the external stream and original name into the composer");
             until = android.os.SystemClock.elapsedRealtime() + 3000;
             while (context.getContentResolver().getPersistedUriPermissions().stream()
                             .anyMatch(p -> Documents.AUTHORITY.equals(p.getUri().getAuthority()))
@@ -468,8 +497,48 @@ final class ImportUiProbe {
                             .noneMatch(p -> Documents.AUTHORITY.equals(p.getUri().getAuthority())),
                     "the document's persistable read grant is released after its app-owned copy"
                             + " completes");
+            ImportRoute permissionRoute = controller.importRoute(ImportRoute.Kind.CAMERA);
+            Activity beforePermission = current.get();
             probe.runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) current.get()).takePhoto());
+                    () -> {
+                        try {
+                            externalField(beforePermission, "photoRoute", permissionRoute);
+                            externalField(beforePermission, "photoStage", "permission");
+                            externalField(beforePermission, "cameraFile", null);
+                            externalField(beforePermission, "photoResumed", false);
+                            beforePermission.recreate();
+                        } catch (ReflectiveOperationException failure) {
+                            throw new AssertionError(failure);
+                        }
+                    });
+            until = android.os.SystemClock.elapsedRealtime() + 4000;
+            while (current.get() == beforePermission
+                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+            probe.waitForIdleSync();
+            ImportRoute permissionRestored =
+                    (ImportRoute) externalField(current.get(), "photoRoute");
+            Object photoFile = externalField(current.get(), "cameraFile");
+            check(
+                    current.get() != beforePermission
+                            && permissionRoute.id.equals(permissionRestored.id)
+                            && permissionRoute.target.equals(permissionRestored.target)
+                            && "camera".equals(externalField(current.get(), "photoStage"))
+                            && photoFile instanceof java.io.File,
+                    "restoring an interrupted photo permission stage after permission was granted"
+                            + " opens the real camera with its original route");
+            probe.runOnMainSync(
+                    () ->
+                            current.get()
+                                    .onRequestPermissionsResult(
+                                            13,
+                                            new String[] {android.Manifest.permission.CAMERA},
+                                            new int[] {
+                                                android.content.pm.PackageManager.PERMISSION_GRANTED
+                                            }));
+            check(
+                    photoFile.equals(externalField(current.get(), "cameraFile")),
+                    "a late permission callback cannot launch a second camera or replace its output"
+                            + " source");
             Thread.sleep(600);
             probe.screenshot(context, "native-camera-capture");
             android.view.accessibility.AccessibilityNodeInfo cameraRoot =
@@ -611,6 +680,26 @@ final class ImportUiProbe {
             info.flags = originalFlags;
             probe.getUiAutomation().setServiceInfo(info);
         }
+    }
+
+    private static void externalField(Activity activity, String name, Object value)
+            throws ReflectiveOperationException {
+        java.lang.reflect.Field inputs = activity.getClass().getDeclaredField("inputs");
+        inputs.setAccessible(true);
+        Object external = inputs.get(activity);
+        java.lang.reflect.Field field = external.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(external, value);
+    }
+
+    private static Object externalField(Activity activity, String name)
+            throws ReflectiveOperationException {
+        java.lang.reflect.Field inputs = activity.getClass().getDeclaredField("inputs");
+        inputs.setAccessible(true);
+        Object external = inputs.get(activity);
+        java.lang.reflect.Field field = external.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(external);
     }
 
     private void dumpNative(

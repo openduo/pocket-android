@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -27,14 +26,13 @@ import top.kuaner.pockete2.ui.pages.OnboardingPage;
 import top.kuaner.pockete2.ui.pages.PairingPage;
 import top.kuaner.pockete2.ui.pages.SettingsPage;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Retained page views preserve reading positions, form input, focus and text drafts. */
 public final class MainActivity extends Activity implements PageHost, PocketController.Listener {
-    private static final int PICK = 10, CAMERA = 11, PERMISSION = 12;
+    private static final int PERMISSION = 12;
     private Ui ui;
     private PocketController controller;
     private LinearLayout shell, navSlot;
@@ -43,11 +41,12 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private String page;
     private Runnable permissionAction;
     private Intent pendingIntent;
-    private String deliveryId, cameraDeliveryId;
-    private boolean pairIntentHandled, cameraReady, inboundPresented;
-    private File cameraFile;
+    private String deliveryId;
+    private boolean pairIntentHandled, inboundPresented;
+    private ExternalInputs inputs;
     private Dialog imagePreview;
     private boolean loginWaiting;
+    private top.kuaner.pockete2.ui.components.TailnetLoginSheet loginSheet;
     private top.kuaner.pockete2.ui.pages.SessionsPage sessions;
     private top.kuaner.pockete2.ui.pages.SessionsPage.State sessionsState;
     private top.kuaner.pockete2.ui.pages.PassportPage passport;
@@ -78,14 +77,10 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                 saved == null
                         ? controller.configured() ? "conversation" : "onboarding"
                         : saved.getString("page", "conversation");
-        if (saved != null && saved.containsKey("camera"))
-            cameraFile = new File(saved.getString("camera"));
         deliveryId =
                 saved == null
                         ? java.util.UUID.randomUUID().toString()
                         : saved.getString("deliveryId", java.util.UUID.randomUUID().toString());
-        cameraDeliveryId = saved == null ? null : saved.getString("cameraDeliveryId");
-        cameraReady = saved != null && saved.getBoolean("cameraReady");
         pairIntentHandled = saved != null && saved.getBoolean("pairIntentHandled");
         inboundPresented = saved != null && saved.getBoolean("inboundPresented");
         loginWaiting = saved != null && saved.getBoolean("loginWaiting");
@@ -106,9 +101,9 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
                 });
         frame.addView(shell);
         setContentView(frame);
+        inputs = new ExternalInputs(this, controller, saved);
         controller.addListener(this);
         handleIntent(getIntent());
-        if (cameraReady && cameraFile != null) importPhoto();
         changed();
     }
 
@@ -116,6 +111,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     protected void onStart() {
         super.onStart();
         controller.onForeground(true);
+        inputs.started();
         if (controller.settings.keepAwake())
             getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
@@ -128,6 +124,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     protected void onStop() {
+        inputs.stopped();
         if (pairing != null) pairing.hidden();
         if (conversation != null) conversation.hidden();
         if (location != null) location.hidden();
@@ -137,6 +134,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     protected void onDestroy() {
+        if (loginSheet != null) loginSheet.close();
         if (imagePreview != null) imagePreview.dismiss();
         controller.removeListener(this);
         if (conversation != null) conversation.close();
@@ -157,11 +155,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     public void changed() {
-        if (cameraReady && cameraFile != null && !cameraFile.exists()) {
-            cameraFile = null;
-            cameraReady = false;
-            cameraDeliveryId = null;
-        }
+        inputs.changed();
         if (controller.snapshot() == null) {
             if (pages.getChildCount() == 0)
                 pages.addView(ui.label(ui.t("正在读取对话…"), 16, ui.palette.secondary, false));
@@ -176,7 +170,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
             pendingIntent = null;
             handleIntent(intent);
         }
-        if (loginWaiting) continueLogin();
+        if (loginWaiting) continueLogin(false);
     }
 
     @Override
@@ -334,10 +328,8 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     @Override
     protected void onSaveInstanceState(Bundle saved) {
         saved.putString("page", page);
-        if (cameraFile != null) saved.putString("camera", cameraFile.getPath());
+        inputs.save(saved);
         saved.putString("deliveryId", deliveryId);
-        saved.putString("cameraDeliveryId", cameraDeliveryId);
-        saved.putBoolean("cameraReady", cameraReady);
         saved.putBoolean("pairIntentHandled", pairIntentHandled);
         saved.putBoolean("inboundPresented", inboundPresented);
         saved.putBoolean("loginWaiting", loginWaiting);
@@ -416,6 +408,7 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     @Override
     public void onRequestPermissionsResult(int request, String[] names, int[] grants) {
         super.onRequestPermissionsResult(request, names, grants);
+        if (inputs.permissionResult(request, grants)) return;
         if (request != PERMISSION) return;
         Runnable action = permissionAction;
         permissionAction = null;
@@ -438,94 +431,18 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
 
     @Override
     public void pickAttachment(String mime) {
-        try {
-            startActivityForResult(
-                    new Intent(Intent.ACTION_OPEN_DOCUMENT)
-                            .setType(mime)
-                            .addCategory(Intent.CATEGORY_OPENABLE)
-                            .addFlags(
-                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true),
-                    PICK);
-        } catch (android.content.ActivityNotFoundException failure) {
-            toast(ui.t("没有文件选择器，可从其他应用分享到 Pocket E2"));
-        }
+        inputs.pick(mime);
     }
 
     @Override
     public void takePhoto() {
-        permission(new String[] {android.Manifest.permission.CAMERA}, this::launchCamera);
-    }
-
-    private void launchCamera() {
-        try {
-            File dir = new File(getCacheDir(), "shared");
-            if (!dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException();
-            cameraFile = File.createTempFile("photo-", ".jpg", dir);
-            cameraDeliveryId = java.util.UUID.randomUUID().toString();
-            cameraReady = false;
-            Uri uri = PocketFiles.uri(this, cameraFile);
-            Intent camera =
-                    new Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                            .putExtra(MediaStore.EXTRA_OUTPUT, uri)
-                            .addFlags(
-                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                                            | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            camera.setClipData(android.content.ClipData.newRawUri("Photo", uri));
-            startActivityForResult(camera, CAMERA);
-        } catch (android.content.ActivityNotFoundException failure) {
-            if (cameraFile != null) cameraFile.delete();
-            cameraFile = null;
-            cameraDeliveryId = null;
-            toast(ui.t("这台设备没有可用的相机应用"));
-        } catch (java.io.IOException failure) {
-            if (cameraFile != null) cameraFile.delete();
-            cameraFile = null;
-            cameraDeliveryId = null;
-            toast(ui.t("无法创建照片文件"));
-        } catch (SecurityException failure) {
-            if (cameraFile != null) cameraFile.delete();
-            cameraFile = null;
-            cameraDeliveryId = null;
-            toast(ui.t("无法启动相机，请检查相机权限"));
-        }
+        inputs.takePhoto();
     }
 
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
-        if (request == PICK && result == RESULT_OK && data != null) {
-            try {
-                InboundContent content = InboundContent.picked(data);
-                controller.importContent(
-                        java.util.UUID.randomUUID().toString(),
-                        "",
-                        content.files,
-                        content.retainReads(getApplicationContext(), data.getFlags()));
-                navigate("conversation");
-            } catch (RuntimeException failure) {
-                toast(ui.t("无法导入文件，请检查文件大小与读取权限"));
-            }
-        }
-        if (request == CAMERA && cameraFile != null) {
-            if (result == RESULT_OK && cameraFile.length() > 0) {
-                cameraReady = true;
-                importPhoto();
-                navigate("conversation");
-            } else {
-                cameraFile.delete();
-                cameraFile = null;
-                cameraDeliveryId = null;
-                cameraReady = false;
-            }
-        }
-    }
-
-    private void importPhoto() {
-        File original = cameraFile;
-        if (cameraDeliveryId == null) cameraDeliveryId = java.util.UUID.randomUUID().toString();
-        controller.importPhoto(cameraDeliveryId, original);
+        inputs.result(request, result, data);
     }
 
     @Override
@@ -580,30 +497,21 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     @Override
     public void loginTailnet() {
         loginWaiting = true;
-        controller.start();
-        controller.refreshTailnet();
-        continueLogin();
-        if (loginWaiting) toast(ui.t("正在获取 Tailscale 登录地址…"));
+        controller.loginTailnet();
+        continueLogin(true);
     }
 
-    private void continueLogin() {
-        PocketController.Snapshot s = controller.snapshot();
-        if (s != null && s.tailnetState.equals("Failed")) {
-            loginWaiting = false;
-            toast(ui.t("无法启动 Tailscale，请在设置中查看连接状态"));
-            return;
-        }
-        if (s != null && s.tailnetState.equals("Running")) {
-            loginWaiting = false;
-            toast(ui.t("Tailscale 已连接，节点 pocket-e2"));
-            return;
-        }
-        if (s == null || s.authUrl.isEmpty()) return;
-        loginWaiting = false;
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(s.authUrl)));
-        } catch (android.content.ActivityNotFoundException failure) {
-            ui.copy(ui.t("Tailscale 登录链接"), s.authUrl);
-        }
+    private void continueLogin(boolean automatic) {
+        if (loginSheet == null)
+            loginSheet =
+                    new top.kuaner.pockete2.ui.components.TailnetLoginSheet(
+                            this,
+                            controller,
+                            automatic,
+                            () -> {
+                                loginSheet = null;
+                                loginWaiting = false;
+                            });
+        else loginSheet.update();
     }
 }

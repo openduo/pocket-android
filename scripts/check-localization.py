@@ -35,7 +35,7 @@ for key, value in catalog.items():
         errors.append(f'Formatter arguments differ: {key}')
 
 files = list((SOURCE / 'ui').rglob('*.java'))
-files += [SOURCE / 'app' / name for name in ('MainActivity.java', 'AnswerNotifications.java', 'PocketSessionService.java')]
+files += [SOURCE / 'app' / name for name in ('MainActivity.java', 'ExternalInputs.java', 'AnswerNotifications.java', 'PocketSessionService.java')]
 files += [SOURCE / 'location/TileMapView.java']
 checked = 0
 for path in files:
@@ -63,7 +63,7 @@ for path in files:
         checked += 1
 
 # Domain/hardware statuses cross through immutable snapshots and are translated by the observer.
-for directory in ('core', 'audio', 'passport', 'net', 'location', 'sight'):
+for directory in ('core', 'audio', 'passport', 'net', 'location', 'sight', 'image'):
     for path in (SOURCE / directory).rglob('*.java'):
         for match in tokens.finditer(path.read_text()):
             if not match.group().startswith('"'):

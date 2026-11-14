@@ -12,6 +12,11 @@ public final class ProviderWarmup extends android.app.Activity {
                 .notifyChange(
                         android.provider.DocumentsContract.buildRootsUri(Documents.AUTHORITY),
                         null);
+        for (String id : new String[] {"blocked", "status", "slow-open", "rejected"})
+            grantUriPermission(
+                    "top.kuaner.pockete2",
+                    android.provider.DocumentsContract.buildDocumentUri(Documents.AUTHORITY, id),
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
         finish();
     }
 }

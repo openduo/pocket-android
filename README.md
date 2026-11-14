@@ -13,9 +13,10 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 Passport central/press/reply logic, a scoped session viewer, attachment import/sharing, native map
 selection and Camera2 H.264 media-v1 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **148 host contract assertions and 122 E2 device assertions**,
-plus Go vet/tests and the Android build. Real-room login, API/audio integration and an external
-Passport have not been verified. These checks are regression evidence, not a parity-completion claim.
+The latest local checkpoint passed **154 host contract assertions and 149 E2 device assertions**,
+plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
+login QR. Real-room authorization, pairing and text send/reply also passed; real audio and an external
+Passport remain unverified. These checks are regression evidence, not a parity-completion claim.
 
 The checkpoint includes native Chinese/English switching, literal user-content preservation,
 language-aware notification/Passport frames, occupied-camera waiting/recovery, and a session viewer
@@ -24,8 +25,18 @@ settings and session screens were inspected at ~259 dp, including 1.35 font scal
 the real E2 keyboard. Shares now use an atomic file inbox and transactional delivery receipts,
 preserve names/MIME and order, retain concurrent typing, and recover without duplication through
 recreation. Real system document-picker and camera returns exercise the same import path.
+Picker/camera routes survive recreation; media conversion preserves dimensions, while document
+selection preserves bytes. The composer reports observed import bytes and can cancel stalled external
+reads/opens without losing its existing draft or admitting part of a batch.
 `docs/migration.md` keeps external-service/hardware gaps separate; `docs/imports.md` describes the
 handoff and its remaining failure/lifecycle acceptance work.
+
+For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
+The native login sheet displays an authorization QR, copyable link and live backend state. Its QR
+was decoded from the actual E2 screenshot against the actual node's auth URL. The user has since
+authorized the node and supplied a room link:
+real pairing, historical rows, delivered text and an exact requested live reply were verified on
+the E2. Pairing remained intact through an in-place APK update.
 
 ## Build
 
@@ -36,6 +47,8 @@ scripts/test-host.sh           # pure protocol/reducer contracts
 # Install the built app before device tests:
 adb install -r dist/PocketE2.apk
 POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 scripts/test-device.sh
+# Opt in to the isolated try/UI suite when a real room is already paired:
+POCKET_E2_TEST_CAPTURE=1 POCKET_E2_TEST_CAMERA=1 POCKET_E2_TEST_IMPORT_UI=1 POCKET_E2_TEST_PAIRED_TRY=1 scripts/test-device.sh
 ```
 
 Requirements: JDK 17, Go 1.27.4, the x/mobile version in `bridge/tsbridge/go.mod` (gomobile and gobind),
@@ -47,6 +60,10 @@ The optional native import UI probe currently targets API 27, including a dispos
 in a separate UID. It declines the stock camera's optional location request and restores its prior
 user-decision permission flags with an Android-8-only shell helper. The helper, provider and test APK
 are removed after the run. The application APK does not include them.
+On a paired device the try/UI tests require `POCKET_E2_TEST_PAIRED_TRY=1`; they refuse active
+recording/camera work or a nonempty outbox and restore the original room, draft and presentation
+preferences. Their notifications and sends stay inside the disposable try transport. Omitting
+the flag runs the hardware/storage probes and cold start, which is a smaller acceptance scope.
 
 The E2 firmware array libraries/models must be supplied locally under `.build/firmware/{lib,assets}`
 or through `POCKET_E2_FIRMWARE_DIR`, matching firmware 04319. This workspace's copies came from the

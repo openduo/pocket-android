@@ -19,6 +19,7 @@ import java.util.List;
 
 /** Room-isolated SQLite cache. Cursor advancement and row admission are one durable transaction. */
 public final class RoomRepository extends SQLiteOpenHelper {
+    public static final String IMPORT_CANCELLED = "cancelled";
     private static final String IMPORT_RECEIPTS = "@import-receipts";
     private String room = "unpaired";
 
@@ -170,6 +171,13 @@ public final class RoomRepository extends SQLiteOpenHelper {
         return roomMetadata(IMPORT_RECEIPTS, delivery);
     }
 
+    public boolean cancelImport(String delivery) {
+        ImportBatch.requireId(delivery);
+        if (importDestination(delivery).equals("received")) return false;
+        metadata(IMPORT_RECEIPTS, delivery, IMPORT_CANCELLED);
+        return true;
+    }
+
     public java.util.Set<String> importReceipts() {
         java.util.Set<String> deliveries = new java.util.HashSet<>();
         try (Cursor c =
@@ -188,6 +196,9 @@ public final class RoomRepository extends SQLiteOpenHelper {
         if (!scope.startsWith("try:"))
             throw new IllegalArgumentException("Invalid transient import scope");
         ImportBatch.requireId(scope.substring(4));
+        String destination = importDestination(delivery);
+        if (!destination.isEmpty() && !destination.equals(scope))
+            throw new IllegalStateException("Import delivery was already settled");
         metadata(IMPORT_RECEIPTS, delivery, scope);
     }
 

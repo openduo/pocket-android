@@ -280,6 +280,29 @@ func Logout() error {
 	return lc.Logout(ctx)
 }
 
+// Login requests an interactive login when no current URL is available. It
+// preserves an in-progress browser/QR authorization and an already connected node.
+func Login() error {
+	s, err := server()
+	if err != nil {
+		return err
+	}
+	lc, err := s.LocalClient()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	st, err := lc.StatusWithoutPeers(ctx)
+	if err != nil {
+		return err
+	}
+	if st.BackendState == "Running" || st.BackendState == "NeedsMachineAuth" || st.AuthURL != "" {
+		return nil
+	}
+	return lc.StartLoginInteractive(ctx)
+}
+
 // Up blocks until the backend reports Running or the timeout elapses.
 func Up(timeoutMs int64) error {
 	s, err := server()

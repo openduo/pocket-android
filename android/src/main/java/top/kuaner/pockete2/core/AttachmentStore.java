@@ -24,6 +24,18 @@ public final class AttachmentStore {
     }
 
     public Attachment importFile(Uri uri, File file, long remoteLimit) throws IOException {
+        return importFile(uri, file, remoteLimit, ImportRoute.Kind.MEDIA);
+    }
+
+    public Attachment importFile(Uri uri, File file, long remoteLimit, ImportRoute.Kind kind)
+            throws IOException {
+        return importFile(uri, file, remoteLimit, kind, new ImportRead());
+    }
+
+    public Attachment importFile(
+            Uri uri, File file, long remoteLimit, ImportRoute.Kind kind, ImportRead read)
+            throws IOException {
+        read.check();
         if (uri == null || !"content".equals(uri.getScheme()))
             throw new IOException("Import requires a content URI");
         String name = "附件", mime = context.getContentResolver().getType(uri);
@@ -34,7 +46,8 @@ public final class AttachmentStore {
                                 new String[] {OpenableColumns.DISPLAY_NAME},
                                 null,
                                 null,
-                                null)) {
+                                null,
+                                read.signal())) {
             if (c != null && c.moveToFirst()) {
                 int column = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
                 if (column >= 0 && c.getString(column) != null && !c.getString(column).isEmpty())
@@ -43,6 +56,7 @@ public final class AttachmentStore {
         } catch (UnsupportedOperationException | IllegalArgumentException ignored) {
             // Some readable providers do not support a display-name query.
         }
+        read.check();
         if (mime == null || mime.isEmpty()) {
             int dot = name.lastIndexOf('.');
             mime =
@@ -53,28 +67,54 @@ public final class AttachmentStore {
                                             name.substring(dot + 1).toLowerCase(Locale.ROOT));
         }
         if (mime == null) mime = "application/octet-stream";
+        read.copied(name, 0);
+        Attachment metadata =
+                new Attachment(name, mime, file.getPath(), "", "", 0, Attachment.UPLOADING);
         ensure(file.getParentFile());
         long size = 0;
         long limit =
                 remoteLimit > 0
                         ? Math.min(LOCAL_IMPORT_MAX_BYTES, remoteLimit)
                         : LOCAL_IMPORT_MAX_BYTES;
-        try (InputStream in = context.getContentResolver().openInputStream(uri);
-                FileOutputStream out = new FileOutputStream(file)) {
-            if (in == null) throw new IOException("Missing content stream");
-            byte[] buffer = new byte[8192];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
-                size += n;
-                if (size > limit) throw new IOException("文件超过大小上限");
-                out.write(buffer, 0, n);
+        long readLimit =
+                top.kuaner.pockete2.image.ImageFiles.converts(metadata, kind)
+                        ? LOCAL_IMPORT_MAX_BYTES
+                        : limit;
+        try (ImportSource source = ImportSource.open(context, uri, read)) {
+            read.check();
+            try (InputStream in = source.asset.createInputStream();
+                    FileOutputStream out = new FileOutputStream(file)) {
+                byte[] buffer = new byte[8192];
+                while (true) {
+                    read.readable(source.asset.getFileDescriptor());
+                    int n = in.read(buffer);
+                    if (n == -1) break;
+                    size += n;
+                    if (size > readLimit) throw new IOException("文件超过大小上限");
+                    out.write(buffer, 0, n);
+                    read.copied(name, size);
+                }
+                out.getFD().sync();
             }
-            out.getFD().sync();
         } catch (Exception failure) {
             file.delete();
             throw failure;
         }
-        return new Attachment(name, mime, file.getPath(), "", "", size, Attachment.UPLOADING);
+        try {
+            Attachment result =
+                    top.kuaner.pockete2.image.ImageFiles.normalize(
+                            new Attachment(
+                                    name, mime, file.getPath(), "", "", size, Attachment.UPLOADING),
+                            kind,
+                            limit,
+                            read);
+            read.check();
+            if (result.size > limit) throw new IOException("文件超过大小上限");
+            return result;
+        } catch (Exception failure) {
+            file.delete();
+            throw failure;
+        }
     }
 
     public File localPreview(Attachment attachment) throws IOException {

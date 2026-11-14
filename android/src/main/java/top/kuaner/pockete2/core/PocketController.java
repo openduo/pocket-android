@@ -77,6 +77,7 @@ public final class PocketController {
         public final List<Message> rows;
         public final List<Outbox.Item> outbox;
         public final List<Attachment> chips;
+        public final List<ImportProgress> imports;
         public final List<String> configIssues;
         public final Map<String, TurnState.Trace> traces;
         public final TurnState.Working working;
@@ -92,6 +93,7 @@ public final class PocketController {
                 olderLabel,
                 readingId,
                 sight;
+        public final String importTarget;
         public final String lastHeard;
         public final String audioRoute;
         public final boolean cameraOffered,
@@ -125,6 +127,7 @@ public final class PocketController {
             rows = Collections.unmodifiableList(new ArrayList<>(c.cachedRows));
             outbox = Collections.unmodifiableList(new ArrayList<>(c.pending));
             chips = Collections.unmodifiableList(new ArrayList<>(c.chips));
+            imports = c.imports.progress();
             configIssues = c.roomState == null ? Collections.emptyList() : c.roomState.configIssues;
             traces = c.turn.traces();
             working = c.turn.working();
@@ -143,6 +146,8 @@ public final class PocketController {
             roomName = c.trying ? "体验房间" : c.settings.roomName();
             lastError = c.lastError;
             draft = c.draft;
+            String identity = c.repo.roomIdentity();
+            importTarget = identity.equals("unpaired") ? "" : identity;
             draftGeneration = c.draftGeneration;
             draftEditAck = c.draftEditAck;
             quote = c.quote;
@@ -314,6 +319,10 @@ public final class PocketController {
 
                             public void notice(String message) {
                                 PocketController.this.notice(message);
+                            }
+
+                            public void changed() {
+                                publish();
                             }
                         });
         transport = new GoTransport(context);
@@ -650,6 +659,18 @@ public final class PocketController {
     }
 
     private void startNetwork() {
+        startNetwork(false);
+    }
+
+    public void loginTailnet() {
+        state.execute(
+                () -> {
+                    if (trying) stopTryingOnState(false);
+                    startNetwork(true);
+                });
+    }
+
+    private void startNetwork(boolean interactive) {
         if (trying) return;
         network.execute(
                 () -> {
@@ -657,6 +678,7 @@ public final class PocketController {
                         transport.start(
                                 settings.networkLog(),
                                 status -> state.execute(() -> networkStatus(status)));
+                        if (interactive) transport.login();
                     } catch (Exception failure) {
                         state.execute(
                                 () -> {
@@ -1145,6 +1167,10 @@ public final class PocketController {
     public void sendDraft() {
         state.execute(
                 () -> {
+                    if (imports.pending()) {
+                        notice("请等文件导入完成，或取消导入后再发送");
+                        return;
+                    }
                     boolean textMode = !settings.voiceInput() || ambientWanted;
                     String text = textMode ? draft.trim() : "";
                     if (textMode && !quote.isEmpty())
@@ -1386,8 +1412,26 @@ public final class PocketController {
         imports.content(delivery, text, files, finished);
     }
 
+    public ImportRoute importRoute(ImportRoute.Kind kind) {
+        Snapshot current = snapshot;
+        if (current == null) throw new IllegalStateException("Room state is not loaded");
+        return new ImportRoute(UUID.randomUUID().toString(), current.importTarget, kind);
+    }
+
+    public void importContent(ImportRoute route, String text, List<Uri> files, Runnable finished) {
+        imports.content(route, text, files, finished);
+    }
+
+    public void importPhoto(ImportRoute route, File original) {
+        imports.photo(route, original);
+    }
+
     public void importPhoto(String delivery, File original) {
         imports.photo(delivery, original);
+    }
+
+    public void cancelImport(String delivery) {
+        state.execute(() -> imports.cancel(delivery));
     }
 
     private void admitImportedDraft(ImportBatch batch) {

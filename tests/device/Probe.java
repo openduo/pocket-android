@@ -39,6 +39,17 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("loginOnly"))) {
+                int login = new LoginProbe(this).run(context);
+                report.putString(
+                        "result",
+                        "PASS "
+                                + login
+                                + " real Tailscale login assertions; authorization remains"
+                                + " user-owned");
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             java.io.File[] screenshots =
                     new java.io.File(context.getExternalCacheDir(), "qa").listFiles();
             if (screenshots != null)
@@ -46,6 +57,7 @@ public final class Probe extends Instrumentation {
                     if (file.isFile() && file.getName().endsWith(".png")) file.delete();
             database(context);
             assertions += ImportProbe.run(context);
+            assertions += ImageImportProbe.run(context);
             codec();
             assertions += top.kuaner.pockete2.core.SecretProbe.run(context);
             images(context);
@@ -484,307 +496,356 @@ public final class Probe extends Instrumentation {
             }
             image.recycle();
         }
-        if (!controller.configured()) {
+        boolean paired = controller.configured();
+        if (!paired || arguments != null && "1".equals(arguments.getString("pairedTry"))) {
+            if (paired
+                    && (controller.snapshot().ambientActive
+                            || controller.snapshot().holdRecording
+                            || controller.snapshot().uploadingVoice
+                            || controller.snapshot().cameraOn
+                            || !controller.snapshot().outbox.isEmpty()))
+                throw new AssertionError(
+                        "Paired-room UI probe requires this app's recording, camera and outbox to"
+                                + " be idle");
             boolean english = top.kuaner.pockete2.text.AppText.get(context).en;
             boolean originalVoice = controller.settings.voiceInput();
             String originalDraft = controller.draft();
+            String originalTarget = controller.snapshot().importTarget;
             long originalCursor = controller.snapshot().cursor;
             java.util.List<String> originalRows = new java.util.ArrayList<>();
             for (Message row : controller.snapshot().rows) originalRows.add(row.id);
-            controller.startTrying();
-            until = android.os.SystemClock.elapsedRealtime() + 3000;
-            while (!controller.snapshot().trying
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(10);
-            controller.setVoiceInput(false);
-            runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("conversation"));
-            waitForIdleSync();
-            Thread.sleep(120);
-            final android.widget.EditText[] composer = {null};
-            runOnMainSync(
-                    () -> {
-                        composer[0] = input(screen.getWindow().getDecorView());
-                        if (composer[0] != null) {
-                            composer[0].setText("QA retained draft");
-                            composer[0].requestFocus();
-                            screen.getSystemService(
-                                            android.view.inputmethod.InputMethodManager.class)
-                                    .showSoftInput(
-                                            composer[0],
-                                            android.view.inputmethod.InputMethodManager
-                                                    .SHOW_IMPLICIT);
-                        }
-                    });
-            check(composer[0] != null, "text composer reachable on compact viewport");
-            Thread.sleep(750);
-            waitForIdleSync();
-            android.graphics.Rect visible = new android.graphics.Rect(),
-                    bounds = new android.graphics.Rect();
-            runOnMainSync(
-                    () -> {
-                        screen.getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
-                        composer[0].getGlobalVisibleRect(bounds);
-                    });
-            if (context.getResources().getDisplayMetrics().heightPixels - visible.bottom < 140) {
+            try {
+                controller.startTrying();
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (!controller.snapshot().trying
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(10);
+                controller.setVoiceInput(false);
                 runOnMainSync(
                         () ->
+                                ((top.kuaner.pockete2.app.MainActivity) screen)
+                                        .navigate("conversation"));
+                waitForIdleSync();
+                Thread.sleep(120);
+                final android.widget.EditText[] composer = {null};
+                runOnMainSync(
+                        () -> {
+                            composer[0] = input(screen.getWindow().getDecorView());
+                            if (composer[0] != null) {
+                                composer[0].setText("QA retained draft");
+                                composer[0].requestFocus();
                                 screen.getSystemService(
                                                 android.view.inputmethod.InputMethodManager.class)
                                         .showSoftInput(
                                                 composer[0],
                                                 android.view.inputmethod.InputMethodManager
-                                                        .SHOW_FORCED));
+                                                        .SHOW_IMPLICIT);
+                            }
+                        });
+                check(composer[0] != null, "text composer reachable on compact viewport");
                 Thread.sleep(750);
+                waitForIdleSync();
+                android.graphics.Rect visible = new android.graphics.Rect(),
+                        bounds = new android.graphics.Rect();
                 runOnMainSync(
                         () -> {
                             screen.getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
                             composer[0].getGlobalVisibleRect(bounds);
                         });
-            }
-            until = android.os.SystemClock.elapsedRealtime() + 2500;
-            long stableSince = 0;
-            while (android.os.SystemClock.elapsedRealtime() < until) {
-                runOnMainSync(
-                        () -> {
-                            screen.getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
-                            composer[0].getGlobalVisibleRect(bounds);
-                        });
-                boolean settled =
-                        bounds.height() > 0
-                                && bounds.bottom <= visible.bottom
-                                && context.getResources().getDisplayMetrics().heightPixels
-                                                - visible.bottom
-                                        >= 140;
-                if (settled) {
-                    if (stableSince == 0) stableSince = android.os.SystemClock.elapsedRealtime();
-                    if (android.os.SystemClock.elapsedRealtime() - stableSince >= 200) break;
-                } else stableSince = 0;
-                Thread.sleep(30);
-            }
-            screenshot(context, "conversation-keyboard");
-            check(
-                    context.getResources().getDisplayMetrics().heightPixels - visible.bottom >= 140,
-                    "real system IME is visible for avoidance check");
-            check(
-                    bounds.height() > 0 && bounds.bottom <= visible.bottom,
-                    "composer stays above IME: input=" + bounds + " window=" + visible);
-            runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("settings"));
-            runOnMainSync(
-                    () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("conversation"));
-            waitForIdleSync();
-            check(
-                    composer[0].getText().toString().equals("QA retained draft"),
-                    "page switches retain draft and view instance");
-            controller.draft("QA sample");
-            controller.sendDraft();
-            until = android.os.SystemClock.elapsedRealtime() + 4000;
-            while (controller.snapshot().rows.stream()
-                            .noneMatch(
-                                    row ->
-                                            row.kind == Message.DUODUO
-                                                    && row.id.startsWith("ans:")
-                                                    && row.seq >= 0
-                                                    && row.text.contains(
-                                                            english ? "try-it mode" : "体验模式"))
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            check(
-                    controller.snapshot().rows.stream()
-                            .anyMatch(
-                                    row ->
-                                            row.kind == Message.DUODUO
-                                                    && row.id.startsWith("ans:")
-                                                    && row.seq >= 0
-                                                    && row.text.contains(
-                                                            english ? "try-it mode" : "体验模式")),
-                    "try final settles through the ordinary channel log");
-            check(
-                    controller.snapshot().outbox.isEmpty(),
-                    "try log admission settles the ordinary outbox");
-            Message prepared =
-                    controller.snapshot().rows.stream()
-                            .filter(row -> row.kind == Message.DUODUO && row.id.startsWith("ans:"))
-                            .findFirst()
-                            .get();
-            controller.readAloud(prepared);
-            until = android.os.SystemClock.elapsedRealtime() + 3000;
-            while (!controller.snapshot().readingId.equals(prepared.id)
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            Thread.sleep(120);
-            check(
-                    controller.snapshot().readingId.equals(prepared.id)
-                            && !controller.snapshot().lastError.contains("朗读"),
-                    "prepared read aloud streams through the normal speech path");
-            controller.readAloud(prepared);
-            until = android.os.SystemClock.elapsedRealtime() + 2000;
-            while (!controller.snapshot().readingId.isEmpty()
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            check(
-                    controller.snapshot().readingId.isEmpty(),
-                    "prepared read aloud cancels through normal playback ownership");
-            controller.draft("QA tools");
-            controller.sendDraft();
-            until = android.os.SystemClock.elapsedRealtime() + 7000;
-            while (controller.snapshot().traces.isEmpty()
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            check(
-                    !controller.snapshot().traces.isEmpty(),
-                    "try tools use the real TurnState reducer");
-            controller.showSessions(true);
-            controller.openSession("try-chat");
-            Thread.sleep(150);
-            controller.notifySession("QA local notification");
-            Thread.sleep(150);
-            check(
-                    controller.snapshot().sessions.outcome.equals("sent")
-                            && controller.snapshot().sessions.rows.stream()
-                                    .anyMatch(r -> r.text.contains(english ? "not sent" : "未发送")),
-                    "try scoped notify stays local and labelled");
-            java.io.File photo = imageFile(context);
-            final boolean[] pasted = {false};
-            runOnMainSync(
-                    () -> {
-                        android.view.inputmethod.EditorInfo editor =
-                                new android.view.inputmethod.EditorInfo();
-                        android.view.inputmethod.InputConnection connection =
-                                composer[0].onCreateInputConnection(editor);
-                        pasted[0] =
-                                editor.contentMimeTypes != null
-                                        && connection.commitContent(
-                                                new android.view.inputmethod.InputContentInfo(
-                                                        top.kuaner.pockete2.app.PocketFiles.uri(
-                                                                context, photo),
-                                                        new android.content.ClipDescription(
-                                                                "QA image",
-                                                                new String[] {"image/jpeg"}),
-                                                        null),
-                                                0,
-                                                null);
-                    });
-            until = android.os.SystemClock.elapsedRealtime() + 3000;
-            while ((controller.snapshot().chips.isEmpty()
-                            || controller.snapshot().chips.get(0).state != Attachment.UPLOADED)
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            check(
-                    pasted[0]
-                            && controller.snapshot().chips.size() == 1
-                            && controller.snapshot().chips.get(0).inlineImage(),
-                    "keyboard image content enters the normal attachment pipeline");
-            check(
-                    controller.snapshot().chips.get(0).sha256.matches("[0-9a-f]{64}"),
-                    "try image upload uses its actual digest");
-            String imported = controller.snapshot().chips.get(0).localPath;
-            runOnMainSync(
-                    () -> {
-                        ((top.kuaner.pockete2.app.MainActivity) screen).navigate("conversation");
-                        screen.getSystemService(android.view.inputmethod.InputMethodManager.class)
-                                .hideSoftInputFromWindow(composer[0].getWindowToken(), 0);
-                    });
-            waitForIdleSync();
-            Thread.sleep(250);
-            screenshot(context, "conversation-image-draft");
-            controller.draft("QA image");
-            controller.sendDraft();
-            until = android.os.SystemClock.elapsedRealtime() + 3000;
-            while (controller.snapshot().rows.stream()
-                            .noneMatch(
-                                    row ->
-                                            row.kind == Message.MINE
-                                                    && row.seq >= 0
-                                                    && !row.attachments.isEmpty())
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            screenshot(context, "conversation-image-sent");
-            Attachment delivered =
-                    controller.snapshot().rows.stream()
-                            .filter(
-                                    row ->
-                                            row.kind == Message.MINE
-                                                    && row.seq >= 0
-                                                    && !row.attachments.isEmpty())
-                            .findFirst()
-                            .get()
-                            .attachments
-                            .get(0);
-            java.util.concurrent.CountDownLatch downloaded =
-                    new java.util.concurrent.CountDownLatch(1);
-            java.io.File[] downloadedFile = {null};
-            controller.download(
-                    delivered,
-                    new PocketController.FileResult() {
-                        public void ready(java.io.File file, String mime) {
-                            downloadedFile[0] = file;
-                            downloaded.countDown();
-                        }
-
-                        public void failed() {
-                            downloaded.countDown();
-                        }
-                    });
-            check(
-                    downloaded.await(3, java.util.concurrent.TimeUnit.SECONDS)
-                            && downloadedFile[0] != null
-                            && java.util.Arrays.equals(
-                                    java.nio.file.Files.readAllBytes(downloadedFile[0].toPath()),
-                                    java.nio.file.Files.readAllBytes(photo.toPath())),
-                    "try uploaded photo downloads through actual channel bytes");
-            android.net.Uri sharedPhoto =
-                    top.kuaner.pockete2.app.PocketFiles.uri(context, downloadedFile[0]);
-            try (java.io.InputStream in =
-                    context.getContentResolver().openInputStream(sharedPhoto)) {
+                if (context.getResources().getDisplayMetrics().heightPixels - visible.bottom
+                        < 140) {
+                    runOnMainSync(
+                            () ->
+                                    screen.getSystemService(
+                                                    android.view.inputmethod.InputMethodManager
+                                                            .class)
+                                            .showSoftInput(
+                                                    composer[0],
+                                                    android.view.inputmethod.InputMethodManager
+                                                            .SHOW_FORCED));
+                    Thread.sleep(750);
+                    runOnMainSync(
+                            () -> {
+                                screen.getWindow()
+                                        .getDecorView()
+                                        .getWindowVisibleDisplayFrame(visible);
+                                composer[0].getGlobalVisibleRect(bounds);
+                            });
+                }
+                until = android.os.SystemClock.elapsedRealtime() + 2500;
+                long stableSince = 0;
+                while (android.os.SystemClock.elapsedRealtime() < until) {
+                    runOnMainSync(
+                            () -> {
+                                screen.getWindow()
+                                        .getDecorView()
+                                        .getWindowVisibleDisplayFrame(visible);
+                                composer[0].getGlobalVisibleRect(bounds);
+                            });
+                    boolean settled =
+                            bounds.height() > 0
+                                    && bounds.bottom <= visible.bottom
+                                    && context.getResources().getDisplayMetrics().heightPixels
+                                                    - visible.bottom
+                                            >= 140;
+                    if (settled) {
+                        if (stableSince == 0)
+                            stableSince = android.os.SystemClock.elapsedRealtime();
+                        if (android.os.SystemClock.elapsedRealtime() - stableSince >= 200) break;
+                    } else stableSince = 0;
+                    Thread.sleep(30);
+                }
+                screenshot(context, "conversation-keyboard");
                 check(
-                        in != null
-                                && in.read()
-                                        == (java.nio.file.Files.readAllBytes(photo.toPath())[0]
-                                                & 255),
-                        "downloaded try file is reachable through the grantable content provider");
-            }
-            photo.delete();
-            if (arguments != null && "1".equals(arguments.getString("capture"))) {
-                controller.ambientToggle();
+                        context.getResources().getDisplayMetrics().heightPixels - visible.bottom
+                                >= 140,
+                        "real system IME is visible for avoidance check");
+                check(
+                        bounds.height() > 0 && bounds.bottom <= visible.bottom,
+                        "composer stays above IME: input=" + bounds + " window=" + visible);
+                runOnMainSync(
+                        () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("settings"));
+                runOnMainSync(
+                        () ->
+                                ((top.kuaner.pockete2.app.MainActivity) screen)
+                                        .navigate("conversation"));
+                waitForIdleSync();
+                check(
+                        composer[0].getText().toString().equals("QA retained draft"),
+                        "page switches retain draft and view instance");
+                controller.draft("QA sample");
+                controller.sendDraft();
                 until = android.os.SystemClock.elapsedRealtime() + 4000;
-                while (controller.snapshot().ambient != PocketController.Ambient.SPEAKING
+                while (controller.snapshot().rows.stream()
+                                .noneMatch(
+                                        row ->
+                                                row.kind == Message.DUODUO
+                                                        && row.id.startsWith("ans:")
+                                                        && row.seq >= 0
+                                                        && row.text.contains(
+                                                                english ? "try-it mode" : "体验模式"))
                         && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
                 check(
-                        controller.snapshot().ambient == PocketController.Ambient.SPEAKING,
-                        "try ambient hello follows capture and plays actual prepared packets");
-                runOnMainSync(
-                        () -> ((top.kuaner.pockete2.app.MainActivity) screen).navigate("ambient"));
-                waitForIdleSync();
-                screenshot(context, "ambient-room");
-                boolean originalTranscript = controller.settings.ambientTranscript();
-                controller.settings.ambientTranscript(true);
-                controller.clearNotice();
-                Thread.sleep(120);
-                waitForIdleSync();
+                        controller.snapshot().rows.stream()
+                                .anyMatch(
+                                        row ->
+                                                row.kind == Message.DUODUO
+                                                        && row.id.startsWith("ans:")
+                                                        && row.seq >= 0
+                                                        && row.text.contains(
+                                                                english ? "try-it mode" : "体验模式")),
+                        "try final settles through the ordinary channel log");
                 check(
-                        visibleInput(screen.getWindow().getDecorView()) == null,
-                        "expanded ambient conversation has no visible editable composer");
-                screenshot(context, "ambient-transcript");
-                controller.settings.ambientTranscript(originalTranscript);
-                controller.endAmbient();
+                        controller.snapshot().outbox.isEmpty(),
+                        "try log admission settles the ordinary outbox");
+                Message prepared =
+                        controller.snapshot().rows.stream()
+                                .filter(
+                                        row ->
+                                                row.kind == Message.DUODUO
+                                                        && row.id.startsWith("ans:"))
+                                .findFirst()
+                                .get();
+                controller.readAloud(prepared);
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (!controller.snapshot().readingId.equals(prepared.id)
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                Thread.sleep(120);
+                check(
+                        controller.snapshot().readingId.equals(prepared.id)
+                                && !controller.snapshot().lastError.contains("朗读"),
+                        "prepared read aloud streams through the normal speech path");
+                controller.readAloud(prepared);
+                until = android.os.SystemClock.elapsedRealtime() + 2000;
+                while (!controller.snapshot().readingId.isEmpty()
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                check(
+                        controller.snapshot().readingId.isEmpty(),
+                        "prepared read aloud cancels through normal playback ownership");
+                controller.draft("QA tools");
+                controller.sendDraft();
+                until = android.os.SystemClock.elapsedRealtime() + 7000;
+                while (controller.snapshot().traces.isEmpty()
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                check(
+                        !controller.snapshot().traces.isEmpty(),
+                        "try tools use the real TurnState reducer");
+                controller.showSessions(true);
+                controller.openSession("try-chat");
+                Thread.sleep(150);
+                controller.notifySession("QA local notification");
+                Thread.sleep(150);
+                check(
+                        controller.snapshot().sessions.outcome.equals("sent")
+                                && controller.snapshot().sessions.rows.stream()
+                                        .anyMatch(
+                                                r -> r.text.contains(english ? "not sent" : "未发送")),
+                        "try scoped notify stays local and labelled");
+                java.io.File photo = imageFile(context);
+                final boolean[] pasted = {false};
+                runOnMainSync(
+                        () -> {
+                            android.view.inputmethod.EditorInfo editor =
+                                    new android.view.inputmethod.EditorInfo();
+                            android.view.inputmethod.InputConnection connection =
+                                    composer[0].onCreateInputConnection(editor);
+                            pasted[0] =
+                                    editor.contentMimeTypes != null
+                                            && connection.commitContent(
+                                                    new android.view.inputmethod.InputContentInfo(
+                                                            top.kuaner.pockete2.app.PocketFiles.uri(
+                                                                    context, photo),
+                                                            new android.content.ClipDescription(
+                                                                    "QA image",
+                                                                    new String[] {"image/jpeg"}),
+                                                            null),
+                                                    0,
+                                                    null);
+                        });
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while ((controller.snapshot().chips.isEmpty()
+                                || controller.snapshot().chips.get(0).state != Attachment.UPLOADED)
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                check(
+                        pasted[0]
+                                && controller.snapshot().chips.size() == 1
+                                && controller.snapshot().chips.get(0).inlineImage(),
+                        "keyboard image content enters the normal attachment pipeline");
+                check(
+                        controller.snapshot().chips.get(0).sha256.matches("[0-9a-f]{64}"),
+                        "try image upload uses its actual digest");
+                String imported = controller.snapshot().chips.get(0).localPath;
+                runOnMainSync(
+                        () -> {
+                            ((top.kuaner.pockete2.app.MainActivity) screen)
+                                    .navigate("conversation");
+                            screen.getSystemService(
+                                            android.view.inputmethod.InputMethodManager.class)
+                                    .hideSoftInputFromWindow(composer[0].getWindowToken(), 0);
+                        });
+                waitForIdleSync();
+                Thread.sleep(250);
+                screenshot(context, "conversation-image-draft");
+                controller.draft("QA image");
+                controller.sendDraft();
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (controller.snapshot().rows.stream()
+                                .noneMatch(
+                                        row ->
+                                                row.kind == Message.MINE
+                                                        && row.seq >= 0
+                                                        && !row.attachments.isEmpty())
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                screenshot(context, "conversation-image-sent");
+                Attachment delivered =
+                        controller.snapshot().rows.stream()
+                                .filter(
+                                        row ->
+                                                row.kind == Message.MINE
+                                                        && row.seq >= 0
+                                                        && !row.attachments.isEmpty())
+                                .findFirst()
+                                .get()
+                                .attachments
+                                .get(0);
+                java.util.concurrent.CountDownLatch downloaded =
+                        new java.util.concurrent.CountDownLatch(1);
+                java.io.File[] downloadedFile = {null};
+                controller.download(
+                        delivered,
+                        new PocketController.FileResult() {
+                            public void ready(java.io.File file, String mime) {
+                                downloadedFile[0] = file;
+                                downloaded.countDown();
+                            }
+
+                            public void failed() {
+                                downloaded.countDown();
+                            }
+                        });
+                check(
+                        downloaded.await(3, java.util.concurrent.TimeUnit.SECONDS)
+                                && downloadedFile[0] != null
+                                && java.util.Arrays.equals(
+                                        java.nio.file.Files.readAllBytes(
+                                                downloadedFile[0].toPath()),
+                                        java.nio.file.Files.readAllBytes(photo.toPath())),
+                        "try uploaded photo downloads through actual channel bytes");
+                android.net.Uri sharedPhoto =
+                        top.kuaner.pockete2.app.PocketFiles.uri(context, downloadedFile[0]);
+                try (java.io.InputStream in =
+                        context.getContentResolver().openInputStream(sharedPhoto)) {
+                    check(
+                            in != null
+                                    && in.read()
+                                            == (java.nio.file.Files.readAllBytes(photo.toPath())[0]
+                                                    & 255),
+                            "downloaded try file is reachable through the grantable content"
+                                    + " provider");
+                }
+                photo.delete();
+                if (arguments != null && "1".equals(arguments.getString("capture"))) {
+                    controller.ambientToggle();
+                    until = android.os.SystemClock.elapsedRealtime() + 4000;
+                    while (controller.snapshot().ambient != PocketController.Ambient.SPEAKING
+                            && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                    check(
+                            controller.snapshot().ambient == PocketController.Ambient.SPEAKING,
+                            "try ambient hello follows capture and plays actual prepared packets");
+                    runOnMainSync(
+                            () ->
+                                    ((top.kuaner.pockete2.app.MainActivity) screen)
+                                            .navigate("ambient"));
+                    waitForIdleSync();
+                    screenshot(context, "ambient-room");
+                    boolean originalTranscript = controller.settings.ambientTranscript();
+                    controller.settings.ambientTranscript(true);
+                    controller.clearNotice();
+                    Thread.sleep(120);
+                    waitForIdleSync();
+                    check(
+                            visibleInput(screen.getWindow().getDecorView()) == null,
+                            "expanded ambient conversation has no visible editable composer");
+                    screenshot(context, "ambient-transcript");
+                    controller.settings.ambientTranscript(originalTranscript);
+                    controller.endAmbient();
+                }
+                until = android.os.SystemClock.elapsedRealtime() + 8000;
+                while (controller.snapshot().working != null
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                visualVariant(context, screen, controller, false, 1.35f);
+                visualVariant(context, screen, controller, true, 1.0f);
+                controller.stopTrying();
+                controller.setVoiceInput(originalVoice);
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while (controller.snapshot().trying
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
+                check(!new java.io.File(imported).exists(), "try attachment bytes removed on exit");
+                check(
+                        downloadedFile[0] != null && !downloadedFile[0].exists(),
+                        "try downloaded bytes removed on exit");
+                java.util.List<String> restoredRows = new java.util.ArrayList<>();
+                for (Message row : controller.snapshot().rows) restoredRows.add(row.id);
+                check(
+                        controller.snapshot().draft.equals(originalDraft)
+                                && controller.snapshot().importTarget.equals(originalTarget)
+                                && (paired
+                                        ? controller.snapshot().cursor >= originalCursor
+                                                && (originalRows.isEmpty()
+                                                        || restoredRows.contains(
+                                                                originalRows.get(
+                                                                        originalRows.size() - 1)))
+                                        : controller.snapshot().cursor == originalCursor
+                                                && restoredRows.equals(originalRows)),
+                        "try exit restores the actual room draft, rows and cursor");
+                localization(context, screen, controller);
+            } finally {
+                controller.stopTrying();
+                controller.setVoiceInput(originalVoice);
+                until = android.os.SystemClock.elapsedRealtime() + 3000;
+                while ((controller.snapshot().trying
+                                || controller.settings.voiceInput() != originalVoice)
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
             }
-            until = android.os.SystemClock.elapsedRealtime() + 8000;
-            while (controller.snapshot().working != null
-                    && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-            visualVariant(context, screen, controller, false, 1.35f);
-            visualVariant(context, screen, controller, true, 1.0f);
-            controller.stopTrying();
-            controller.setVoiceInput(originalVoice);
-            until = android.os.SystemClock.elapsedRealtime() + 3000;
-            while (controller.snapshot().trying && android.os.SystemClock.elapsedRealtime() < until)
-                Thread.sleep(20);
-            check(!new java.io.File(imported).exists(), "try attachment bytes removed on exit");
-            check(
-                    downloadedFile[0] != null && !downloadedFile[0].exists(),
-                    "try downloaded bytes removed on exit");
-            java.util.List<String> restoredRows = new java.util.ArrayList<>();
-            for (Message row : controller.snapshot().rows) restoredRows.add(row.id);
-            check(
-                    controller.snapshot().draft.equals(originalDraft)
-                            && controller.snapshot().cursor == originalCursor
-                            && restoredRows.equals(originalRows),
-                    "try exit restores the actual room draft, rows and cursor");
-            localization(context, screen, controller);
         }
         runOnMainSync(screen::finish);
     }
@@ -802,7 +863,15 @@ public final class Probe extends Instrumentation {
                 new java.util.concurrent.atomic.AtomicReference<>(original);
         android.app.Application.ActivityLifecycleCallbacks lifecycle =
                 new android.app.Application.ActivityLifecycleCallbacks() {
-                    public void onActivityCreated(Activity activity, Bundle saved) {}
+                    public void onActivityCreated(Activity activity, Bundle saved) {
+                        if (activity instanceof top.kuaner.pockete2.app.MainActivity) {
+                            current.set(activity);
+                            activity.getWindow()
+                                    .addFlags(
+                                            android.view.WindowManager.LayoutParams
+                                                    .FLAG_KEEP_SCREEN_ON);
+                        }
+                    }
 
                     public void onActivityStarted(Activity activity) {}
 
