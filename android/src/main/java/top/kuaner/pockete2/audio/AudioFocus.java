@@ -10,23 +10,28 @@ import android.media.AudioManager;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 
 /** Owns focus independently of the capture lease, with explicit interruption delivery. */
 public final class AudioFocus {
     private final AudioManager manager;
     private final IntConsumer change;
+    private final Executor owner;
     private volatile long epoch;
+    private volatile boolean granted, transientLoss;
     private AudioFocusRequest request;
     private boolean ambient;
 
-    public AudioFocus(Context context, IntConsumer change) {
+    public AudioFocus(Context context, Executor owner, IntConsumer change) {
         manager = context.getSystemService(AudioManager.class);
+        this.owner = owner;
         this.change = change;
     }
 
     public boolean acquire(boolean room) {
-        if (request != null && room == ambient) return true;
+        if (request != null && transientLoss) return false;
+        if (request != null && room == ambient && granted) return true;
         release();
         ambient = room;
         long ticket = ++epoch;
@@ -45,19 +50,36 @@ public final class AudioFocus {
                                         .build())
                         .setOnAudioFocusChangeListener(
                                 focus -> {
-                                    if (ticket == epoch) change.accept(focus);
+                                    owner.execute(
+                                            () -> {
+                                                if (ticket != epoch) return;
+                                                granted = focus > 0;
+                                                transientLoss =
+                                                        focus
+                                                                        == AudioManager
+                                                                                .AUDIOFOCUS_LOSS_TRANSIENT
+                                                                || focus
+                                                                        == AudioManager
+                                                                                .AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK;
+                                                change.accept(focus);
+                                            });
                                 },
                                 new Handler(Looper.getMainLooper()))
                         .setAcceptsDelayedFocusGain(false)
                         .build();
-        if (manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-            return true;
+        granted = manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+        if (granted) return true;
         request = null;
         return false;
     }
 
+    public boolean interrupted() {
+        return request != null && !granted;
+    }
+
     public void release() {
         epoch++;
+        granted = transientLoss = false;
         if (request != null) {
             manager.abandonAudioFocusRequest(request);
             request = null;

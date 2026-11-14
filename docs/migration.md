@@ -9,8 +9,8 @@ The E2 is itself the handheld device. Conversation and settings omit Passport en
 the existing implementation is retained for later. External Passport hardware acceptance is outside
 the current standalone-device release scope; the rest of the 1:1 goal remains.
 
-Evidence at the 2026-11-14 local checkpoint: **161 host contract assertions, Go vet/test, Android APK
-build and 149 real E2 device assertions passed**. A separate **two-assertion real-node login run**
+Evidence at the 2026-11-14 local checkpoint: **173 host contract assertions, Go vet/test, Android APK
+build and 183 real E2 device assertions passed**. A separate **two-assertion real-node login run**
 decoded the rendered QR to the node's actual authorization URL. The device checks cover SQLite
 recovery/isolation,
 AndroidKeyStore binding, Opus JNI, real array capture/release, muted AudioTrack watermarks,
@@ -48,6 +48,20 @@ remove their provider, APK and shell helper. Inbox crash contracts and reopened 
 from an actual process kill during an unfinished
 external-provider read, which remains outstanding.
 
+The current native audio suite also ports the upstream output mute/interrupt/read policy into pure
+`AmbientOutput`. Native capture remains active in a disposable room while protocol stimuli verify
+immediate muted-sample watermarks, mixed queued/skipped durations, filler press interruption, dropped
+speech tails, local read/live priority, hush and mute reset. A state-queue delay deliberately holds
+real hardware receipts until after stop/id reuse; playback generations reject them. Private
+per-declaration playback keys also isolate repeated wire ids without clearing earlier PCM. Competing
+Android focus requests verify actual capture release, persistent ambient intent, `audio=0` while
+interrupted, foreground/seat-metadata gating and renewed `audio=1` hello/uplink after gain. Short
+20 ms hardware blocks play after twelve immediate stops and several idle intervals. These checks
+also verify a short read retaining focus across an open HTTP body, then clearing its reading state
+with an explicit partial-playback error when a delayed injected failure follows hardware drain.
+They use prepared protocol stimuli and real audio hardware; they are not actual microphone recognition
+or ambient server acceptance. See `audio.md`.
+
 The real embedded node was authorized and paired on 2026-11-14. The actual Activity received the
 room link and completed pairing; **Online**, historical rows, **Delivered** and the requested exact
 `POCKET-E2-LIVE-OK` reply were observed for one marked text integration message. Pairing survived
@@ -72,8 +86,8 @@ of the rows below is a claim of complete parity.
 | Composer | Text/voice modes, saved draft and acknowledged native edits, serialized share/map append without losing interleaved typing, raw-touch hold/cancel/resume, thumbnails, EXIF, image paste/keyboard input, zoom and uploaded chips; viewport-bounded names, overflow and newly-added chip reveal; real file upload/download/local removal accepted | Real upload limit/error/progress and retry acceptance; full clipboard lifecycle; more dense composer/font/keyboard combinations |
 | File/photo/share handoff | `ImportCoordinator`, pure `ImportInbox` and transactional draft/receipt admission; ordered multi-file URI dedup, ClipData text/links, temporary/persisted read-grant release; launch-scoped `ImportRoute` and restored external-operation stages; additional native-decodable media→JPEG, file-picker byte preservation and full-resolution oriented camera JPEG; actual byte progress, send guard and durable cancellation with provider signals/polling; first-pair draft transfer and try isolation; real separate-UID picker and stock camera capture/confirmation; actual path-only server upload/download accepted with a production-derived digest | Process kill during an unfinished provider copy, unanswered permission dialog restoration, revoked/noncooperative providers, low storage and large batches; valid HEIC decoding on E2; modern Android and real-room limit/failure/retry acceptance. See `imports.md` |
 | Voice notes | Exclusive E2/native/headset input, real RMS, Opus framing, outbox admission and idempotent retries | Real recognition/empty/failed/delivery outcomes, held-note interruptions, external mic/SCO routing, background upload lifetime |
-| Ambient | `AmbientInput` handles capture-before-hello, meta/seat/takeover, microphone-on semantics and overlapping presses; mute/hush/surface, foreground service, hardware receipts, full read-only conversation, transcript/room notes and interruptions | Real room ASR/TTS and reconnect, actual focus/route changes and external headsets, background/process death and energy trials |
-| Read aloud | Shared incremental speech transport, PacketStream, cancellable Go/local streaming, bounded PCM and cut/error distinctions; prepared and real synthesis decoded/played to hardware watermarks with muted output; repeated real request/stop ignores late callbacks | Live-output overlap, real focus/routing, failed synthesis and prolonged-stream acceptance |
+| Ambient | `AmbientInput` handles capture-before-hello, meta/seat/takeover, microphone-on semantics and overlapping presses; pure `AmbientOutput` owns immediate muted-block clocks, fillers/presses, read priority and stop/hush distinctions; generation-scoped hardware receipts, mute-session reset, native focus pause/gain and `audio=0/1` reconnect; foreground service, full read-only conversation, transcript/room notes | Real room ASR/TTS and reconnect; actual calls/route changes and external headsets, background/process death and energy trials. Native competing focus requests are accepted; other focus sources/platforms remain |
+| Read aloud | Shared incremental speech transport, PacketStream, cancellable Go/local streaming, bounded PCM and cut/error distinctions; prepared and real synthesis decoded/played to hardware watermarks with muted output; repeated real request/stop ignores late callbacks; native prepared local-read/live overlap accepted; 20 ms startup/idle restart and in-flight block accounting | Actual server live-output overlap, external routing, failed synthesis and prolonged-stream acceptance |
 | Passport (deferred by user) | Existing BLE central, press/reply protocol and persistent memory retained; normal conversation/settings entries removed to prioritize standalone E2 use | Outside current acceptance scope. Resume external pairing/reconnect, wake/result timing and firmware logs only if requested; preserve E2Studio's connection |
 | Session viewer | Scope gate, watch/list/open/gaps/Markdown/reconnect; source/activity, five-row group folds, room return, failed tool summaries; strict atomic wire validation and cached immutable snapshots; notify outcomes retain recipient/id/body and separate drafts through theme recreation; actual scoped session list and first-session row window accepted | Actual notify delivery and disconnect uncertainty, large real lists/fold accessibility, live cross-session identity and failure acceptance; retained drafts are not process-death storage |
 | Sight | `SightSession` owns validated asks/gates/restarts; Camera2/MediaCodec YUV, Annex-B/v1, keyframe/backpressure/numbering, rate/thermal handling, first-key status, rear colour viewfinder, actual lens availability and remembered lens, physical orientation; availability observation and finite `SightRecovery` without clearing opt-in | Real server negotiation/backpressure/rate acceptance, recognisable-scene aiming and physical orientation; external-app eviction, actual transient encoder faults and thermal trials; fold/stand equivalents on relevant hardware |

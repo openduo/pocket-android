@@ -17,7 +17,7 @@ SQLite cache/outbox, native Opus, E2 array capture, ambient audio, a PacketStrea
 a scoped session viewer, attachment import/sharing, native map selection and Camera2 H.264 media-v1
 uplink. Each path has its own verification status in the matrix.
 
-The latest local checkpoint passed **161 host contract assertions and 149 E2 device assertions**,
+The latest local checkpoint passed **173 host contract assertions and 183 E2 device assertions**,
 plus Go vet/tests and the Android build. A separate two-assertion run verified the actual Tailscale
 login QR. Real-room authorization, pairing and text send/reply also passed. A separate opt-in run
 passed **17 real-room assertions** covering actual session lists/rows, file upload/download/removal
@@ -40,6 +40,13 @@ of the exact uploaded bytes; supplied digests must match. Actual authenticated d
 the original content without test-only metadata.
 `docs/migration.md` keeps external-service/hardware gaps separate; `docs/imports.md` describes the
 handoff and its remaining failure/lifecycle acceptance work.
+
+Ambient output follows the upstream mute/interrupt/read policy through an independent reducer.
+Muted new room blocks acknowledge immediately; native receipts carry playback generations through
+the state queue, and local press/hush events are distinct from remote stops. Focus loss retains
+ambient intent while releasing capture and reopening without room audio. A native competing focus
+request verifies pause, foreground gating, gain and renewed uplink. Ownership and the precise
+verification limits are recorded in [audio.md](docs/audio.md).
 
 For E2 login without a browser and the room-pairing sequence, see [connection.md](docs/connection.md).
 The native login sheet displays an authorization QR, copyable link and live backend state. Its QR

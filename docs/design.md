@@ -18,7 +18,9 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   encoder lifetime belong to the controller. Haptic starts only when input actually starts.
 - Actual microphone RMS drives the meter. A static placeholder is never presented as live audio.
 - Ambient capture and held notes share one input. Audio focus loss keeps an interrupted note as a
-  failed draft, pauses ambient capture, and drops playback. Camera stops on backgrounding.
+  failed draft, pauses ambient capture, and drops playback. Foreground/seat metadata cannot hide an
+  ongoing focus loss. New muted speech acknowledges immediately without delaying the room clock;
+  ending ambient mode restores its session-scoped output mute. Camera stops on backgrounding.
 - Geographical selection appends editable text on the state owner. Sight streaming starts only
   after a server ask, capture-master ownership, foreground state and explicit opt-in/permission.
   Still photos use a separate explicit native-camera action and its granted output URI.

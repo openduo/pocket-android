@@ -245,12 +245,13 @@ public final class PocketController {
             authUrl = "",
             olderLabel = "查看更早的记录",
             readingId = "";
-    private String speechId = "", oldestDate = "";
+    private String oldestDate = "";
     private final AmbientInput ambientInput = new AmbientInput();
+    private final AmbientOutput ambientOutput = new AmbientOutput();
     private int latencyMs, visibleLimit = 200, reconnectAttempt;
     private volatile int connectionEpoch;
     private volatile long sendEpoch;
-    private long revision, holdPackets, lastHoldPublish, speechPlayed, lastReport;
+    private long revision, holdPackets, lastHoldPublish;
     private long draftGeneration, draftEditAck;
     private final java.util.concurrent.atomic.AtomicLong draftEdits =
             new java.util.concurrent.atomic.AtomicLong();
@@ -351,30 +352,30 @@ public final class PocketController {
         audioFocus =
                 new top.kuaner.pockete2.audio.AudioFocus(
                         context,
-                        focus ->
-                                state.execute(
-                                        () -> {
-                                            if (focus <= 0) {
-                                                audioSuspended = true;
-                                                releaseOnState(false, true);
-                                                stopCapture();
-                                                stopPlayback();
-                                                if (ambientWanted) {
-                                                    ambient = Ambient.PAUSED;
-                                                    send(Json.object("type", "mute", "on", false));
-                                                }
-                                                notifications.interrupted();
-                                                notice("音频被系统打断，收音已暂停");
-                                            } else {
-                                                audioSuspended = false;
-                                                if (ambientWanted) {
-                                                    ambient = Ambient.STARTING;
-                                                    startCapture();
-                                                    reconnect();
-                                                    publish();
-                                                }
-                                            }
-                                        }));
+                        state,
+                        focus -> {
+                            log.event("audio", "focus=" + focus);
+                            if (focus <= 0) {
+                                audioSuspended = true;
+                                releaseOnState(false, true);
+                                stopCapture();
+                                stopPlayback();
+                                if (ambientWanted) {
+                                    ambient = Ambient.PAUSED;
+                                }
+                                reconnect();
+                                notifications.interrupted();
+                                notice("音频被系统打断，收音已暂停");
+                            } else {
+                                audioSuspended = false;
+                                if (ambientWanted) {
+                                    ambient = Ambient.STARTING;
+                                    startCapture();
+                                    reconnect();
+                                    publish();
+                                }
+                            }
+                        });
         audioDevices =
                 new top.kuaner.pockete2.audio.AudioDevices(
                         context,
@@ -408,7 +409,7 @@ public final class PocketController {
                             public void capturing(boolean active) {
                                 for (JSONObject outgoing : ambientInput.press("passport", active))
                                     send(outgoing);
-                                if (active) stopPlayback();
+                                if (active) interruptPlayback();
                                 publish();
                             }
 
@@ -527,7 +528,7 @@ public final class PocketController {
                     passport.foreground(value);
                     surface();
                     if (!value && !ambientWanted) stopPlayback();
-                    else if (audioSuspended) {
+                    else if (value && audioSuspended && !audioFocus.interrupted()) {
                         audioSuspended = false;
                         if (ambientWanted) ambient = Ambient.STARTING;
                     }
@@ -759,7 +760,8 @@ public final class PocketController {
         ChannelClient client = client();
         long cursor = repo.cursor();
         boolean resume = repo.hasCursor();
-        boolean audio = ambientWanted || foreground && settings.ambientOutput();
+        boolean audio =
+                !audioSuspended && (ambientWanted || foreground && settings.ambientOutput());
         publish();
         network.execute(
                 () -> {
@@ -941,7 +943,7 @@ public final class PocketController {
                     return;
                 }
                 updateSight();
-                if (ambientWanted) {
+                if (ambientWanted && !audioSuspended) {
                     if (ambientInput.roomState().equals("unowned")) ambient = Ambient.DEAF;
                     else if (ambientInput.role().equals("peer")) ambient = Ambient.SEAT_TAKEN;
                     else if (ambientInput.helloSent() && ambientInput.role().equals("master"))
@@ -972,10 +974,7 @@ public final class PocketController {
             } else if (type.equals("speech")) {
                 speech(frame.optString("speech_id"));
             } else if (type.equals("stop_audio")) {
-                if (readingId.isEmpty()
-                        && !speechId.startsWith("s")
-                        && (!frame.has("speech_id")
-                                || frame.optString("speech_id").equals(speechId))) stopPlayback();
+                if (ambientOutput.acceptsStop(frame)) stopPlayback();
             } else if (type.equals("cerebellum") && roomState != null) {
                 if (frame.has("ok")) {
                     liveCerebellumOk = frame.optBoolean("ok");
@@ -1555,9 +1554,10 @@ public final class PocketController {
                         holdLive = false;
                         holdPackets = 0;
                         lastHoldPublish = 0;
-                        stopPlayback();
+                        audioSuspended = false;
                         for (JSONObject outgoing : ambientInput.press("phone", true))
                             send(outgoing);
+                        interruptPlayback();
                         if (capture == null) startCapture();
                         else if (!captureStopping) holdLive = true;
                         publish();
@@ -1630,6 +1630,7 @@ public final class PocketController {
                 || ambientWanted && !holdRequested && connection != Connection.ONLINE
                 || (!holdRequested && !ambientWanted)) return;
         if (!audioFocus.acquire(ambientWanted)) {
+            audioSuspended = audioFocus.interrupted();
             releaseOnState(true);
             if (ambientWanted) ambient = Ambient.PAUSED;
             notice("其他应用正在使用音频，请稍后重试");
@@ -1678,7 +1679,8 @@ public final class PocketController {
                                                 notice(reason);
                                             } else if (holdRequested || ambientWanted)
                                                 startCapture();
-                                            else if (!playerActive) audioFocus.release();
+                                            if (!holdRequested && !ambientWanted && !playerActive)
+                                                audioFocus.release();
                                         });
                             }
                         });
@@ -1748,7 +1750,8 @@ public final class PocketController {
                         }
                         ambientWanted = true;
                         ambient = Ambient.STARTING;
-                        ambientMuted = false;
+                        audioSuspended = false;
+                        setOutputMuted(false);
                         startService();
                         startCapture();
                         reconnect();
@@ -1763,6 +1766,7 @@ public final class PocketController {
 
     private void ambientOff() {
         ambientWanted = false;
+        setOutputMuted(false);
         ambient = Ambient.OFF;
         ambientInput.captureStopped();
         sightSession.clear();
@@ -1785,11 +1789,15 @@ public final class PocketController {
     public void ambientMute() {
         state.execute(
                 () -> {
-                    ambientMuted = !ambientMuted;
-                    if (player != null) player.silent(ambientMuted);
+                    setOutputMuted(!ambientMuted);
                     surface();
                     publish();
                 });
+    }
+
+    private void setOutputMuted(boolean muted) {
+        ambientMuted = muted;
+        if (player != null) player.silent(muted);
     }
 
     public void ambientHush() {
@@ -1853,7 +1861,8 @@ public final class PocketController {
                             foreground ? settings.keepAwake() ? "phone_awake" : "phone" : "later",
                             "spoken",
                             (ambientWanted || settings.ambientOutput() && foreground)
-                                    && !ambientMuted));
+                                    && !ambientMuted
+                                    && !audioSuspended));
     }
 
     private void send(JSONObject frame) {
@@ -1893,13 +1902,12 @@ public final class PocketController {
         if (!readingId.isEmpty()) stopPlayback();
         if (decoder != null) decoder.close();
         decoder = null;
-        speechId = id;
-        speechPlayed = 0;
-        lastReport = 0;
         if (ambientInput.pressMuted()) {
-            if (ambientWanted) send(Json.object("type", "interrupted", "speech_id", id));
+            ambientOutput.stop();
+            if (reportsPlayback()) send(Json.object("type", "interrupted", "speech_id", id));
             return;
         }
+        ambientOutput.speech(id);
         try {
             decoder = new OpusDecoder();
             ensurePlayer();
@@ -1919,7 +1927,11 @@ public final class PocketController {
                 || !readingId.isEmpty()
                 || !foreground && !ambientWanted) return;
         try {
-            player.enqueue(speechId, decoder.packet(bytes));
+            short[] pcm = decoder.packet(bytes);
+            if (ambientWanted && ambientMuted) {
+                JSONObject report = ambientOutput.skipped(pcm.length, reportsPlayback());
+                if (report != null) send(report);
+            } else player.enqueue(ambientOutput.playbackKey(), pcm);
         } catch (Exception failure) {
             notice("语音解码失败");
             stopPlayback();
@@ -1943,50 +1955,71 @@ public final class PocketController {
                             }
 
                             @Override
-                            public void played(String id, long ms, boolean drained) {
+                            public void played(
+                                    int generation, String id, long ms, boolean drained) {
                                 state.execute(
                                         () -> {
-                                            if (id.equals(speechId)) speechPlayed = ms;
-                                            if (ambientWanted
-                                                    && ambientInput.helloSent()
-                                                    && !id.startsWith("read:"))
-                                                send(
-                                                        Json.object(
-                                                                "type",
-                                                                "played",
-                                                                "speech_id",
-                                                                id,
-                                                                "ms",
-                                                                ms));
+                                            if (player == null || generation != player.generation())
+                                                return;
+                                            JSONObject report =
+                                                    ambientOutput.played(id, ms, reportsPlayback());
+                                            if (report != null) send(report);
                                         });
                             }
 
                             @Override
-                            public void active(boolean active) {
+                            public void active(int generation, boolean active) {
                                 state.execute(
                                         () -> {
+                                            if (player == null || generation != player.generation())
+                                                return;
                                             if (playerActive == active) return;
                                             playerActive = active;
                                             if (ambientWanted
+                                                    && !audioSuspended
+                                                    && connection == Connection.ONLINE
                                                     && ambientInput.role().equals("master"))
                                                 ambient =
                                                         active
                                                                 ? Ambient.SPEAKING
                                                                 : Ambient.LISTENING;
+                                            if (!active) finishReadIfDrained();
                                             if (!active
+                                                    && capture == null
+                                                    && !ambientWanted
                                                     && !readInFlight
-                                                    && speechId.startsWith("read:")) readingId = "";
-                                            if (!active && capture == null) audioFocus.release();
+                                                    && !player.hasPending()) audioFocus.release();
                                             publish();
                                         });
                             }
 
                             @Override
-                            public void failed(String reason) {
-                                state.execute(() -> notice(reason));
+                            public void failed(int generation, String reason) {
+                                state.execute(
+                                        () -> {
+                                            if (player != null && generation == player.generation())
+                                                notice(reason);
+                                        });
                             }
                         });
         player.silent(ambientMuted);
+    }
+
+    private boolean reportsPlayback() {
+        return ambientWanted && ambientInput.helloSent();
+    }
+
+    private void finishReadIfDrained() {
+        if (!readInFlight && ambientOutput.reading() && (player == null || !player.hasPending())) {
+            readingId = "";
+            if (capture == null && !ambientWanted) audioFocus.release();
+        }
+    }
+
+    private void interruptPlayback() {
+        JSONObject report = ambientOutput.interrupted(reportsPlayback());
+        stopPlayback();
+        if (report != null) send(report);
     }
 
     private void stopPlayback() {
@@ -1999,15 +2032,14 @@ public final class PocketController {
         if (player != null) player.stop();
         if (decoder != null) decoder.close();
         decoder = null;
-        if (ambientWanted
-                && ambientInput.helloSent()
-                && !speechId.isEmpty()
-                && !speechId.startsWith("read:"))
-            send(Json.object("type", "interrupted", "speech_id", speechId));
-        speechId = "";
+        ambientOutput.stop();
         readingId = "";
         playerActive = false;
-        if (capture == null) audioFocus.release();
+        if (ambientWanted
+                && !audioSuspended
+                && connection == Connection.ONLINE
+                && ambientInput.role().equals("master")) ambient = Ambient.LISTENING;
+        if (capture == null && !ambientWanted) audioFocus.release();
     }
 
     public void readAloud(Message message) {
@@ -2026,7 +2058,7 @@ public final class PocketController {
                         notice("请先连接房间");
                         return;
                     }
-                    stopPlayback();
+                    interruptPlayback();
                     try {
                         ensurePlayer();
                     } catch (Exception failure) {
@@ -2034,9 +2066,9 @@ public final class PocketController {
                         return;
                     }
                     readingId = message.id;
-                    speechId = "read:" + message.id;
+                    ambientOutput.read(message.id);
                     final SpeechPlayer output = player;
-                    final String speech = speechId;
+                    final String speech = ambientOutput.playbackKey();
                     final long request = ++nextReadRequest;
                     readRequest = request;
                     readInFlight = true;
@@ -2092,7 +2124,7 @@ public final class PocketController {
                                             () -> {
                                                 if (readRequest == request) {
                                                     readInFlight = false;
-                                                    if (!output.hasPending()) readingId = "";
+                                                    finishReadIfDrained();
                                                     publish();
                                                 }
                                             });
@@ -2115,6 +2147,7 @@ public final class PocketController {
                                                                                         .status)
                                                                         : "连接不上，无法朗读";
                                                 if (!received[0]) stopPlayback();
+                                                else finishReadIfDrained();
                                                 notice(reason);
                                             });
                                 }
@@ -2792,6 +2825,7 @@ public final class PocketController {
     }
 
     private void resetRoomTransient() {
+        setOutputMuted(false);
         liveNotes.clear();
         lastHeard = oldestDate = "";
         olderLoading = false;

@@ -342,7 +342,7 @@ final class RoomProbe {
         long until = android.os.SystemClock.elapsedRealtime() + 55000;
         long played = 0;
         while (android.os.SystemClock.elapsedRealtime() < until) {
-            played = onState(() -> (Long) field("speechPlayed"));
+            played = onState(() -> ((AmbientOutput) field("ambientOutput")).playedMs());
             if (played > 0 && controller.snapshot().readingId.isEmpty()) break;
             if (!controller.snapshot().lastError.isEmpty()) break;
             Thread.sleep(30);

@@ -20,6 +20,13 @@ input capture, `mute.on=true` means the room microphone is ON, and downlink spee
 reset decoder state without discarding prior queued PCM. Playback watermarks come from AudioTrack's
 hardware head and are cumulative per speech id. Read aloud streams incrementally and detects cut
 packets. Outgoing JSON/audio/video share an ordered bounded writer.
+`AmbientOutput` keeps the current speech's hardware and immediately skipped muted samples separate
+until forming one monotonic watermark. Hardware receipts retain their playback generation through
+the state-executor hop. Local presses/read can report an interruption; remote `stop_audio` and local
+`hush` do not add that report. Focus loss reopens without audio and only actual gain or an explicit
+successful resume can restart capture. Private per-declaration keys isolate repeated wire speech
+ids while hardware buffering preserves the order of the already received PCM. See `audio.md` for
+owner and acceptance details.
 
 Media version 1 prefixes audio with 0x01. Video uses 0x02, flags, u32 LE sequence, u64 LE capture
 milliseconds, optional u16 LE JSON config blocks and Annex-B H.264. Dropped/oversized chunks require

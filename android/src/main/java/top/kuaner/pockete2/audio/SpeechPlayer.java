@@ -8,6 +8,7 @@ import android.media.AudioFormat;
 import android.media.AudioTrack;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -18,11 +19,11 @@ import java.util.function.BooleanSupplier;
 /** One hardware timeline with per-speech watermarks. A new declaration never flushes old PCM. */
 public final class SpeechPlayer implements AutoCloseable {
     public interface Listener {
-        void played(String speechId, long ms, boolean drained);
+        void played(int generation, String speechId, long ms, boolean drained);
 
-        void active(boolean active);
+        void active(int generation, boolean active);
 
-        void failed(String reason);
+        void failed(int generation, String reason);
 
         default void route(String name) {}
     }
@@ -30,6 +31,7 @@ public final class SpeechPlayer implements AutoCloseable {
     private static final int RATE = 16000, QUEUE_BLOCKS = 3000;
     private final ArrayBlockingQueue<Block> queue = new ArrayBlockingQueue<>(QUEUE_BLOCKS);
     private final AtomicInteger generation = new AtomicInteger();
+    private final AtomicInteger admitted = new AtomicInteger();
     private final Listener listener;
     private final Thread worker;
     private volatile AudioTrack track;
@@ -65,10 +67,13 @@ public final class SpeechPlayer implements AutoCloseable {
     }
 
     public boolean enqueue(String id, short[] pcm) {
+        if (closed) return false;
+        admitted.incrementAndGet();
         boolean added = queue.offer(new Block(id, pcm, generation.get()));
         if (!added) {
+            admitted.decrementAndGet();
             stop();
-            listener.failed("语音缓冲已满，播放已停止");
+            listener.failed(generation.get(), "语音缓冲已满，播放已停止");
         }
         return added;
     }
@@ -76,13 +81,27 @@ public final class SpeechPlayer implements AutoCloseable {
     public boolean enqueueWaiting(String id, short[] pcm, BooleanSupplier current)
             throws InterruptedException {
         Block block = new Block(id, pcm, generation.get());
-        while (!closed && current.getAsBoolean() && block.generation == generation.get())
-            if (queue.offer(block, 50, TimeUnit.MILLISECONDS)) return true;
-        return false;
+        admitted.incrementAndGet();
+        boolean added = false;
+        try {
+            while (!closed && current.getAsBoolean() && block.generation == generation.get())
+                if (queue.offer(block, 50, TimeUnit.MILLISECONDS)) {
+                    added = true;
+                    return true;
+                }
+            return false;
+        } finally {
+            if (!added) admitted.decrementAndGet();
+        }
     }
 
     public boolean hasPending() {
-        return activeHardware || !queue.isEmpty();
+        return activeHardware || admitted.get() > 0;
+    }
+
+    /** Receipts carry their originating generation across the caller's executor hop. */
+    public int generation() {
+        return generation.get();
     }
 
     public void silent(boolean value) {
@@ -97,7 +116,9 @@ public final class SpeechPlayer implements AutoCloseable {
 
     public void stop() {
         generation.incrementAndGet();
-        queue.clear();
+        ArrayList<Block> dropped = new ArrayList<>();
+        queue.drainTo(dropped);
+        admitted.addAndGet(-dropped.size());
         AudioTrack current = track;
         if (current != null)
             try {
@@ -145,10 +166,11 @@ public final class SpeechPlayer implements AutoCloseable {
     private void run() {
         AudioTrack output = null;
         int activeGeneration = -1;
-        long written = 0, lastSample = 0, headWrap = 0, priorHead = 0;
+        long written = 0, lastSample = 0, headWrap = 0, priorHead = 0, primeHead = 0;
         ArrayDeque<Span> spans = new ArrayDeque<>();
         Map<String, Long> completed = new LinkedHashMap<>(), reported = new LinkedHashMap<>();
-        boolean active = false;
+        boolean active = false, priming = false;
+        Block deferred = null;
         try {
             while (!closed) {
                 try {
@@ -165,43 +187,71 @@ public final class SpeechPlayer implements AutoCloseable {
                         if (active) {
                             active = false;
                             activeHardware = false;
-                            listener.active(false);
+                            listener.active(activeGeneration, false);
                         }
                     }
-                    Block block = queue.poll(output == null ? 250 : 8, TimeUnit.MILLISECONDS);
-                    if (block != null && block.generation == generation.get()) {
-                        if (output == null) {
-                            output = create();
-                            track = output;
-                        }
-                        if (!active) {
-                            active = true;
-                            activeHardware = true;
-                            listener.active(true);
-                        }
-                        int offset = 0;
-                        while (offset < block.pcm.length
-                                && block.generation == generation.get()
-                                && !closed) {
-                            int n =
-                                    output.write(
-                                            block.pcm,
-                                            offset,
-                                            block.pcm.length - offset,
-                                            AudioTrack.WRITE_BLOCKING);
-                            if (n <= 0) {
-                                if (block.generation != generation.get()) break;
-                                throw new IllegalStateException("Audio write failed");
+                    Block block =
+                            deferred == null
+                                    ? queue.poll(output == null ? 250 : 8, TimeUnit.MILLISECONDS)
+                                    : deferred;
+                    deferred = null;
+                    if (block != null
+                            && block.generation == generation.get()
+                            && block.generation != activeGeneration) {
+                        // Stop can race a dequeue. Preserve the new block until its generation
+                        // owns a fresh, playing track instead of writing into the paused old one.
+                        deferred = block;
+                        continue;
+                    }
+                    if (block != null)
+                        try {
+                            if (block.generation == generation.get()) {
+                                if (output == null) {
+                                    output = create();
+                                    track = output;
+                                }
+                                if (!active) {
+                                    // Prime a short first block on Android 8, which waits for
+                                    // its effective buffer to fill. Restore capacity once the
+                                    // head moves, including after restarting an idle stream.
+                                    primeHead = output.getPlaybackHeadPosition() & 0xffffffffL;
+                                    output.setBufferSizeInFrames(
+                                            Math.min(RATE / 50, block.pcm.length));
+                                    priming = true;
+                                    active = true;
+                                    activeHardware = true;
+                                    listener.active(activeGeneration, true);
+                                }
+                                int offset = 0;
+                                while (offset < block.pcm.length
+                                        && block.generation == generation.get()
+                                        && !closed) {
+                                    int n =
+                                            output.write(
+                                                    block.pcm,
+                                                    offset,
+                                                    block.pcm.length - offset,
+                                                    AudioTrack.WRITE_BLOCKING);
+                                    if (n <= 0) {
+                                        if (block.generation != generation.get()) break;
+                                        throw new IllegalStateException("Audio write failed");
+                                    }
+                                    offset += n;
+                                }
+                                if (offset > 0 && block.generation == generation.get()) {
+                                    spans.addLast(new Span(block.id, written, written + offset));
+                                    written += offset;
+                                }
                             }
-                            offset += n;
+                        } finally {
+                            admitted.decrementAndGet();
                         }
-                        if (offset > 0 && block.generation == generation.get()) {
-                            spans.addLast(new Span(block.id, written, written + offset));
-                            written += offset;
-                        }
-                    }
                     if (output == null || activeGeneration != generation.get()) continue;
                     long rawHead = output.getPlaybackHeadPosition() & 0xffffffffL;
+                    if (priming && rawHead != primeHead) {
+                        output.setBufferSizeInFrames(output.getBufferCapacityInFrames());
+                        priming = false;
+                    }
                     if (rawHead < priorHead) headWrap += 1L << 32;
                     priorHead = rawHead;
                     long head = headWrap + rawHead;
@@ -227,13 +277,13 @@ public final class SpeechPlayer implements AutoCloseable {
                             long ms = entry.getValue() * 1000 / RATE;
                             if (ms > reported.getOrDefault(entry.getKey(), 0L)) {
                                 reported.put(entry.getKey(), ms);
-                                listener.played(entry.getKey(), ms, drained);
+                                listener.played(activeGeneration, entry.getKey(), ms, drained);
                             }
                         }
                         if (drained && active) {
                             active = false;
                             activeHardware = false;
-                            listener.active(false);
+                            listener.active(activeGeneration, false);
                         }
                         if (drained) {
                             while (completed.size() > 128) {
@@ -245,17 +295,23 @@ public final class SpeechPlayer implements AutoCloseable {
                     }
                 } catch (InterruptedException ignored) {
                 } catch (Exception failure) {
-                    if (activeGeneration == generation.get()) {
-                        listener.failed("播放中断，请检查音频设备");
-                        generation.incrementAndGet();
-                        queue.clear();
+                    if (generation.compareAndSet(activeGeneration, activeGeneration + 1)) {
+                        final int failedGeneration = activeGeneration;
+                        queue.removeIf(
+                                block -> {
+                                    if (block.generation != failedGeneration) return false;
+                                    admitted.decrementAndGet();
+                                    return true;
+                                });
+                        listener.failed(activeGeneration + 1, "播放中断，请检查音频设备");
                     }
                 }
             }
         } finally {
+            if (deferred != null) admitted.decrementAndGet();
             track = null;
             if (output != null) output.release();
-            listener.active(false);
+            listener.active(generation.get(), false);
         }
     }
 

@@ -325,14 +325,14 @@ public final class Probe extends Instrumentation {
         try (SpeechPlayer output =
                 new SpeechPlayer(
                         new SpeechPlayer.Listener() {
-                            public void played(String id, long ms, boolean done) {
+                            public void played(int generation, String id, long ms, boolean done) {
                                 Long previous = played.put(id, ms);
                                 if (previous == null) drained.countDown();
                             }
 
-                            public void active(boolean active) {}
+                            public void active(int generation, boolean active) {}
 
-                            public void failed(String why) {
+                            public void failed(int generation, String why) {
                                 error[0] = why;
                             }
                         })) {
@@ -357,6 +357,54 @@ public final class Probe extends Instrumentation {
             while (output.hasPending() && android.os.SystemClock.elapsedRealtime() < until)
                 Thread.sleep(10);
             check(!output.hasPending(), "playback cancellation clears bounded queue");
+            boolean restarted = true;
+            StringBuilder attempts = new StringBuilder();
+            for (int i = 0; i < 12; i++) {
+                output.stop();
+                String id = "restart-" + i;
+                output.enqueue(id, silence);
+                until = android.os.SystemClock.elapsedRealtime() + 1500;
+                while (played.getOrDefault(id, 0L) != 20
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(5);
+                restarted &= played.getOrDefault(id, 0L) == 20;
+                attempts.append(i).append('=').append(played.getOrDefault(id, 0L)).append(',');
+                if (!restarted) {
+                    java.lang.reflect.Field field = SpeechPlayer.class.getDeclaredField("track");
+                    field.setAccessible(true);
+                    android.media.AudioTrack track = (android.media.AudioTrack) field.get(output);
+                    if (track != null)
+                        attempts.append("head=")
+                                .append(track.getPlaybackHeadPosition())
+                                .append(" buffer=")
+                                .append(track.getBufferSizeInFrames())
+                                .append(" play=")
+                                .append(track.getPlayState())
+                                .append(" underrun=")
+                                .append(track.getUnderrunCount());
+                    break;
+                }
+            }
+            check(
+                    restarted && error[0].isEmpty(),
+                    "a single block immediately after repeated stops reaches a fresh hardware"
+                            + " timeline: "
+                            + attempts
+                            + " error="
+                            + error[0]);
+            boolean afterIdle = true;
+            for (int i = 0; i < 3; i++) {
+                Thread.sleep(i == 0 ? 0 : i == 1 ? 350 : 1200);
+                String id = "idle-" + i;
+                output.enqueue(id, silence);
+                until = android.os.SystemClock.elapsedRealtime() + 1500;
+                while (played.getOrDefault(id, 0L) != 20
+                        && android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(5);
+                afterIdle &= played.getOrDefault(id, 0L) == 20;
+            }
+            check(
+                    afterIdle && error[0].isEmpty(),
+                    "a short reply after an idle hardware track restarts without waiting for a"
+                            + " larger buffer");
         }
     }
 
@@ -467,6 +515,15 @@ public final class Probe extends Instrumentation {
     }
 
     private void activity(Context context) throws Exception {
+        // Hardware-only probes can outlast this device's screen timer before any Activity owns
+        // KEEP_SCREEN_ON. Wake immediately before the native UI/IME acceptance begins.
+        for (String command : new String[] {"input keyevent 224", "wm dismiss-keyguard"})
+            try (java.io.InputStream in =
+                    new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                            getUiAutomation().executeShellCommand(command))) {
+                byte[] discard = new byte[256];
+                while (in.read(discard) != -1) {}
+            }
         Activity screen =
                 startActivitySync(
                         new Intent()
@@ -480,8 +537,19 @@ public final class Probe extends Instrumentation {
                 () ->
                         screen.getWindow()
                                 .addFlags(
-                                        android.view.WindowManager.LayoutParams
-                                                .FLAG_KEEP_SCREEN_ON));
+                                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                                                | android.view.WindowManager.LayoutParams
+                                                        .FLAG_TURN_SCREEN_ON
+                                                | android.view.WindowManager.LayoutParams
+                                                        .FLAG_DISMISS_KEYGUARD));
+        long focusedUntil = android.os.SystemClock.elapsedRealtime() + 5000;
+        while ((!screen.hasWindowFocus()
+                        || !context.getSystemService(android.os.PowerManager.class).isInteractive())
+                && android.os.SystemClock.elapsedRealtime() < focusedUntil) Thread.sleep(25);
+        check(
+                screen.hasWindowFocus()
+                        && context.getSystemService(android.os.PowerManager.class).isInteractive(),
+                "the native UI acceptance owns an awake focused window after hardware-only probes");
         PocketController controller = PocketController.get(context);
         long until = android.os.SystemClock.elapsedRealtime() + 4000;
         while (controller.snapshot() == null && android.os.SystemClock.elapsedRealtime() < until)
@@ -813,6 +881,7 @@ public final class Probe extends Instrumentation {
                     screenshot(context, "ambient-transcript");
                     controller.settings.ambientTranscript(originalTranscript);
                     controller.endAmbient();
+                    assertions += new AudioOutputProbe(controller).run(context);
                 }
                 until = android.os.SystemClock.elapsedRealtime() + 8000;
                 while (controller.snapshot().working != null
