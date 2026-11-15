@@ -57,8 +57,8 @@ final class RustMigrationProbe {
                             input.uplink(packet), new byte[] {1, packet[0], packet[1], packet[2]}),
                     "Rust media uplink framing");
             check(
-                    Arrays.equals(input.downlink(input.uplink(packet)), packet),
-                    "Rust media downlink framing");
+                    Arrays.equals(input.downlink(packet), packet),
+                    "Rust media downlink preserves the server's unframed Opus packet");
             input.press("phone", true);
             input.press("passport", true);
             check(

@@ -192,14 +192,26 @@ final class SightRoomProbe {
                 } else {
                     controller.toggleSight();
                     await(() -> source.video.get() >= 5 || source.refused, 20_000);
-                    report.put("videoFrames", source.video.get()).put("firstKey", source.firstKey);
+                    report.put("videoFrames", source.video.get())
+                            .put("firstKey", source.firstKey)
+                            .put("cameraStatus", controller.snapshot().sight)
+                            .put("cameraRequested", controller.snapshot().cameraRequested)
+                            .put("decline", source.decline);
                     check(
                             source.video.get() >= 5
                                     && source.firstKey
                                     && controller.snapshot().cameraOn,
                             "real service offer starts native key/delta video without prepared"
-                                    + " control frames");
+                                    + " control frames; status="
+                                    + controller.snapshot().sight
+                                    + "; decline="
+                                    + source.decline);
                     check(!source.refused, "actual server does not refuse the transmitted stream");
+                    JSONObject transmitting = remote(original);
+                    report.put("serverVisionOff", transmitting.opt("vision_off"));
+                    check(
+                            transmitting.has("vision_off") && transmitting.isNull("vision_off"),
+                            "actual channel clears its vision-off state after receiving video");
                     int sent = source.video.get();
                     controller.toggleSight();
                     await(() -> !controller.snapshot().cameraOn, 5000);
@@ -214,6 +226,9 @@ final class SightRoomProbe {
                                     + " separate";
                 }
             }
+        } catch (Exception | AssertionError failure) {
+            report.put("outcome", "failed").put("failure", failure.toString());
+            throw failure;
         } finally {
             controller.endAmbient();
             await(() -> !controller.snapshot().ambientActive && !RecordingInput.isActive(), 12_000);
@@ -253,10 +268,10 @@ final class SightRoomProbe {
             JSONObject after = remote(original);
             report.put(
                     "roomMicRestored",
-                    before.optJSONObject("controls") != null
-                            && after.optJSONObject("controls") != null
-                            && before.getJSONObject("controls").optBoolean("mute")
-                                    == after.getJSONObject("controls").optBoolean("mute"));
+                    before.getJSONObject("controls").getJSONObject("mute").getBoolean("active")
+                            == after.getJSONObject("controls")
+                                    .getJSONObject("mute")
+                                    .getBoolean("active"));
             check(
                     report.getBoolean("roomMicRestored"),
                     "actual room microphone setting is restored");
@@ -280,7 +295,7 @@ final class SightRoomProbe {
         final AtomicInteger audio = new AtomicInteger(), video = new AtomicInteger();
         final CopyOnWriteArrayList<JSONObject> events = new CopyOnWriteArrayList<>();
         volatile boolean meta, framed, refused, firstKey;
-        volatile String role = "";
+        volatile String role = "", decline = "";
 
         Observed(ChannelConnection delegate, byte[] silence) {
             this.delegate = delegate;
@@ -415,6 +430,8 @@ final class SightRoomProbe {
         public void send(JSONObject frame) throws Exception {
             if (frame.optString("type").equals("hello") && role.equals("peer"))
                 throw new java.io.IOException("Actual Sight refuses capture takeover");
+            if (frame.optString("type").equals("camera_declined"))
+                decline = frame.optString("reason");
             delegate.send(frame);
         }
 

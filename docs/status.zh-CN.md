@@ -4,7 +4,32 @@
 
 更新：2026-11-15。当前交付是可继续维护的 `openduo/pocket-android` 与 Android 预览版，E2 随项目作为适配案例。完整 1:1 保留为后续对照，本阶段不扩大回归矩阵。本文区分实现与真实服务验证；早期详细测试证据放在[历史检查点](status-2026-11-14-history.md)和[验收记录](acceptance.md)。
 
-已发布 [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk)，versionCode 2），包含首版后的国际化收尾，可直接更新首个预览版。
+已发布 [0.4.0 · Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.3/Pocket.apk)，versionCode 3），包含 Sight 服务适配、pocket-rs 0.1.1、锁屏续播、Passport 1.3、前台输入映射和下述所有权重构。保留公开包名与签名，可直接覆盖更新。下文检查点数量对应当时受测构建；Preview 1／2 发布资产保留为历史版本。
+
+## Preview 3 发布验证
+
+- 实际 JNI 的 2,634 条 JVM 断言、源码／所有权边界、145 个生产 Java 源文件与 650 条文案、
+  Go vet／test、双 ABI Debug 和签名通用 Release 构建通过。
+- APK 保留 `dev.openduo.pocket`、版本名 `0.4.0` 和原公开签名，versionCode 升为 3。
+  仅包含 arm64-v8a／x86_64 的公开原生库；应用发布资产为 `Pocket.apk` 与 `SHA256SUMS`。
+- SDK 0.1.1 固定于 `86fae5df622ddefc436861bd0f0df7d1fa390864`，已重新通过物理 Linux ARM64
+  安装／C 调用、macOS C／Swift／JNI 调用，以及 Apple／Android SDK 打包。
+- 下文 Sight 真实服务及此前 Rust／锁屏／Passport／输入的短验收保留各自构建身份与验证边界。
+  版本信息改动不重复采集或房间发送；匹配的远端 CI 与发布资产校验见发布说明。
+
+## 更新房间服务后的 Sight 适配
+
+2026-11-15 用户确认服务更新并恢复 Sight，已对照正式发布的 ambient `0.4.0-rc.2` 协议。
+E2 真实服务的 14 条检查通过：`media=1`、真实 1280×720 请求与 master 席位、原生首个关键帧及
+共五个视频上传帧、服务端清除 `vision_off`、明确关闭相机、恢复房间麦克风开关，以及保留配对／草稿
+并回到 Online。检查后相机资源已释放；麦克风包在发送前换成按原生时钟发送的静音，没有发送实际
+人声、文字消息或通知。
+
+通用编码路径在不支持正向尺寸时尝试主机允许的互换尺寸，旋转并等比放入 YUV 缓冲区，以中性黑色
+补边。Rust 所有者／JNI 同时修正媒体连接的下行音频：完整保留 Opus，只有上行增加媒体类型字节。
+签名公开包名 APK 已覆盖安装到 E2。2,634 条 JVM 断言（新增 12 条）、21 个 Rust 测试、Clippy、
+Debug／Release、源码与国际化检查通过。[Sight 指南](sight.zh-CN.md)保留场景识别、持续帧率／温控
+及其他硬件的验证边界。本节取代下文此前暂缓的状态，随 Preview 3 和 SDK 0.1.1 发布。
 
 ## 共享 Rust 协议接入
 
@@ -18,7 +43,7 @@ Android。OutboxSender／RoomLink 负责平台副作用顺序，不会同时驱�
 加载实际 Rust 库的 JVM 契约通过 2,622 条断言，双 ABI 公开包名 Release 已覆盖安装到 E2，保留
 签名／数据／配对／节点。16 条 Rust／ART 检查与 22 条 Try 文字／预制语音／文件／朗读／重连
 检查通过；另有 15 条真正熄屏的静音播放检查通过。此次不采集麦克风、不向真实房间发送测试内容。
-设置／草稿恢复，原房间恢复 Online。已发布 Preview 2 不变。此项证明共享协议接线，不代表 APP
+设置／草稿恢复，原房间恢复 Online。Preview 3 包含这项接入及后续媒体下行修正。此项证明共享协议接线，不代表 APP
 已达 1:1，也不新增真人 ASR 或声学验收结论。
 
 
@@ -26,7 +51,7 @@ Android。OutboxSender／RoomLink 负责平台副作用顺序，不会同时驱�
 
 | 范围 | 实际交付 |
 | --- | --- |
-| 工程边界 | Gradle wrapper/AGP/CMake 标准构建，纯 `:core`、纯 `:ui-policy`、纯 `:input`、通用 `:device`、案例 `:device-e2`、`:app` 六个模块；边界检查与 GitHub CI |
+| 工程边界 | Gradle wrapper/AGP/CMake 标准构建，纯 `:core`、`:protocol`、`:ui-policy`、`:input`、通用 `:device`、案例 `:device-e2`、`:app` 七个模块；边界检查与 GitHub CI |
 | 多窗口 | 复用窗口尺寸类别、列宽上限、短窗口/IME/Insets/页面状态；布局不根据 E2 型号或物理屏幕大小分支 |
 | 多硬件 | 默认 Android 录音/路由与能力发现；communication 音源不可用时尝试 MIC；E2 型号/固件/系统栏例外和阵列输入集中在设备模块 |
 | 品牌与分发 | 名称「多多 / DuoDuo Pocket」、包名 `dev.openduo.pocket`、`duoduopocket` 深链、上游绒球/声纹图标；legacy/adaptive/themed 图标；统一 0.4.0 版本来源；arm64+x86_64 APK |
@@ -36,7 +61,7 @@ Android。OutboxSender／RoomLink 负责平台副作用顺序，不会同时驱�
 | 实际连接故障 | Wi-Fi 恢复后 tsnet 仍缓存 network-down；恢复时注入 netmon 重采样，旧包在同进程下约 2.7 秒恢复房间在线，电脑 Tailscale 同时确认节点在线 |
 | 维护与交接 | [架构](architecture.md)、[设备接入](devices.md)、[窗口策略](ui.md)、[未来与 iOS 的差异](migration.md)与本状态文档；私有固件、凭据、签名和日志不公开 |
 
-## 当前发布包的有限验证
+## Preview 1／2 的历史验证
 
 - 纯协议/业务契约 325 项通过，源码模块/窗口/硬件边界和 617 条双语 catalog 通过。
 - Gradle Release 构建、Go vet/test 通过，APK 包含 arm64-v8a 和 x86_64，公开 payload 检查通过。
@@ -60,7 +85,7 @@ Debug／Release、源码／650 条国际化检查及公开双 ABI payload 检查
 `dev.openduo.pocket`。用户随后完成了新包登录与配对；本页共享 Rust 协议接入章节已补充 E2 的
 15 条息屏播放验证，原房间恢复 Online。
 该新包使用标准 Android framework 音频，先前本地阵列版的人声验收不能直接沿用。
-公开 Preview 2 未更新。本次解决已经开始的回复继续播完；APP 已在后台空闲后
+此修复随 Preview 3 发布。本次解决已经开始的回复继续播完；APP 已在后台空闲后
 再自动开始新的语音回复属于另一个范围。
 
 ## 所有权拆分与停止点
@@ -87,8 +112,8 @@ APK 已确认仅包含公开 native payload。
 最后原房间恢复 Online，配对和草稿保留，回复音频、静音与输入选项恢复。没有向真实房间发送测试
 内容，也没有重复人声、通知、相机、旋转或长期后台矩阵。精确入口为
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh`，
-需设置目标设备的 `ANDROID_SERIAL` 并使用匹配的本地构建／classpath。公开 Preview 2 APK 未更新；
-上述证据属于当前源码与本地原包构建。
+需设置目标设备的 `ANDROID_SERIAL` 并使用匹配的本地构建／classpath。Preview 3 已发布这项重构；
+上述设备证据保留当时本地原包构建的身份。
 
 ## 发送与朗读流的所有权拆分
 
@@ -105,8 +130,8 @@ APK 已确认仅包含公开 native payload。
 
 一次原包名 E2 短联调通过 14 项：仅向 Try 发送文字和预制语音、真实静音 Opus／AudioTrack 播放与
 排空、共享停止／取消，并恢复原房间 Online，保留配对与草稿。没有录音或向真实房间发送测试内容，
-没有重复人声、通知收件、实体键或广泛机型／生命周期测试。新本地兼容包已覆盖安装，公开 Preview 2
-APK 没有更新。精确入口为
+没有重复人声、通知收件、实体键或广泛机型／生命周期测试。该检查点使用本地原包，Preview 3
+已发布这项重构。精确入口为
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 scripts/test-device.sh`，
 需设置目标设备的 `ANDROID_SERIAL` 并使用匹配的本地构建／classpath。
 
@@ -127,9 +152,9 @@ APK 没有更新。精确入口为
 房间发送测试内容。探针恢复了初始语音输入选项及其修改的映射。
 
 录音／MARK 的用户实按、真实遥控器和目标智能音箱仍未验收。没有新增旋转、真实服务消息、长期后台
-或多机型矩阵。这些改动已在源码和本地原包构建中，**尚未包含在公开 Preview 2 APK 中**。
+或多机型矩阵。这些改动已包含在 Preview 3；上述输入探针保留当时本地原包的构建身份。
 
-## 尚未发布的客户端修复
+## Preview 3 包含的客户端权限与能力修复
 
 会话界面和 controller 操作现共用纯 Java 的设备凭据权限规则。只读配对会说明发送通知需要
 `notify` 范围；收件会话允许通知不代表设备有发送权限。master 连接未声明视频支持时，
@@ -139,11 +164,12 @@ APK 没有更新。精确入口为
 本地签名 Release 构建、331 项 JVM 契约及 618 条国际化/源码检查通过。
 一次 API 35 预设相机状态的界面短检查通过 14 项，未开启采集，包含没有相机帧时显示提示、
 声明视频支持后清除提示。
-这些修改尚未包含在公开 Preview 2 中。一次真人语音消息/可听回复及通知实际收件已在本地原包 E2 通过。
-2026-11-15 用户明确暂缓 Sight，自动检查发布状态及真实 Sight 验收已停止；记录见
+这些修改已包含在 Preview 3。一次真人语音消息/可听回复及通知实际收件已在本地原包 E2 通过。
+2026-11-15 用户此前暂缓 Sight，上方恢复后的验收已取代该检查点；记录见
 [真实服务验收指南](service-acceptance.zh-CN.md)。
 
-2026-11-15 用户确认房间服务没有可安装的新版本。Sight 等待支持媒体能力的服务正式发布；
+2026-11-15 较早检查点中，用户确认房间服务没有可安装的新版本，当时 Sight 等待媒体服务发布；
+上方后续恢复的真实检查已取代这一等待状态。
 人声与可听回复、带权限的会话通知可以独立推进。视频提示已改为描述能力缺失，
 不再要求安装尚未发布的更新；该文案修正已包含在后续本地构建中。
 
@@ -168,7 +194,7 @@ APK 没有更新。精确入口为
 不代表逐字识别准确、完整免按键 ambient 对话或公开包标准音频路径已经验收。
 记录结果时没有再次录音或重播。
 
-## 尚未发布的 Passport 协议迁移
+## Preview 3 包含的 Passport 协议迁移
 
 2026-11-15 恢复 Passport 范围。当前源码对照 iOS `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`，
 实现 1.3 字节协议、按压组装、RESULT/重连时限、回答/WORK/quiet/重放规则和持久化回答记忆。
@@ -178,7 +204,7 @@ Try 模式暂停 BLE，预设回复不会转发给外设。
 未修改的上游 Swift 源码生成的 60 个场景在 JVM 与 E2 ART 均通过（1,050 个比较），另有 1,093 个官方
 Unicode 字素边界用例通过，修复了旧 Android 上家庭 emoji 截断差异。host 总计 2,484 项通过，Release 构建
 与 618 条文案/123 个生产源码的国际化边界检查通过。纯协议检查没有连接真实 Passport、发送房间内容或
-安装 APK；实际配对/CCCD、实体按压/回答/提醒及后台 KEEPALIVE 唤醒仍未验收。公开 Preview 2 保持原样。
+安装 APK；实际配对/CCCD、实体按压/回答/提醒及后台 KEEPALIVE 唤醒仍未验收。实现已包含在 Preview 3。
 详见 [Passport 协议指南](passport.zh-CN.md)。
 
 ## 尚未完成与优先级
@@ -187,7 +213,7 @@ Unicode 字素边界用例通过，修复了旧 Android 上家庭 emoji 截断�
 | --- | --- | --- |
 | P0 实际使用 | 完整免按键 ambient 自然对话及长期后台恢复仍未验收 | 本地原包 E2 已通过一次实际真人语音消息/可听回复；没有相关需要时，不重复或扩大这项检查 |
 | P1 服务能力 | 真实到访未验证；指定会话的通知收件已在本地原包 E2 通过 | 到访需要有定位/geocoder 的设备；通知断连不确定性与更多目标/平台属于后续验证 |
-| 暂缓：Sight | 用户于 2026-11-15 明确暂缓；实现保留，真实协商/上传仍未验收 | 用户明确恢复且房间服务提供媒体能力后再继续，不自动检查发布状态或修改房间服务 |
+| Sight 后续 | 更新后的公开包名 E2 已通过真实协商／上传；场景识别和持续帧率／温控仍未验收 | 见[有限验证证据](sight.zh-CN.md)，没有相关改动时不重复成功检查 |
 | 后续设备接入 | 目标带屏智能音箱尚未到位；共享前台无触摸路径已实现，实际遥控／按键派发、厂商阵列/AEC/后台仍未验证 | 确定 Android/API/ABI/输入能力；标准路径先验证，有差异再增加 adapter，不修改业务页面 |
 | 后续兼容 | 不含 ARMv7/32 位；并非全部 OEM、外接屏/折叠屏和权限/生命周期组合都已验证 | 有实际需求再增加 ABI/窗口或硬件验证 |
 | 后续维护 | 所有权拆分已达到文档记录的合理停止点；应用执行顺序及 Android 存储／系统服务保留在 app | 优先扩展已有所有者；只有独立状态／资源或可证实的耦合才继续拆分，不按行数拆分 |

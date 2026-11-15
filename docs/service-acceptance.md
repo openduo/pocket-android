@@ -4,24 +4,23 @@ English · [简体中文](service-acceptance.zh-CN.md)
 
 The milestone covers natural microphone input with audible replies, actual Sight
 negotiation/uplink and receipt of a session notification. One human voice-note/audible-reply turn
-and notification receipt now have actual original-package E2 evidence. The user explicitly deferred
-Sight on 2026-11-15; retain the remaining check for a later request without automatic release polling.
+and notification receipt have actual original-package E2 evidence. Sight was subsequently resumed
+at the user's request on 2026-11-15 and passes actual negotiation/uplink on the updated public-package
+E2 build. See [Sight evidence](sight.md) for the encoder/downlink fixes and remaining scene limits.
 Use one short check per path and fix observed failures. The earlier window matrices and overnight
 background task are outside this milestone.
 
 | Path | Actual result |
 | --- | --- |
 | 1. Microphone and audible reply | Passed one human hold-to-talk turn on the local original-package E2: actual recognition/delivery, room reply and user-confirmed audible output; recognition had a wording error |
-| 2. Sight | Deferred by the user on 2026-11-15; actual negotiation/uplink remains unaccepted and requires a released media-capable room service |
+| 2. Sight | Updated public-package E2 passes 14 actual-service guards: media confirmation, real ask/master, first key and five native video frames, cleared server vision-off state and resource/composer restoration; scene recognition remains unaccepted |
 | 3. Session notification | Passed on the original-package E2: correlated server success and exactly one marked notification row in the selected dedicated recipient |
 
-On 2026-11-15 the user confirmed that no new room-service release is available. Actual Sight is
-waiting for a released service that offers the required media capability. This is a release
-dependency, not evidence that the user missed an available update. Existing speech/reply and
-session-reading evidence predates Sight support; microphone/audible-reply and scoped notification
-checks are independent of that release. Notification delivery passed without a service upgrade.
+Earlier on 2026-11-15 no media-capable room-service release was available. The user later confirmed
+the update and resumed Sight; the actual connection now confirms `media=1` and requests 1280×720
+video. Speech/reply and scoped notification evidence remains independent of that later update.
 
-At the user's request, physical E2 checks now use a same-signature update of the original
+Earlier physical E2 checks used a same-signature update of the original
 `top.kuaner.pockete2` package. The update retained the existing pairing, `pocket-e2` tailnet node
 and 23 cached rows, and reached actual Online state with `notify` scope. No extra node or new
 pairing is required. That initial check was read-only, without recording, playback, camera capture
@@ -42,14 +41,14 @@ The system timeout is unchanged. No microphone, camera or playback was used in t
 
 ## Prerequisites
 
-- Continue physical E2 checks on `top.kuaner.pockete2` using the [same-package build](devices.md#same-package-testing).
-  Its existing login and pairing are reused. The public `dev.openduo.pocket` package is a
-  separate installation and needs its own credentials only when testing that package.
+- Continue current physical E2 checks on `dev.openduo.pocket`. The user has completed fresh login
+  and pairing after migrating from the retired legacy package; preserve that node/data and update
+  in place. Earlier original-package results remain historical evidence.
 - For notification acceptance, the device credential needs the `notify` scope. A `sessions`
   credential allows reading; the recipient's `notify: true` flag cannot grant device permission.
   The UI and controller share the Android-independent `SessionViewer.Access` policy.
-- Sight alone requires a released room service with media support, which is currently pending.
-  When available and deployed, an actual `/live` connection must confirm `media=1`; its master
+- Sight requires a deployed room service with media support, now observed in the accepted check.
+  An actual `/live` connection must confirm `media=1`; its master
   seat must receive a real camera capture offer. Package version alone does not establish the
   running process's capability. This is not a prerequisite for speech or session notifications.
 - Select a dedicated test ambient room or keepalive job, separate from the paired room. The host
@@ -87,8 +86,13 @@ hardware path.
 
 ## Sight
 
-Deferred at the user's request. The following is a future acceptance procedure, not an active
-test or release-monitoring task. Resume only when requested and the room service offers media support.
+Resumed at the user's request after the service update. Fourteen actual-service guards pass on the
+updated public-package E2: media confirmation, the real ask/master, first native key frame and five
+video frames, cleared server `vision_off`, explicit camera off, microphone-setting restoration and
+retained pairing/composer/Online. No actual speech, text or notification was sent; audio uplink was
+replaced with paced silence. Native camera resources are released. See [implementation and bounds](sight.md).
+Room scene recognition and sustained rate/thermal behavior remain unaccepted; do not automatically
+repeat this successful check or start a broader matrix.
 
 Confirm `media=1` and the actual host's capture parameters, explicitly enable the camera, then
 confirm a real first key frame and subsequent uplink frames. Keep a brief viewfinder/scene check.
@@ -111,14 +115,13 @@ automatically. This command sends real content to that selected test session:
 
 ```sh
 ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
-POCKET_LEGACY_IDENTITY=1 \
 POCKET_E2_TEST_NOTIFY_ROOM_ONLY=1 \
 POCKET_TEST_NOTIFY_TARGET='ambient:notification-test' \
 scripts/test-device.sh
 ```
 
-Omit `POCKET_LEGACY_IDENTITY` when deliberately testing the public package. The script requires
-a target before touching a device and Base64-encodes the key for the ADB shell
+This example uses the current public package; do not reinstall the retired legacy package.
+The script requires a target before touching a device and Base64-encodes the key for the ADB shell
 boundary. The probe requires actual Online state, `notify` credentials, idle outgoing/capture work
 and an exact listed recipient. It checks both the correlated delivery result and one uniquely
 marked notification row in that recipient. A generated reply is useful additional evidence but is
@@ -134,5 +137,5 @@ remove journals to obtain another passing run.
 Record the APK identity, service capability, selected path and actual outcome in private ignored
 `.build/` evidence. Publish only a sanitized result and update [status](status.md) and the
 [migration gaps](migration.md). Track each path independently: one human voice-note/audible-reply
-turn and notification receipt are accepted for the recorded local build; Sight is explicitly
-deferred and its missing actual result is retained for later.
+turn and notification receipt are accepted for the recorded local build; Sight negotiation/uplink
+is accepted on the current public-package E2, with scene recognition still open.

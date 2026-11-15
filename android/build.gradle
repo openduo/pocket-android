@@ -14,7 +14,7 @@ android {
         applicationId legacyIdentity ? 'top.kuaner.pockete2' : 'dev.openduo.pocket'
         minSdk 26
         targetSdk 35
-        versionCode 2
+        versionCode 3
         versionName '0.4.0'
         buildConfigField 'String', 'PERSISTENCE_PREFIX', '"' + persistencePrefix + '"'
         buildConfigField 'String', 'TAILNET_HOSTNAME', '"' + persistencePrefix + '"'

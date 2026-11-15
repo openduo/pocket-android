@@ -4,9 +4,42 @@ English · [简体中文](status.zh-CN.md)
 
 Updated 2026-11-15. The milestone delivers a maintainable `openduo/pocket-android` project and Android preview, with E2 as an adapter example. Full 1:1 parity remains a future comparison. Testing is deliberately limited to relevant checks, with older expanded evidence retained separately.
 
-Published: [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)
-([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk),
-version code 2). This adds the localization follow-up to the first preview and can update it in place.
+Published: [0.4.0 · Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3)
+([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.3/Pocket.apk),
+version code 3). It includes Sight service adaptation, pocket-rs 0.1.1, ongoing playback through
+screen lock, Passport 1.3, foreground input bindings and the ownership refactors below. The public
+package/signature are retained for in-place updates. Lower checkpoint counts describe the build
+tested at that time; Preview 1/2 artifacts remain historical releases.
+
+## Preview 3 release verification
+
+- 2,634 actual-JNI JVM assertions, source/ownership checks, 650 catalog entries across 145 production
+  Java sources, Go vet/tests, dual-ABI Debug and signed generic Release builds pass.
+- The APK retains `dev.openduo.pocket`, version name `0.4.0` and the original public signing key;
+  version code advances to 3. Only public native libraries for arm64-v8a and x86_64 are included.
+  `Pocket.apk` and `SHA256SUMS` are the application release assets.
+- SDK 0.1.1 is pinned at `86fae5df622ddefc436861bd0f0df7d1fa390864`. Its renewed physical Linux
+  ARM64 installation/C consumers, macOS C/Swift/JNI consumers and Apple/Android packages pass.
+- The Sight service check and prior bounded Rust/lockscreen/Passport/input checks below retain
+  their own build identities and limits. Metadata/version changes do not repeat capture or room
+  sends. Matching remote CI links and published asset checksums are in the release notes.
+
+## Sight resumed with the updated room service
+
+At the user's request on 2026-11-15, Sight resumed against the released ambient `0.4.0-rc.2`
+protocol. Actual E2 acceptance now passes 14 guards: `media=1`, the real 1280×720 camera ask and
+master seat, first native key frame and five uplink frames, cleared server `vision_off`, explicit
+camera off, room-microphone restoration and preserved pairing/composer/Online. Native camera
+resources are released afterward. Microphone packets were replaced with paced silence; no speech,
+text message or notification was sent.
+
+The generic encoder path now tries the request's swapped orientation when the upright dimensions
+are unsupported, rotating/aspect-fitting YUV with neutral black padding. The Rust owner/JNI now
+preserve raw Opus downlink on media connections; only uplink has kind framing. The updated signed
+public-package APK is installed on E2. The 2,634 JVM assertions (12 new), 21 Rust tests, Clippy,
+Debug/Release and source/localization checks pass. [Sight details](sight.md) retain scene-recognition,
+sustained-rate/thermal and other-hardware limits. This supersedes the earlier deferral and ships
+in Preview 3 with SDK 0.1.1.
 
 ## Shared Rust protocol adoption
 
@@ -23,15 +56,15 @@ is installed on E2 with the existing signature, data, pairing and node. The boun
 passes 16 Rust/ART assertions plus 22 Try text/prepared-voice/files/read/reconnect assertions, followed
 by 15 separate actual screen-off playback assertions. Audio is prepared and silent; no microphone
 or actual room test content is sent. Settings/composer are restored and the real room returns Online.
-This supplements the earlier lockscreen evidence with the E2/Rust path. Published Preview 2 remains
-unchanged. Rust protocol migration is not a claim of complete 1:1 app parity or new human ASR acceptance.
+This supplements the earlier lockscreen evidence with the E2/Rust path. Preview 3 includes this
+integration and the subsequent media-v1 downlink correction. Rust protocol migration is not a claim of complete 1:1 app parity or new human ASR acceptance.
 
 
 ## Delivered
 
 | Area | Concrete result |
 | --- | --- |
-| Build boundaries | Standard Gradle wrapper/AGP/CMake; pure `:core`, pure `:ui-policy` and `:input`, framework `:device`, example `:device-e2`, and `:app`; source-boundary checks and GitHub workflow |
+| Build boundaries | Standard Gradle wrapper/AGP/CMake; pure `:core`, `:protocol`, `:ui-policy` and `:input`, framework `:device`, example `:device-e2`, and `:app`; source-boundary checks and GitHub workflow |
 | Windows | Shared size classes, bounded columns, short-window/IME/Insets and page-state handling; business logic does not branch on E2 or physical-panel dimensions |
 | Hardware | Default Android capture/routing and capability discovery; MIC fallback; E2 model/firmware/system-bar and optional array integration isolated in one module |
 | Identity | DuoDuo Pocket / 多多, `dev.openduo.pocket`, `duoduopocket` links, upstream brand mark, legacy/adaptive/themed icons, one version source; arm64+x86_64 APK |
@@ -41,7 +74,7 @@ unchanged. Rust protocol migration is not a claim of complete 1:1 app parity or 
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
 | Handoff | Architecture, device/UI/localization guides, English screenshots and future iOS gap record; firmware, credentials, signing and private evidence excluded |
 
-## Published preview verification
+## Historical Preview 1/2 verification
 
 - 325 JVM contracts pass, including Gradle `:core:check`; module/window/hardware/attribution boundaries and 617-entry localization checks pass.
 - Go vet/test and Gradle Release pass. Public APK contains arm64-v8a+x86_64 and only the public native payload.
@@ -68,8 +101,7 @@ The full lightweight JVM check passes 2,622 assertions (seven new). Generic Debu
 content or broad matrix was used. At the user's subsequent request, the old E2 app was uninstalled
 and the fixed signed `dev.openduo.pocket` APK was installed and opened. Fresh Tailscale login/pairing is complete; E2 screen-off acceptance now passes in the Rust migration
 check described above. The installed public-identity APK uses standard Android
-framework audio; earlier local-array acceptance does not transfer. Published Preview 2 remains
-unchanged. Starting a new spoken reply after the app is already idle in the background remains separate.
+framework audio; earlier local-array acceptance does not transfer. This fix ships in Preview 3. Starting a new spoken reply after the app is already idle in the background remains separate.
 
 ## Ownership decomposition and stopping point
 
@@ -101,7 +133,8 @@ restores reply-audio, mute and input preferences. No actual room test content, h
 camera, rotation or long-background matrix was run. The explicit runner is
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh`
 with `ANDROID_SERIAL` selecting the intended device and matching local build/classpath.
-The published Preview 2 APK remains unchanged; this is source and local legacy-build evidence.
+This checkpoint is source/local legacy-build evidence. Preview 3 now distributes the refactor;
+the device assertions above retain their original build identity.
 
 ## Outbox and read-aloud ownership refactor
 
@@ -124,8 +157,8 @@ One original-package E2 check passes 14 bounded coordination assertions: Try-onl
 prepared voice sends, actual silent Opus/AudioTrack playback and drain, shared stop/cancellation,
 and restoration of the existing room Online with pairing/composer retained. It does not record
 audio or send actual room content. Human speech, notification receipt, physical keys and broad
-device/lifecycle tests were not repeated. The updated local legacy build is installed; the
-published Preview 2 APK is unchanged. The explicit short runner is
+device/lifecycle tests were not repeated. The checkpoint used a local legacy build; Preview 3
+now distributes the refactor. The explicit short runner is
 `POCKET_LEGACY_IDENTITY=1 POCKET_TEST_COORDINATION_ONLY=1 scripts/test-device.sh`
 with `ANDROID_SERIAL` set to the intended device and a matching local build/classpath.
 
@@ -153,9 +186,9 @@ restored the initial voice-input setting and all bindings it changed.
 
 Physical REC/MARK presses, a real remote and target-speaker hardware remain unaccepted. No
 rotation, service-message, long-background or broad device matrix was added. These changes are
-in source and the installed local legacy build, **not the published Preview 2 APK**.
+included in Preview 3. The recorded input probe used the earlier local legacy build.
 
-## Unreleased client follow-up
+## Client scope and capability follow-up included in Preview 3
 
 The client now shares a pure credential-scope policy across session controls and controller
 actions. Read-only pairings explain why notifications require `notify` scope; a recipient's
@@ -167,14 +200,14 @@ ambient/keepalive recipient and preserves a unique, once-only delivery journal.
 The local signed Release build, 331 JVM contracts and 618-entry localization/source checks pass.
 One API 35 prepared-camera UI run passes 14 targeted assertions with capture disabled, including
 the no-camera-frame warning and its removal when media support is declared.
-These changes are not included in the published Preview 2. One human voice-note/audible-reply
+These changes ship in Preview 3. One human voice-note/audible-reply
 turn and actual notification receipt now pass on the local original-package E2 build. The user
-explicitly deferred Sight on 2026-11-15; release polling and actual Sight checks are no longer active.
+initially deferred Sight on 2026-11-15; the resumed acceptance at the top supersedes that checkpoint.
 [Short service checks](service-acceptance.md) record the prerequisites and bounded
 results.
 
-On 2026-11-15 the user confirmed there is no new room-service release to install. Sight is
-waiting for a released service with media support. Speech/audible replies and scoped notification
+At that earlier checkpoint on 2026-11-15 the user confirmed there was no new room-service release
+to install, so Sight waited for media support. The later resumed check above supersedes that state. Speech/audible replies and scoped notification
 delivery can proceed independently. The video message now describes missing capability rather
 than asking for an available update; that correction is included in the later local builds.
 
@@ -207,7 +240,7 @@ accepts that microphone-to-room/audible-reply path on the local E2 array build, 
 accuracy, full hands-free ambient conversation or the public framework-audio APK. No further
 recording or replay was run to document the result.
 
-## Unreleased Passport protocol follow-up
+## Passport protocol follow-up included in Preview 3
 
 Passport was resumed on 2026-11-15. The current source implements the iOS 1.3 wire codec,
 press assembly, RESULT/reconnect deadlines, reply/WORK/quiet/replay rules and persistent reply
@@ -221,7 +254,7 @@ old-Android family-emoji truncation discrepancy. The host suite totals 2,484 ass
 build and 618-entry localization/source checks pass across 123 production sources. No physical
 Passport was connected, no room content was sent and no APK was installed for these protocol
 checks. Actual pairing/CCCD, a hardware press/reply/alert and background KEEPALIVE wake remain
-unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
+unaccepted. Preview 3 includes the implementation. See [Passport](passport.md).
 
 ## Remaining work and priorities
 
@@ -229,7 +262,7 @@ unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
 | --- | --- | --- |
 | P0 actual use | Full hands-free ambient conversation and long-term background recovery remain unaccepted | One actual human voice-note/audible-reply turn now passes on the local original-package E2; do not repeat or expand this check without a relevant need |
 | P1 actual services | Physical visits remain unverified; selected-session notification receipt now passes on the local original-package E2 build | Visits need a device with location/geocoder; notification disconnect uncertainty and broader target/platform coverage remain future work |
-| Deferred: Sight | Explicitly deferred by the user on 2026-11-15; implementation retained, actual negotiation/uplink unaccepted | Resume only at the user's request with a media-capable room service; no automatic release polling or service changes |
+| Sight follow-up | Actual negotiation/uplink now passes on the updated public-package E2 build; scene recognition and sustained rate/thermal behavior remain unaccepted | See [bounded evidence](sight.md); do not repeat the successful check without a relevant change |
 | Future hardware | No target display-equipped smart speaker accepted; OEM array/AEC/background and actual remote/key delivery remain open; shared foreground no-touch navigation is implemented | Establish API/ABI/input capabilities, verify the standard path, add an adapter for actual differences |
 | Future compatibility | No ARMv7/32-bit package; not all OEM/foldable/external-display/lifecycle combinations covered | Add ABI/device/window support when a real target requires it |
 | Maintenance | Ownership decomposition has reached the documented stopping point; application ordering and Android persistence/system services remain in app | Extend the existing owner when appropriate; extract again only for independently owned state/resources or demonstrated coupling, rather than file length |

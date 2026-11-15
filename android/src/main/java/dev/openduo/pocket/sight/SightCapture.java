@@ -53,6 +53,7 @@ public final class SightCapture implements AutoCloseable {
     private CameraCaptureSession session;
     private ImageReader images;
     private MediaCodec encoder;
+    private YuvTransform transform;
     private int rotation, width, height, fps, bitrate, ceilingFps;
     private long lastFrame, lastPreview, anchorUs, anchorWall;
     private byte[] config = new byte[0];
@@ -212,12 +213,22 @@ public final class SightCapture implements AutoCloseable {
                 return;
             }
             format.setInteger(MediaFormat.KEY_LEVEL, level);
-            String codec =
-                    new MediaCodecList(MediaCodecList.REGULAR_CODECS).findEncoderForFormat(format);
+            MediaCodecList codecs = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
+            String codec = codecs.findEncoderForFormat(format);
+            if (codec == null && width != height) {
+                int swapped = width;
+                width = height;
+                height = swapped;
+                format.setInteger(MediaFormat.KEY_WIDTH, width);
+                format.setInteger(MediaFormat.KEY_HEIGHT, height);
+                codec = codecs.findEncoderForFormat(format);
+            }
             if (codec == null) {
                 fail("no_h264");
                 return;
             }
+            transform =
+                    new YuvTransform(size.getWidth(), size.getHeight(), width, height, rotation);
             encoder = MediaCodec.createByCodecName(codec);
             encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             encoder.start();
@@ -359,7 +370,7 @@ public final class SightCapture implements AutoCloseable {
             Image target = encoder.getInputImage(index);
             if (target == null) throw new IllegalStateException("Encoder lacks YUV planes");
             try {
-                copy(image, target, rotation);
+                transform.copy(planes(image), planes(target));
             } finally {
                 target.close();
             }
@@ -370,33 +381,16 @@ public final class SightCapture implements AutoCloseable {
         }
     }
 
-    private static void copy(Image source, Image target, int rotation) {
-        Image.Plane[] in = source.getPlanes(), out = target.getPlanes();
-        for (int p = 0; p < 3; p++) {
-            int sw = p == 0 ? source.getWidth() : source.getWidth() / 2,
-                    sh = p == 0 ? source.getHeight() : source.getHeight() / 2;
-            ByteBuffer read = in[p].getBuffer(), write = out[p].getBuffer();
-            int readBase = read.position(), writeBase = write.position();
-            for (int y = 0; y < sh; y++)
-                for (int x = 0; x < sw; x++) {
-                    int dx =
-                            rotation == 90
-                                    ? sh - 1 - y
-                                    : rotation == 180 ? sw - 1 - x : rotation == 270 ? y : x;
-                    int dy =
-                            rotation == 90
-                                    ? x
-                                    : rotation == 180
-                                            ? sh - 1 - y
-                                            : rotation == 270 ? sw - 1 - x : y;
-                    write.put(
-                            writeBase + dy * out[p].getRowStride() + dx * out[p].getPixelStride(),
-                            read.get(
-                                    readBase
-                                            + y * in[p].getRowStride()
-                                            + x * in[p].getPixelStride()));
-                }
-        }
+    private static YuvTransform.Plane[] planes(Image image) {
+        Image.Plane[] source = image.getPlanes();
+        YuvTransform.Plane[] planes = new YuvTransform.Plane[3];
+        for (int p = 0; p < 3; p++)
+            planes[p] =
+                    new YuvTransform.Plane(
+                            source[p].getBuffer(),
+                            source[p].getRowStride(),
+                            source[p].getPixelStride());
+        return planes;
     }
 
     private void drainLater() {

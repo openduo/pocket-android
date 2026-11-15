@@ -15,24 +15,25 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 </p>
 <p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The landscape example illustrates a reusable layout; target smart-speaker compatibility remains unverified.</sub></p>
 
-[Download the Android preview](https://github.com/openduo/pocket-android/releases) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
+[Download 0.4.0 Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
 ## What is implemented
 
 - Embedded Tailscale login, authorization by QR/link, pairing, API v2 and `/live`. Recovery resamples netmon to fix a restored Wi-Fi connection leaving the node offline.
 - Conversations, Markdown/tables/tools, quotes/copy/share, history, photos/files and Android import/share handoff; durable SQLite drafts, idempotent outbox and recovery receipts.
 - Hold to talk, Opus voice upload/retry, ambient capture, streamed replies/read-aloud, audio focus and one shared microphone lease.
-- Passport protocol 1.3 and Android BLE integration in the current source: press/audio assembly, RESULT/WORK/REPLY, quiet delivery and replay memory; [upstream differential checks and hardware limits](docs/passport.md).
+- Passport protocol 1.3 and Android BLE integration: press/audio assembly, RESULT/WORK/REPLY, quiet delivery and replay memory; [upstream differential checks and hardware limits](docs/passport.md).
 - Session lists/details/notification controls, Camera2/H.264 Sight, maps/coordinates/geocoding and arrival tracking.
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
-- Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example in the current source; [input guide](docs/input.md). These changes follow Preview 2.
+- Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example in Preview 3; [input guide](docs/input.md).
+- Shared [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) protocol/JNI owners, corrected media-v1 audio downlink and ongoing reply playback through screen lock.
 - Compact/medium/expanded window policy, bounded reading columns, system-bar/IME insets, scrollable short-window controls and page-state restoration.
 
-Implementation and real-service acceptance are tracked separately. The local original-package E2 build has passed one human voice-note turn with a user-confirmed audible reply, and one notification delivery with a correlated success and unique recipient record. Recognition had a wording error. These results use the local E2 array build and do not accept the public Preview 2 APK. Sight is explicitly deferred at the user's request, with its implementation and remaining media-service acceptance retained; full hands-free ambient conversation, physical arrivals and long-term background behavior remain unverified. Android push remains deferred. Passport has resumed in the current source and passes fixed protocol vectors on the JVM and E2 Android runtime; physical accessory acceptance is still open and this follow-up is not in Preview 2. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
+Implementation and real-service acceptance are tracked separately. The local original-package E2 build has passed one human voice-note turn with a user-confirmed audible reply, and one notification delivery with a correlated success and unique recipient record. Recognition had a wording error. These results use the earlier local E2 array build and do not establish human-speech acceptance for the public framework-audio APK. Sight has now resumed and passes actual media negotiation and native video uplink on the updated public-package E2 build; [scene recognition and sustained-rate limits](docs/sight.md) remain explicit. Full hands-free ambient conversation, physical arrivals and long-term background behavior remain unverified. Android push remains deferred. Passport has resumed in the current source and passes fixed protocol vectors on the JVM and E2 Android runtime; physical accessory acceptance is still open. Preview 3 includes these implementations, the shared Rust protocol and the lockscreen playback fix. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
 
 ## Install and connect
 
-Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
+Preview 3 uses version code 3 and the existing public signing key, so it updates earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
 1. Install `Pocket.apk` from [Releases](https://github.com/openduo/pocket-android/releases).
 2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.

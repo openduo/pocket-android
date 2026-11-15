@@ -1,5 +1,20 @@
 # Pocket Android engineering rules
 
+Sight resumed and accepted (2026-11-15): the user confirmed the room service update and resumed
+Sight. The public-package generic APK is updated in place on E2. Fourteen actual-service guards
+pass: media=1, real 1280x720 ask/master, first key and five native video frames, cleared server
+vision_off, explicit off, microphone restoration and retained pairing/composer/Online. E2's
+encoder accepts landscape but not 720x1280; generic YuvTransform rotates/aspect-fits with black
+padding when only the requested swapped orientation is supported. No model branch. The SDK
+submodule correction preserves raw Opus downlink on media=1 (only uplink has kind bytes); retain
+that source change with the Android adaptation. 2,634 JVM assertions, 21 Rust cases, Clippy,
+Debug/Release and source/localization checks pass. See docs/sight.md. Scene recognition, sustained
+rate/thermal and other-hardware acceptance remain open; no automatic repetition or broad matrix.
+This supersedes the earlier Sight deferrals below. Push stays deferred. The user subsequently
+requested pushing both repositories and publishing new versions: SDK 0.1.1 and Android Preview 3
+(versionCode 3). Pin the published SDK commit and retain the same public package/signature; publish
+only the generic Pocket.apk and its checksum, never the local legacy/vendor artifacts.
+
 Rust protocol adoption (2026-11-15): the user's completion gate includes actual Android integration
 and E2 acceptance. `:protocol` builds the pinned pocket-rs Java/JNI binding; the former Java endpoint,
 Chat request/framing, Ambient input/output and retry reducers delegate to Rust. Core live validation

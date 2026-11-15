@@ -174,7 +174,7 @@ probe_args=(
 if [[ -n "${POCKET_TEST_NOTIFY_TARGET:-}" ]]; then
   probe_args+=(-e notifyTargetBase64 "$(printf '%s' "$POCKET_TEST_NOTIFY_TARGET" | base64 | tr -d '\r\n')")
 fi
-if [[ "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" == 1 || "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
+if [[ "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" == 1 || "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_E2_TEST_SIGHT_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
   resume_after_probe=1
 fi
 adb shell am instrument -w -r "${probe_args[@]}" "$probe_package/dev.openduo.pocket.qa.Probe" | tee "$build/result.txt"
@@ -185,6 +185,8 @@ if [[ "${POCKET_CAPTURE_SHOWCASE:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/showcase" "$build/showcase" >/dev/null
 elif [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/service-readiness" "$build/service-readiness" >/dev/null
+elif [[ "${POCKET_E2_TEST_SIGHT_ROOM_ONLY:-0}" == 1 ]]; then
+  adb pull "/sdcard/Android/data/$target_package/cache/sight-room" "$build/sight-room" >/dev/null
 elif [[ "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" != 1 && "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 && "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" != 1 && "${POCKET_TEST_INPUT_ONLY:-0}" != 1 && "${POCKET_TEST_COORDINATION_ONLY:-0}" != 1 && "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" != 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/qa" "$build/screenshots" >/dev/null
 fi
