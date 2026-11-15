@@ -196,3 +196,6 @@ Unicode 字素边界用例通过，修复了旧 Android 上家庭 emoji 截断�
 | 旧版迁移限制 | 旧包与公开包不能共享私有数据库/AndroidKeyStore；没有跨包数据迁移器 | 显式同包名/同签名构建保留原节点与数据；独立安装公开包时才需要自己的登录与配对 |
 
 智能音箱支持目前是可复用架构与标准 Android 路径，不是目标硬件已经验收。远场唤醒词、kiosk/常驻 launcher、系统级后台和厂商私有播放引擎也不在本次实现中。完整 1:1 差异继续保存在 [migration.md](migration.md)，不以预览版版本号暗示功能等同 iOS。
+
+[接入 CI](https://github.com/openduo/pocket-android/actions/runs/43675746653) 已在可执行源码
+`4208864` 上通过，后续说明与 SDK 文档固定版本更新不修改可执行源码。

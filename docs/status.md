@@ -238,3 +238,6 @@ unaccepted. The published Preview 2 is unchanged. See [Passport](passport.md).
 | Old-package migration | No cross-package database/AndroidKeyStore migration | Use the explicit same-package/same-signature build to retain the original node and data; the separate public package requires its own login/pairing |
 
 Smart-speaker readiness currently means reusable architecture and framework paths. Wake words, kiosk/always-on launcher behavior, privileged background execution and OEM playback engines are not implemented. The [migration record](migration.md) preserves the longer-term 1:1 comparison; the preview version does not imply iOS feature parity.
+
+The [integration CI](https://github.com/openduo/pocket-android/actions/runs/43675746653) passes for
+executable source `4208864`; the final documentation and SDK-documentation pin change no executable source.

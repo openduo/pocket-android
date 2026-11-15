@@ -7,7 +7,8 @@ also runs there. Keep Android network/SQLite/resource/foreground-service orderin
 never also drive Rust's aggregate Session as a second sender. The current public-identity E2 check
 passes 16 Rust/ART plus 22 Try-only wiring assertions and a separate 15 screen-off assertions; no
 capture or real-room test messages. Preserve pairing/node/data and do not repeat unrelated matrices.
-The active work is final pinned-source build/CI/documentation/public SDK release, not new features.
+Pinned-source builds and remote SDK/app CI pass. The final documentation update changes no
+executable source; see docs/rust.md and the SDK status/release for retained migration boundaries.
 
 Lockscreen playback fix (2026-11-15): Activity backgrounding must not stop an already-started
 spoken reply or local read. RoomPlayback/AmbientOutput retain reception through chunk gaps and

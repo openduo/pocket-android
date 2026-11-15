@@ -34,3 +34,8 @@ the intended device. These use prepared Try/local content and silent native play
 or actual room sends. Do not run the historical full device suite. See [status](status.md) for actual
 evidence and the SDK's [migration plan](https://github.com/openduo/pocket-rs/blob/main/docs/migration.md)
 for native Linux and future iOS boundaries.
+
+The remaining session-watch/notification command serialization in SessionViewer and the
+Passport/Sight/location protocols keep their existing feature owners. They are not claimed as
+part of this Chat/Ambient protocol migration. [CI for the executable integration](https://github.com/openduo/pocket-android/actions/runs/43675746653)
+passes; the final documentation/submodule update changes no executable source.

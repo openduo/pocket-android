@@ -28,3 +28,8 @@ APK 为 arm64-v8a 与 x86_64 包含 `libpocket_core.so`／`libpocket_jni.so`，�
 设备。仅使用 Try／本地预制内容和静音原生播放，不采集麦克风、不向真实房间发送，不跑历史全量矩阵。
 已执行证据见[当前状态](status.zh-CN.md)，Linux 与未来 iOS 的范围见共享库的
 [迁移计划](https://github.com/openduo/pocket-rs/blob/main/docs/migration.zh-CN.md)。
+
+SessionViewer 的会话 watch／通知命令序列化与 Passport／Sight／地理相关协议保留既有功能所有者，
+不计为本次 Chat／Ambient 协议迁移已完成的范围。
+[可执行接入版本的 CI](https://github.com/openduo/pocket-android/actions/runs/43675746653) 已通过；
+后续说明／submodule 文档更新不修改可执行源码。
