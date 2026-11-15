@@ -6,6 +6,22 @@
 
 已发布 [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.2)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk)，versionCode 2），包含首版后的国际化收尾，可直接更新首个预览版。
 
+## 共享 Rust 协议接入
+
+当前源码已通过新增、无 Android API 依赖的 `:protocol` Java／JNI 边界使用
+[pocket-rs](https://github.com/openduo/pocket-rs)：配对／Endpoint、Chat／文件／朗读／live 请求、
+语音分帧、实时事件校验、Ambient 输入／播放及重试规则实际执行 Rust。原对应 Java 状态机已替换，
+门面保留既有领域 API。UI、SQLite 事务、凭据／Tailscale 网络、编解码／硬件资源和前台服务仍属
+Android。OutboxSender／RoomLink 负责平台副作用顺序，不会同时驱动第二个 Rust 聚合 Session。
+详见[共享库接入](rust.zh-CN.md)。
+
+加载实际 Rust 库的 JVM 契约通过 2,622 条断言，双 ABI 公开包名 Release 已覆盖安装到 E2，保留
+签名／数据／配对／节点。16 条 Rust／ART 检查与 22 条 Try 文字／预制语音／文件／朗读／重连
+检查通过；另有 15 条真正熄屏的静音播放检查通过。此次不采集麦克风、不向真实房间发送测试内容。
+设置／草稿恢复，原房间恢复 Online。已发布 Preview 2 不变。此项证明共享协议接线，不代表 APP
+已达 1:1，也不新增真人 ASR 或声学验收结论。
+
+
 ## 本阶段已做
 
 | 范围 | 实际交付 |
@@ -41,7 +57,8 @@
 原生时间线上完整播完，随后服务、连接与唤醒锁释放。轻量 JVM 共 2,622 项通过（新增 7 项），通用
 Debug／Release、源码／650 条国际化检查及公开双 ABI payload 检查通过。未使用麦克风、真实房间
 测试内容或广泛矩阵。随后按用户要求，已卸载 E2 上的旧包，安装并打开带修复的签名新包
-`dev.openduo.pocket`，等待用户重新登录 Tailscale 并提供新配对信息，**尚未在 E2 验证息屏**。
+`dev.openduo.pocket`。用户随后完成了新包登录与配对；本页共享 Rust 协议接入章节已补充 E2 的
+15 条息屏播放验证，原房间恢复 Online。
 该新包使用标准 Android framework 音频，先前本地阵列版的人声验收不能直接沿用。
 公开 Preview 2 未更新。本次解决已经开始的回复继续播完；APP 已在后台空闲后
 再自动开始新的语音回复属于另一个范围。

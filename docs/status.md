@@ -8,6 +8,25 @@ Published: [0.4.0 · Preview 2](https://github.com/openduo/pocket-android/releas
 ([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.2/Pocket.apk),
 version code 2). This adds the localization follow-up to the first preview and can update it in place.
 
+## Shared Rust protocol adoption
+
+The current source uses [pocket-rs](https://github.com/openduo/pocket-rs) through the new Android-free
+`:protocol` Java/JNI boundary. Pairing/endpoints, Chat/file/speech/live request construction, voice
+framing, live event validation, Ambient seat/input/output and retry rules now execute in Rust.
+Their Java facades retain existing domain APIs without a second protocol reducer. Android keeps
+its UI, SQLite transactions, credential/Tailscale networking, codec/device resources and foreground
+policy. OutboxSender/RoomLink coordinate those platform effects; the aggregate Rust Session is not
+also dispatched. See [shared-library integration](rust.md).
+
+The actual JNI-backed JVM contracts pass 2,622 assertions. The dual-ABI public-identity Release APK
+is installed on E2 with the existing signature, data, pairing and node. The bounded native check
+passes 16 Rust/ART assertions plus 22 Try text/prepared-voice/files/read/reconnect assertions, followed
+by 15 separate actual screen-off playback assertions. Audio is prepared and silent; no microphone
+or actual room test content is sent. Settings/composer are restored and the real room returns Online.
+This supplements the earlier lockscreen evidence with the E2/Rust path. Published Preview 2 remains
+unchanged. Rust protocol migration is not a claim of complete 1:1 app parity or new human ASR acceptance.
+
+
 ## Delivered
 
 | Area | Concrete result |
@@ -47,8 +66,8 @@ silent native playback with packets received after screen-off and service/socket
 The full lightweight JVM check passes 2,622 assertions (seven new). Generic Debug/Release, source and
 650-entry localization checks, and public dual-ABI payload checks pass. No microphone, actual room
 content or broad matrix was used. At the user's subsequent request, the old E2 app was uninstalled
-and the fixed signed `dev.openduo.pocket` APK was installed and opened. Fresh Tailscale login/pairing
-and E2 screen-off acceptance remain pending. The installed public-identity APK uses standard Android
+and the fixed signed `dev.openduo.pocket` APK was installed and opened. Fresh Tailscale login/pairing is complete; E2 screen-off acceptance now passes in the Rust migration
+check described above. The installed public-identity APK uses standard Android
 framework audio; earlier local-array acceptance does not transfer. Published Preview 2 remains
 unchanged. Starting a new spoken reply after the app is already idle in the background remains separate.
 

@@ -8,6 +8,7 @@ import dev.openduo.pocket.core.Attachment;
 import dev.openduo.pocket.core.Endpoint;
 import dev.openduo.pocket.core.Json;
 import dev.openduo.pocket.core.Message;
+import dev.openduo.pocket.core.RustProtocol;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -93,20 +94,34 @@ public final class ChannelClient {
         return (int) ((System.nanoTime() - started) / 1_000_000);
     }
 
+    private RustProtocol.Request request(JSONObject command, byte[] body) throws Failure {
+        try {
+            return RustProtocol.request(endpoint, token, room, command, body);
+        } catch (RustProtocol.Failure error) {
+            throw new Failure("房间返回的数据无效", 0, false);
+        }
+    }
+
+    private byte[] request(JSONObject command, byte[] body, long timeout, int status)
+            throws Failure {
+        RustProtocol.Request request = request(command, body);
+        return call(request.method, request.path, request.headers, request.body, timeout, status);
+    }
+
     public State state() throws Failure {
-        return new State(json(call("GET", path("state"), Json.object(), new byte[0], 20_000, 200)));
+        return new State(json(request(Json.object("type", "state"), null, 20_000, 200)));
     }
 
     public Rows rows(long cursor) throws Failure {
-        return readRows(path("imlog") + "&since=" + cursor);
+        return readRows(Json.object("type", "rows", "cursor", cursor));
     }
 
     public Rows history(String date) throws Failure {
-        return readRows(path("imlog") + "&date=" + Endpoint.query(date));
+        return readRows(Json.object("type", "history", "date", date));
     }
 
-    private Rows readRows(String path) throws Failure {
-        JSONObject value = json(call("GET", path, Json.object(), new byte[0], 20_000, 200));
+    private Rows readRows(JSONObject command) throws Failure {
+        JSONObject value = json(request(command, null, 20_000, 200));
         List<Message> messages = new ArrayList<>();
         JSONArray entries = value.optJSONArray("entries");
         if (entries == null) throw new Failure("历史响应缺少 entries", 200, false);
@@ -117,6 +132,10 @@ public final class ChannelClient {
         return new Rows(messages, value.optLong("seq", 0));
     }
 
+    private static JSONObject surface(String display, boolean spoken) {
+        return Json.object("display", display, "spoken", spoken);
+    }
+
     public void sendText(
             String text,
             List<Attachment> attachments,
@@ -125,30 +144,32 @@ public final class ChannelClient {
             boolean spoken,
             String place)
             throws Failure {
-        JSONObject body = Json.object("text", text);
         JSONArray values = new JSONArray();
-        try {
-            for (Attachment attachment : attachments) {
-                JSONObject value = Json.object("name", attachment.name, "mime", attachment.mime);
-                if (!attachment.remotePath.isEmpty()) value.put("path", attachment.remotePath);
-                if (!attachment.sha256.isEmpty()) value.put("sha256", attachment.sha256);
-                values.put(value);
+        for (Attachment a : attachments) {
+            JSONObject value = Json.object("name", a.name, "mime", a.mime);
+            try {
+                if (!a.remotePath.isEmpty()) value.put("path", a.remotePath);
+                if (!a.sha256.isEmpty()) value.put("sha256", a.sha256);
+            } catch (org.json.JSONException impossible) {
+                throw new AssertionError(impossible);
             }
-            if (values.length() > 0) body.put("attachments", values);
-        } catch (Exception failure) {
-            throw new Failure("附件信息无效", 0, false);
+            values.put(value);
         }
-        JSONObject headers = messageHeaders(key, display, spoken, place);
-        try {
-            headers.put("Content-Type", "application/json");
-        } catch (Exception impossible) {
-            throw new AssertionError(impossible);
-        }
-        call(
-                "POST",
-                path("messages"),
-                headers,
-                body.toString().getBytes(StandardCharsets.UTF_8),
+        request(
+                Json.object(
+                        "type",
+                        "text",
+                        "id",
+                        key,
+                        "text",
+                        text,
+                        "attachments",
+                        values,
+                        "surface",
+                        surface(display, spoken),
+                        "place",
+                        place == null ? JSONObject.NULL : place),
+                null,
                 30_000,
                 202);
     }
@@ -171,30 +192,20 @@ public final class ChannelClient {
         sendVoice(voiceBody(packets, null), source, key, display, spoken, place, timeoutMs);
     }
 
-    /** Load once per upload, before any retries. A logged row may remove the owned side file. */
+    /** Load once before retries; packet validation is performed by the shared Rust parser. */
     public static byte[] voiceBody(File packets, State state) throws Failure {
-        if (state != null && state.uploadsDisabled) throw new Failure("房间已关闭上传", 503, false);
-        long limit = state == null ? 0 : state.uploadMaxBytes;
-        if (limit > 0 && packets.length() > limit) throw new Failure("录音太长，超过上传上限", 413, false);
-        byte[] bytes;
-        try {
-            bytes = Files.readAllBytes(packets.toPath());
+        admit(packets.length(), state, true);
+        try (PacketStream parser = new PacketStream()) {
+            byte[] bytes = Files.readAllBytes(packets.toPath());
             if (bytes.length == 0) throw new java.io.IOException("Empty voice note");
-            for (int offset = 0; offset < bytes.length; ) {
-                if (offset + 2 > bytes.length) throw new java.io.IOException("Truncated prefix");
-                int length = (bytes[offset] & 255) | (bytes[offset + 1] & 255) << 8;
-                offset += 2;
-                if (length < 1
-                        || length > PacketStream.MAX_PACKET_BYTES
-                        || length > bytes.length - offset)
-                    throw new java.io.IOException("Invalid voice packet");
-                offset += length;
-            }
+            parser.validate(bytes);
+            admit(bytes.length, state, true);
+            return bytes;
+        } catch (Failure failure) {
+            throw failure;
         } catch (Exception failure) {
             throw new Failure("无法读取待发送语音", 0, false);
         }
-        if (limit > 0 && bytes.length > limit) throw new Failure("录音太长，超过上传上限", 413, false);
-        return bytes;
     }
 
     public void sendVoice(
@@ -206,43 +217,71 @@ public final class ChannelClient {
             String place,
             long timeoutMs)
             throws Failure {
-        JSONObject headers = messageHeaders(key, display, spoken, place);
-        try {
-            headers.put("Content-Type", "application/vnd.ambient.opus-packets");
-            headers.put("X-Voice-Source", source);
-        } catch (Exception impossible) {
-            throw new AssertionError(impossible);
-        }
-        call("POST", path("messages"), headers, bytes, timeoutMs, 202);
+        request(
+                Json.object(
+                        "type",
+                        "voice",
+                        "id",
+                        key,
+                        "source",
+                        source,
+                        "surface",
+                        surface(display, spoken),
+                        "place",
+                        place == null ? JSONObject.NULL : place),
+                bytes,
+                timeoutMs,
+                202);
+    }
+
+    private static void admit(long size, State state, boolean voice) throws Failure {
+        if (state != null && state.uploadsDisabled) throw new Failure("房间已关闭上传", 503, false);
+        if (state != null && state.uploadMaxBytes > 0 && size > state.uploadMaxBytes)
+            throw new Failure(
+                    voice ? "录音太长，超过上传上限" : "文件太大（上限 " + state.uploadMaxBytes / 1_048_576 + " MB）",
+                    413,
+                    false);
     }
 
     public Attachment upload(Attachment attachment, State state) throws Failure {
-        if (state != null && state.uploadsDisabled) throw new Failure("房间已关闭上传", 503, false);
-        if (state != null && state.uploadMaxBytes > 0 && attachment.size > state.uploadMaxBytes)
-            throw new Failure("文件太大（上限 " + state.uploadMaxBytes / 1_048_576 + " MB）", 413, false);
+        admit(attachment.size, state, false);
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(new File(attachment.localPath).toPath());
         } catch (Exception failure) {
             throw new Failure("读不了这个文件", 0, false);
         }
+        admit(bytes.length, state, false);
         JSONObject response =
                 json(
-                        call(
-                                "POST",
-                                path("upload") + "&name=" + Endpoint.query(attachment.name),
-                                Json.object("Content-Type", attachment.mime),
+                        request(
+                                Json.object(
+                                        "type",
+                                        "upload",
+                                        "name",
+                                        attachment.name,
+                                        "mime",
+                                        attachment.mime),
                                 bytes,
                                 60_000,
                                 200));
         if (response.optString("path").isEmpty()) throw new Failure("上传响应缺少 path", 200, false);
-        String digest = sha256(bytes);
-        String supplied = response.isNull("sha256") ? "" : response.optString("sha256");
-        if (!supplied.isEmpty() && !digest.equalsIgnoreCase(supplied))
+        try {
+            JSONObject result =
+                    RustProtocol.call(
+                            Json.object(
+                                    "op",
+                                    "uploaded",
+                                    "attachment",
+                                    Json.object("name", attachment.name, "mime", attachment.mime),
+                                    "digest",
+                                    sha256(bytes),
+                                    "frame",
+                                    response));
+            return attachment.withUpload(result.optString("sha256"), result.optString("path"));
+        } catch (RustProtocol.Failure failure) {
             throw new Failure("上传响应的文件校验不一致", 200, false);
-        // Older servers acknowledge only the path. Downloads and logged attachments need the
-        // digest of the exact request body, rather than metadata saved before reading the file.
-        return attachment.withUpload(digest, response.optString("path"));
+        }
     }
 
     private static String sha256(byte[] bytes) {
@@ -256,52 +295,41 @@ public final class ChannelClient {
         }
     }
 
-    public byte[] attachment(Attachment attachment) throws Failure {
-        if (attachment.sha256.isEmpty()) throw new Failure("这个附件不可下载", 404, false);
-        return call(
-                "GET",
-                path("attachment")
-                        + "&sha256="
-                        + Endpoint.query(attachment.sha256)
-                        + "&mime="
-                        + Endpoint.query(attachment.mime)
-                        + "&name="
-                        + Endpoint.query(attachment.name),
-                Json.object(),
-                new byte[0],
+    public byte[] attachment(Attachment a) throws Failure {
+        if (a.sha256.isEmpty()) throw new Failure("这个附件不可下载", 404, false);
+        return request(
+                Json.object(
+                        "type",
+                        "attachment",
+                        "attachment",
+                        Json.object("name", a.name, "mime", a.mime, "sha256", a.sha256)),
+                null,
                 60_000,
                 200);
     }
 
     public byte[] readAloud(String text) throws Failure {
-        return call(
-                "POST",
-                path("speech"),
-                Json.object("Content-Type", "application/json"),
-                Json.object("text", text).toString().getBytes(StandardCharsets.UTF_8),
-                60_000,
-                200);
+        return request(Json.object("type", "speech", "text", text), null, 60_000, 200);
     }
 
     public JSONObject pair(String code) throws Failure {
-        JSONObject response =
-                json(
-                        call(
-                                "POST",
-                                "/api/pair",
-                                Json.object("Content-Type", "application/json"),
-                                Json.object("code", code)
-                                        .toString()
-                                        .getBytes(StandardCharsets.UTF_8),
-                                30_000,
-                                200));
-        if (response.optString("device_id").isEmpty()
-                || response.optString("room").isEmpty()
-                || response.optString("token").isEmpty()
-                || !response.optString("scope").matches("room|sessions|notify")) {
+        JSONObject request = RustProtocol.call(Json.object("op", "pair_request", "code", code));
+        byte[] response =
+                call(
+                        request.optString("method"),
+                        request.optString("path"),
+                        request.optJSONObject("headers"),
+                        RustProtocol.bytes(request.optJSONArray("body")),
+                        30_000,
+                        200);
+        // The response stays opaque until Rust validates the required credential/scope fields.
+        try {
+            JSONArray body = new JSONArray();
+            for (byte b : response) body.put(b & 255);
+            return RustProtocol.call(Json.object("op", "decode_pair", "body", body));
+        } catch (RustProtocol.Failure error) {
             throw new Failure("配对响应不完整，请更新 ambient", 200, false);
         }
-        return response;
     }
 
     public String livePath(long cursor, boolean hasCursor, boolean audio) {
@@ -309,33 +337,21 @@ public final class ChannelClient {
     }
 
     public String livePath(long cursor, boolean hasCursor, boolean audio, boolean media) {
-        return "/live?room="
-                + Endpoint.query(room)
-                + (hasCursor ? "&since=" + cursor : "")
-                + "&audio="
-                + (audio ? 1 : 0)
-                + (media ? "&media=1" : "");
-    }
-
-    private String path(String name) {
-        return "/api/" + name + "?room=" + Endpoint.query(room);
-    }
-
-    private JSONObject messageHeaders(String key, String display, boolean spoken, String place) {
-        JSONObject value =
-                Json.object(
-                        "Idempotency-Key",
-                        key,
-                        "X-Ambient-Display",
-                        display,
-                        "X-Ambient-Spoken",
-                        spoken ? "1" : "0");
-        try {
-            if (place != null && !place.isEmpty()) value.put("X-Ambient-Place", place);
-        } catch (Exception impossible) {
-            throw new AssertionError(impossible);
-        }
-        return value;
+        return RustProtocol.request(
+                        endpoint,
+                        token,
+                        room,
+                        Json.object(
+                                "type",
+                                "live",
+                                "cursor",
+                                hasCursor ? cursor : JSONObject.NULL,
+                                "audio",
+                                audio,
+                                "media",
+                                media),
+                        null)
+                .path;
     }
 
     private byte[] call(

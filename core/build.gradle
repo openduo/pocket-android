@@ -10,6 +10,7 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 dependencies {
+    api project(':protocol')
     compileOnly 'org.json:json:20250517'
     implementation files('../android/libs/zxing-core-3.5.3.jar')
     implementation fileTree(dir: '../android/libs', include: ['commonmark*.jar'])
@@ -20,10 +21,11 @@ dependencies {
 sourceSets.test.java.srcDirs = [rootProject.file('tests/host')]
 
 tasks.register('contracts', JavaExec) {
-    dependsOn testClasses
+    dependsOn testClasses, rootProject.tasks.named('buildRustHost')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'Contracts'
     enableAssertions = true
     systemProperty 'pocket.android.root', rootProject.projectDir.absolutePath
+    systemProperty 'java.library.path', rootProject.file('.build/rust/host').absolutePath
 }
 tasks.named('check') { dependsOn 'contracts' }

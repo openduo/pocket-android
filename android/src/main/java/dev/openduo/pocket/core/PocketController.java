@@ -29,7 +29,6 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -1200,6 +1199,7 @@ public final class PocketController {
     private void frame(String text, boolean resumed) {
         try {
             JSONObject frame = new JSONObject(text);
+            RustProtocol.call(Json.object("op", "decode_live", "frame", frame));
             String type = frame.optString("type");
             boolean accessoryAlert =
                     PassportPolicy.ENABLED
@@ -1268,7 +1268,9 @@ public final class PocketController {
                         ambient = playback.active() ? Ambient.SPEAKING : Ambient.LISTENING;
                 }
             } else if (type.equals("audio_params")) {
-                if (frame.optInt("rate", 16000) != 16000) {
+                try {
+                    ambientInput.validateFrame(frame);
+                } catch (RustProtocol.Failure incompatible) {
                     notice("房间音频采样率不兼容");
                     ambientOff();
                 }
@@ -1951,13 +1953,8 @@ public final class PocketController {
             publish();
         }
         if (!ambientInput.sendsAudio()) return;
-        byte[] bytes = packet;
-        if (ambientInput.media()) {
-            bytes = new byte[packet.length + 1];
-            bytes[0] = 1;
-            System.arraycopy(packet, 0, bytes, 1, packet.length);
-        }
-        sendBinary(bytes);
+        byte[] bytes = ambientInput.uplink(packet);
+        if (bytes != null) sendBinary(bytes);
     }
 
     public void ambientToggle() {
@@ -2215,14 +2212,12 @@ public final class PocketController {
 
     private void binary(byte[] bytes) {
         if (!ambientInput.metaSeen()) return;
-        if (ambientInput.media()) {
-            if (bytes.length < 2 || bytes[0] != 1) return;
-            bytes = Arrays.copyOfRange(bytes, 1, bytes.length);
-        }
         if (ambientInput.pressMuted()
                 || !playback.readingId().isEmpty()
                 || !foreground && !ambientWanted && !playback.pending()) return;
         try {
+            bytes = ambientInput.downlink(bytes);
+            if (bytes == null) return;
             playback.packet(bytes, ambientWanted && ambientMuted);
         } catch (Exception failure) {
             notice("语音解码失败");

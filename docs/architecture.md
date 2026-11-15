@@ -111,3 +111,13 @@ PocketController from creeping back in.
 Gradle wrapper 8.13, AGP 8.13.2 and CMake provide the standard build. Go tasks declare inputs and outputs; JNI names follow the Java package; Opus comes from a checksum-pinned source archive. Signing material stays outside the repository. Generic builds contain no E2 firmware payload. CI checks source boundaries, JVM contracts, Go and a generic Debug APK. Device probes are explicit opt-in.
 
 `scripts/check-architecture.py` checks module purity, UI/business boundaries, window-pixel ownership and OEM model detection. Gradle dependencies also prevent pure protocol code from importing Android/UI. See [devices](devices.md), [UI](ui.md) and [localization](localization.md) for extension rules.
+
+## Shared Rust protocol boundary
+
+`:protocol` compiles the pinned pocket-rs Java binding; C JNI only copies borrowed inputs/owned
+results and frees each Rust result. `:core` contains domain facades for endpoint/pairing, API,
+framing, Ambient input/output and retry owners; the former Java reducers are removed. JVM contracts
+load the host Rust library, while Android packages the same core for both supported ABIs. Protocol
+code remains independent of Android and Go. Existing task/SQLite/network/audio/lifecycle owners stay
+in this app; it uses granular Rust owners instead of dispatching a duplicate Rust aggregate Session.
+See [ownership and build details](rust.md).

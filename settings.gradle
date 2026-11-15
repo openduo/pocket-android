@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = 'pocket-android'
-include ':app', ':core', ':input', ':ui-policy', ':device', ':device-e2'
+include ':app', ':core', ':input', ':ui-policy', ':device', ':device-e2', ':protocol'
 project(':app').projectDir = file('android')

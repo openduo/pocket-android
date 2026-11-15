@@ -254,8 +254,8 @@ public final class Contracts {
                 "real capture sends hello then microphone-on");
         edge.meta(Json.object("role", "peer", "state", "listening"), "room");
         check(
-                !edge.sendsAudio() && edge.takeover("room").size() == 2 && edge.sendsAudio(),
-                "peer waits for explicit takeover");
+                !edge.sendsAudio() && edge.takeover("room").size() == 2 && !edge.sendsAudio(),
+                "takeover preserves peer until the room grants master, matching original iOS");
         edge.press("phone", true);
         edge.press("passport", true);
         check(

@@ -110,6 +110,9 @@ if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 && "$(adb shell getprop ro.build.ver
 fi
 adb shell input keyevent 224
 adb shell wm dismiss-keyguard
+if [[ "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 || "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" == 1 ]]; then
+  adb shell input keyevent 82
+fi
 if [[ "${POCKET_E2_TEST_PROCESS_DEATH:-0}" == 1 ]]; then
   python3 "$project_dir/scripts/test-process-death.py" "$build" | tee "$build/process-death-result.txt"
   exit
@@ -124,6 +127,7 @@ if [[ "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
 fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n dev.openduo.pocket.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
+  -e rustMigrationOnly "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}"
   -e lockscreenPlaybackOnly "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}"
   -e showcaseOnly "${POCKET_CAPTURE_SHOWCASE:-0}"
   -e showcaseLanguage "${POCKET_SHOWCASE_LANGUAGE:-en}"
@@ -170,7 +174,7 @@ probe_args=(
 if [[ -n "${POCKET_TEST_NOTIFY_TARGET:-}" ]]; then
   probe_args+=(-e notifyTargetBase64 "$(printf '%s' "$POCKET_TEST_NOTIFY_TARGET" | base64 | tr -d '\r\n')")
 fi
-if [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
+if [[ "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" == 1 || "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
   resume_after_probe=1
 fi
 adb shell am instrument -w -r "${probe_args[@]}" "$probe_package/dev.openduo.pocket.qa.Probe" | tee "$build/result.txt"
@@ -181,6 +185,6 @@ if [[ "${POCKET_CAPTURE_SHOWCASE:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/showcase" "$build/showcase" >/dev/null
 elif [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/service-readiness" "$build/service-readiness" >/dev/null
-elif [[ "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 && "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" != 1 && "${POCKET_TEST_INPUT_ONLY:-0}" != 1 && "${POCKET_TEST_COORDINATION_ONLY:-0}" != 1 && "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" != 1 ]]; then
+elif [[ "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" != 1 && "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 && "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" != 1 && "${POCKET_TEST_INPUT_ONLY:-0}" != 1 && "${POCKET_TEST_COORDINATION_ONLY:-0}" != 1 && "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" != 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/qa" "$build/screenshots" >/dev/null
 fi

@@ -42,9 +42,11 @@ The earlier test package, `top.kuaner.pockete2`, and this app can coexist. Andro
 
 ## Build
 
-Use JDK 17, Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1, Go 1.27.4 and the x/mobile version pinned in `go.mod`. Gradle wrapper 8.13 and AGP 8.13.2 are pinned. Open the repository directly in Android Studio.
+Use Rust 1.100.0, JDK 17, Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1, Go 1.27.4 and the x/mobile version pinned in `go.mod`. Gradle wrapper 8.13 and AGP 8.13.2 are pinned. Open the repository directly in Android Studio.
 
 ```sh
+git submodule update --init --recursive
+rustup target add aarch64-linux-android x86_64-linux-android
 export ANDROID_HOME=/path/to/android-sdk
 sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
 go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
@@ -53,7 +55,8 @@ gomobile init
 ./gradlew :app:assembleDebug
 ```
 
-The generic build uses Android framework audio. It never automatically includes local E2 firmware. A Gradle task builds the Go bridge for both ABIs; CMake builds Opus from the checksum-pinned source archive. `./gradlew :core:check` runs JVM contracts without a device.
+The generic build uses Android framework audio. It never automatically includes local E2 firmware. A Gradle task builds the Go bridge for both ABIs; CMake builds Opus from the checksum-pinned source archive. `./gradlew :core:check` runs JVM contracts against the actual host Rust/JNI library without a device.
+See [shared protocol integration](docs/rust.md).
 
 For a locally signed release:
 
@@ -70,7 +73,8 @@ E2 array capture is an [explicit local build option](docs/devices.md). Proprieta
 
 | Module | Responsibility |
 | --- | --- |
-| `:core` | Pure Java protocol, models, reducers, request boundaries and Try transport; no Android, UI or hardware dependency |
+| `:core` | Android-independent models/application reducers, Rust protocol facades, request boundaries and Try transport |
+| `:protocol` | Pinned pocket-rs Java/JNI interface; Rust owns room wire/framing/Ambient/retry rules |
 | `:input` | Pure Java actions, input targets and paired key gestures; no Android or business dependency |
 | `:ui-policy` | Pure Java window/typography policy; no business state or model-specific layout |
 | `:device` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |

@@ -38,10 +38,12 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), new File(rootProject.pocketRustDir, 'bindings/java/consumer-rules.pro')
         }
     }
     sourceSets.main {
         jniLibs.srcDir rootProject.file('.build/tsbridge/jni')
+        jniLibs.srcDir rootProject.file('.build/rust/android')
         assets.srcDir layout.buildDirectory.dir('generated/legalAssets')
     }
     packaging {
@@ -69,20 +71,25 @@ tasks.register('prepareLegalAssets', Sync) {
     from(rootProject.file('third_party/opus-LICENSE.txt')) { rename { 'Opus-LICENSE.txt' } }
     from(rootProject.file('third_party/Unicode-LICENSE.txt'))
     from('libs') { include '*LICENSE.txt' }
+    from(rootProject.pocketRustDir) {
+        include 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_DEPENDENCIES.json', 'THIRD_PARTY_LICENSES.txt'
+        into 'pocket-rs'
+    }
 }
 tasks.named('preBuild') {
-    dependsOn rootProject.tasks.named('verifySources'), rootProject.tasks.named('buildBridge'), 'prepareLegalAssets'
+    dependsOn rootProject.tasks.named('verifySources'), rootProject.tasks.named('buildBridge'), rootProject.tasks.named('buildRustAndroid'), 'prepareLegalAssets'
 }
 
 // Preserve the existing opt-in instrumentation runner across the build-system migration.
 tasks.register('exportProbeClasspath', Jar) {
-    dependsOn 'compileReleaseJavaWithJavac', ':core:classes', ':input:classes', ':ui-policy:classes',
+    dependsOn 'compileReleaseJavaWithJavac', ':core:classes', ':protocol:classes', ':input:classes', ':ui-policy:classes',
             ':device:compileReleaseJavaWithJavac', ':device-e2:compileReleaseJavaWithJavac'
     archiveFileName = 'classes.jar'
     destinationDirectory = rootProject.layout.projectDirectory.dir('.build/android')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from layout.buildDirectory.dir('intermediates/javac/release/compileReleaseJavaWithJavac/classes')
     from project(':core').layout.buildDirectory.dir('classes/java/main')
+    from project(':protocol').layout.buildDirectory.dir('classes/java/main')
     from project(':input').layout.buildDirectory.dir('classes/java/main')
     from project(':ui-policy').layout.buildDirectory.dir('classes/java/main')
     for (module in [':device', ':device-e2']) {

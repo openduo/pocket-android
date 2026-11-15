@@ -96,3 +96,11 @@ controller 保留应用命令入口、不可变 snapshot 投影、组件装配�
 构建使用 Gradle wrapper 8.13、AGP 8.13.2 和 CMake。Go bridge 通过有输入/输出声明的任务构建，JNI 包名与 Java 一致，Opus 的固定源码压缩包经过 SHA-256 校验。Release 签名不进入仓库，公共构建无 E2 私有 payload。CI 运行静态边界、纯 Java 契约、Go 检查和通用 Debug APK 构建；设备探针保持显式 opt-in。
 
 `scripts/check-architecture.py` 检查模块纯度、UI/业务、窗口像素和 OEM 型号边界。Gradle 模块同时阻止纯协议误引用 Android 或 UI。新增设备见[设备指南](devices.md)，新增布局规则见[UI 指南](ui.md)。
+
+## 共享 Rust 协议边界
+
+`:protocol` 编译固定版本 pocket-rs 的 Java 桥；C JNI 只负责借用输入、复制结果和释放 Rust 缓冲。
+`:core` 中的 Endpoint／配对、API、分帧、Ambient 输入／播放和重试门面实际调用 Rust，原对应
+Java 状态机已删除。JVM 契约加载宿主 Rust 库，Android 为两个 ABI 打包同一核心。协议不依赖
+Android／Go；应用保留任务／SQLite／网络／音频／生命周期所有权，不会再启动第二个 Rust
+聚合 Session。详见[接入说明](rust.zh-CN.md)。

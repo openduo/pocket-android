@@ -1,5 +1,14 @@
 # Pocket Android engineering rules
 
+Rust protocol adoption (2026-11-15): the user's completion gate includes actual Android integration
+and E2 acceptance. `:protocol` builds the pinned pocket-rs Java/JNI binding; the former Java endpoint,
+Chat request/framing, Ambient input/output and retry reducers delegate to Rust. Core live validation
+also runs there. Keep Android network/SQLite/resource/foreground-service ordering in existing owners;
+never also drive Rust's aggregate Session as a second sender. The current public-identity E2 check
+passes 16 Rust/ART plus 22 Try-only wiring assertions and a separate 15 screen-off assertions; no
+capture or real-room test messages. Preserve pairing/node/data and do not repeat unrelated matrices.
+The active work is final pinned-source build/CI/documentation/public SDK release, not new features.
+
 Lockscreen playback fix (2026-11-15): Activity backgrounding must not stop an already-started
 spoken reply or local read. RoomPlayback/AmbientOutput retain reception through chunk gaps and
 matching completion duration; native drain is separate. PocketSessionService uses mediaPlayback
@@ -8,9 +17,8 @@ The old APK failed the actual API35 screen-off probe; the fixed generic APK pass
 assertions, plus 2,622 JVM assertions (seven new), localization/source checks and Debug/Release
 builds. No microphone, room sends or broad matrix. The user subsequently reconnected E2 and
 explicitly requested migration to the public package: the old app was uninstalled and the fixed
-signed `dev.openduo.pocket` APK was installed and opened. The user will log into Tailscale and
-provide a fresh pairing link. Do not take over that login or reuse old credentials. E2 screen-off
-acceptance remains pending; do not turn this handoff into an unrelated device/service regression.
+signed `dev.openduo.pocket` APK was installed and opened. The user subsequently completed fresh Tailscale login and pairing; the room is Online. Never reuse
+retired credentials. E2 screen-off acceptance now passes the targeted check above; do not turn this handoff into an unrelated device/service regression.
 
 Current milestone (2026-11-15): continue splitting by actual ownership until further splitting
 would add forwarding, duplicate state or conceal necessary coordination. Composer/HistoryPager own
@@ -117,7 +125,7 @@ Push (including crypto/identifiers/ledger) remains explicitly deferred.
   update are complete. Earlier original-package checks remain historical evidence. Use the public
   identity for subsequent device work; do not reinstall the legacy app or clear the new app's data.
   Package IDs cannot share AndroidKeyStore: use the user's fresh login and pairing, not copied
-  credentials. Leave the device available while the user completes Tailscale login.
+  credentials. Fresh public-package login/pairing is complete; retain that node and leave the app available.
 - Do not spawn subagents without an explicit user request. No unsolicited full regression, long
   wait, or notification/message to a person. Existing opt-in probes can send real room content;
   read their scope before use and never silently run them for a build/refactor.

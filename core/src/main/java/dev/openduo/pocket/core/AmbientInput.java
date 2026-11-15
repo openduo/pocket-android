@@ -1,112 +1,100 @@
-// Copyright 2026 openduo and pocket-e2 contributors
+// Copyright 2026 openduo and OpenDuo contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
-
 package dev.openduo.pocket.core;
 
 import org.json.JSONObject;
 
-import java.util.*;
+import java.util.List;
 
-/** The uplink rules of PocketCore.AmbientEdge, without capture or socket ownership. */
-public final class AmbientInput {
-    private String conn = "", role = "", roomState = "";
-    private boolean capturing, hello, media, echo, metaSeen, micMayBeOff;
-    private final Set<String> presses = new HashSet<>();
+/** Android domain facade for the Rust Ambient uplink owner; no local protocol state. */
+public final class AmbientInput implements AutoCloseable {
+    private final RustProtocol.Owner owner = new RustProtocol.Owner("ambient_input");
 
     public String role() {
-        return role;
+        return owner.state().optString("role", "");
     }
 
     public String roomState() {
-        return roomState;
+        return owner.state().optString("room_state", "");
     }
 
     public boolean helloSent() {
-        return hello;
+        return owner.state().optBoolean("hello");
     }
 
     public boolean media() {
-        return media;
+        return owner.state().optBoolean("media");
     }
 
     public boolean metaSeen() {
-        return metaSeen;
+        return owner.state().optBoolean("meta_seen");
     }
 
     public boolean pressMuted() {
-        return !presses.isEmpty();
+        return owner.state().optBoolean("muted");
     }
 
     public boolean sendsAudio() {
-        return capturing && hello && !role.equals("peer");
+        return owner.state().optBoolean("sends_audio");
     }
 
     public void socketOpened() {
-        conn = role = roomState = "";
-        hello = media = metaSeen = micMayBeOff = false;
+        owner.dispatch(Json.object("type", "opened"));
     }
 
     public void captureStopped() {
-        capturing = hello = false;
+        owner.dispatch(Json.object("type", "stopped"));
     }
 
     public List<JSONObject> packet(String room, boolean aec) {
-        capturing = true;
-        echo = aec;
-        return hello(room);
+        return frames(Json.object("type", "packet", "room", room, "aec", aec));
     }
 
     public List<JSONObject> meta(JSONObject frame, String room) {
-        metaSeen = true;
-        if (frame.has("media")) {
-            if (frame.optInt("media", -1) != 1)
-                throw new IllegalArgumentException("Unsupported media");
-            media = true;
+        JSONObject normalized;
+        try {
+            normalized = new JSONObject(frame.toString());
+            normalized.put("type", "meta");
+        } catch (org.json.JSONException impossible) {
+            throw new AssertionError(impossible);
         }
-        if (frame.has("conn")) {
-            conn = frame.optString("conn");
-            hello = false;
-        }
-        role = frame.optString("role", role);
-        roomState = frame.optString("state", roomState);
-        if (roomState.equals("unowned")) role = "";
-        return hello(room);
+        return frames(Json.object("type", "meta", "frame", normalized, "room", room));
     }
 
     public List<JSONObject> takeover(String room) {
-        hello = false;
-        role = "";
-        roomState = "";
-        return hello(room);
+        return frames(Json.object("type", "takeover", "room", room));
     }
 
     public List<JSONObject> press(String source, boolean active) {
-        boolean before = pressMuted();
-        if (active) presses.add(source);
-        else presses.remove(source);
-        return before != pressMuted() && hello
-                ? Collections.singletonList(micFrame())
-                : Collections.emptyList();
+        return frames(Json.object("type", "press", "source", source, "active", active));
     }
 
     public JSONObject micFrame() {
-        // A queued unmute can be discarded by socket teardown. Retain this obligation until
-        // the socket ends, even after the last local press has already been released.
-        if (pressMuted()) micMayBeOff = true;
-        return Json.object("type", "mute", "on", !pressMuted());
+        return owner.dispatch(Json.object("type", "mic_frame")).optJSONObject("result");
     }
 
-    /** Best-effort room-control restoration, to be written before releasing this socket. */
+    public void validateFrame(JSONObject frame) {
+        owner.dispatch(Json.object("type", "frame", "frame", frame, "room", ""));
+    }
+
     public JSONObject releaseMicrophone() {
-        return hello && micMayBeOff ? Json.object("type", "mute", "on", true) : null;
+        return owner.dispatch(Json.object("type", "release")).optJSONObject("result");
     }
 
-    private List<JSONObject> hello(String room) {
-        if (!capturing || conn.isEmpty() || hello) return Collections.emptyList();
-        hello = true;
-        return Arrays.asList(
-                Json.object(
-                        "type", "hello", "room", room, "conn", conn, "edge", "client", "aec", echo),
-                micFrame());
+    public byte[] uplink(byte[] packet) {
+        return RustProtocol.bytes(owner.binary(1, packet).optJSONArray("result"));
+    }
+
+    public byte[] downlink(byte[] frame) {
+        return RustProtocol.bytes(owner.binary(2, frame).optJSONArray("result"));
+    }
+
+    private List<JSONObject> frames(JSONObject command) {
+        return RustProtocol.frames(owner.dispatch(command).optJSONArray("result"));
+    }
+
+    @Override
+    public void close() {
+        owner.close();
     }
 }

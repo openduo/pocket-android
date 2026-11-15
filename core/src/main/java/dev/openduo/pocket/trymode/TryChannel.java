@@ -224,8 +224,7 @@ public final class TryChannel implements ChannelConnection, AutoCloseable {
             String source = header(headers, "X-Voice-Source");
             if (!source.matches("phone|passport")) return error(400, "bad_body");
             int packets = 0;
-            try {
-                PacketStream reader = new PacketStream();
+            try (PacketStream reader = new PacketStream()) {
                 for (int offset = 0; offset < body.length; offset += 4096)
                     packets +=
                             reader.push(
@@ -542,9 +541,8 @@ public final class TryChannel implements ChannelConnection, AutoCloseable {
 
     private boolean speak(String id, String clip) {
         if (!audio || !isOpen()) return false;
-        try {
+        try (PacketStream parser = new PacketStream()) {
             byte[] bytes = resources.read(clip + ".opus-packets");
-            PacketStream parser = new PacketStream();
             frame(Json.object("type", "speech", "speech_id", id));
             for (int offset = 0; offset < bytes.length; offset += 4096)
                 for (byte[] packet :

@@ -603,3 +603,11 @@ behaviour or sustained ambient capture.
 | Engineering / distribution | Public `openduo/pocket-android` and signed preview APK; standard Gradle/AGP/CMake, pure protocol/window/input modules, owned voice-note storage, shared foreground key/remote dispatch, common Android device layer and E2 adapter example, arm64+x86_64, private signing, pinned dependencies/assets and boundary checks; English/Chinese guides and English physical-E2/emulator screenshots | Target smart-speaker hardware, ARMv7/32-bit, broader OEM/background/acoustic acceptance and final feature-parity audit remain open. Current remote CI and verification are linked from the Release/status records |
 
 Future parity acceptance should use real service/device evidence for the selected feature, distinguish prepared faults from actual failures and preserve message identity/resource ownership. This is a future gap record, not a mandate to repeat the earlier full matrix or long background task. Keep E2Studio, its data, launcher and existing BLE connection intact.
+
+## Shared protocol follow-up
+
+Android's Chat/Ambient wire and retry owners now call the pinned `openduo/pocket-rs` library through
+JNI. Native networking/audio/storage/lifecycle remain Android-owned, and the existing aggregate app
+coordination does not run a duplicate Rust Session. The library's [migration plan](https://github.com/openduo/pocket-rs/blob/main/docs/migration.md)
+records native Linux, Android and future iOS gates independently. See [integration](rust.md) and
+[current evidence](status.md). Push, Sight and remaining 1:1 product gaps retain their earlier status.

@@ -2,14 +2,11 @@
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 package dev.openduo.pocket.audio;
 
-import dev.openduo.pocket.core.Endpoint;
-import dev.openduo.pocket.core.Json;
 import dev.openduo.pocket.core.Message;
 import dev.openduo.pocket.net.ChannelClient;
 import dev.openduo.pocket.net.ChannelTransport;
 import dev.openduo.pocket.net.RoomAccess;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -91,18 +88,15 @@ public final class SpeechReader {
     private void receive(
             Reading current, String room, OutputFactory output, Completion completion) {
         if (!isCurrent(current)) return;
-        PacketStream packets = new PacketStream();
         final boolean[] received = {false};
         final Exception[] parseError = {null};
         Exception problem = null;
-        try (Output sink = output.open()) {
+        try (PacketStream packets = new PacketStream();
+                Output sink = output.open()) {
             ChannelTransport.Response response =
-                    current.access.stream(
+                    current.access.speech(
                             current.request,
-                            "/api/speech?room=" + Endpoint.query(room),
-                            Json.object("text", current.message.text)
-                                    .toString()
-                                    .getBytes(StandardCharsets.UTF_8),
+                            current.message.text,
                             bytes -> {
                                 if (!isCurrent(current) || parseError[0] != null) return;
                                 try {

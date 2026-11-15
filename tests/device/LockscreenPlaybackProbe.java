@@ -85,8 +85,12 @@ final class LockscreenPlaybackProbe {
 
     private void await(Callable<Boolean> condition, long timeout, String label) throws Exception {
         long until = SystemClock.elapsedRealtime() + timeout;
-        while (!condition.call() && SystemClock.elapsedRealtime() < until) Thread.sleep(20);
-        check(condition.call(), label);
+        boolean ready = condition.call();
+        while (!ready && SystemClock.elapsedRealtime() < until) {
+            Thread.sleep(20);
+            ready = condition.call();
+        }
+        check(ready, label);
     }
 
     private boolean awake() {
@@ -125,6 +129,9 @@ final class LockscreenPlaybackProbe {
     private void wake() throws Exception {
         shell("input keyevent 224");
         shell("wm dismiss-keyguard");
+        // Some API27 OEM shells cannot invoke CONTROL_KEYGUARD. MENU performs the normal
+        // non-secure lockscreen dismissal; it cannot dismiss a credential-protected screen.
+        shell("input keyevent 82");
         context.startActivity(
                 new Intent(context, MainActivity.class)
                         .addFlags(

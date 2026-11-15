@@ -1,20 +1,15 @@
-// Copyright 2026 openduo and pocket-e2 contributors
+// Copyright 2026 openduo and OpenDuo contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
-
 package dev.openduo.pocket.core;
 
 import org.json.JSONObject;
 
 import java.util.function.LongSupplier;
 
-/** PocketCore.AmbientEdge's output policy. State-owner only; no decoder or hardware ownership. */
-public final class AmbientOutput {
-    private static final long RECEIVE_IDLE_MS = 30_000;
+/** Domain facade for Rust's output clock/reception owner; hardware remains platform-owned. */
+public final class AmbientOutput implements AutoCloseable {
+    private final RustProtocol.Owner owner = new RustProtocol.Owner("ambient_output");
     private final LongSupplier clock;
-    private String id = "";
-    private boolean reading, receiving;
-    private long hardwareMs, skippedSamples, reportedMs, declaration;
-    private long receivedSamples, completedMs = -1, lastActivity;
 
     public AmbientOutput() {
         this(() -> System.nanoTime() / 1_000_000L);
@@ -25,111 +20,83 @@ public final class AmbientOutput {
     }
 
     public String id() {
-        return id;
+        return owner.state().optString("id", "");
     }
 
     public boolean reading() {
-        return reading;
+        return owner.state().optBoolean("reading");
     }
 
-    /** A hardware queue can drain between network chunks without ending the reply. */
     public boolean receiving() {
-        return receiving;
+        return owner.state().optBoolean("receiving");
     }
 
-    public void received(int samples) {
-        if (reading || id.isEmpty() || samples <= 0) return;
-        receivedSamples += samples;
-        lastActivity = clock.getAsLong();
-        if (completedMs >= 0 && receivedSamples * 1000 / 16_000 >= completedMs) receiving = false;
-    }
-
-    /** The room's synthesis receipt does not replace the device's hardware drain. */
-    public boolean completed(JSONObject frame) {
-        if (reading
-                || id.isEmpty()
-                || !frame.optString("state").equals("done")
-                || !frame.optString("speech_id").equals(id)
-                || frame.optLong("played_ms", 0) < 0) return false;
-        completedMs = frame.optLong("played_ms", 0);
-        lastActivity = clock.getAsLong();
-        if (receivedSamples * 1000 / 16_000 >= completedMs) receiving = false;
-        return true;
-    }
-
-    /**
-     * Older/interrupted services may omit completion; never keep an idle playback service forever.
-     */
-    public boolean expire(boolean hardwarePending) {
-        if (!receiving || hardwarePending || clock.getAsLong() - lastActivity < RECEIVE_IDLE_MS)
-            return false;
-        receiving = false;
-        return true;
-    }
-
-    /** Hardware keys are local; a repeated wire id still starts a different Opus declaration. */
     public String playbackKey() {
-        return id.isEmpty() ? "" : "output:" + declaration;
+        return owner.state().optString("key", "");
     }
 
     public long playedMs() {
-        return hardwareMs + skippedSamples * 1000 / 16_000;
+        return owner.state().optLong("played_ms");
     }
 
-    /** A new declaration resets accounting, while previously queued PCM may finish first. */
-    public void speech(String speech) {
-        stop();
-        declaration++;
-        id = speech;
-        receiving = !speech.isEmpty();
-        lastActivity = clock.getAsLong();
+    public void received(int samples) {
+        if (samples > 0) call("received", "samples", samples);
     }
 
-    public void read(String message) {
-        speech("read:" + message);
-        reading = true;
-        receiving = false;
+    public boolean completed(JSONObject frame) {
+        return call("completed", "frame", frame).optBoolean("result");
+    }
+
+    public boolean expire(boolean hardwarePending) {
+        return call("expire", "hardware_pending", hardwarePending).optBoolean("result");
+    }
+
+    public void speech(String id) {
+        if (id.isEmpty()) stop();
+        else call("speech", "id", id);
+    }
+
+    public void read(String id) {
+        call("read", "id", id);
     }
 
     public void stop() {
-        id = "";
-        reading = receiving = false;
-        hardwareMs = skippedSamples = reportedMs = 0;
-        receivedSamples = lastActivity = 0;
-        completedMs = -1;
+        call("stop");
     }
 
-    /** A room stop neither cuts a local read nor fillers; a named stale stop is ignored. */
     public boolean acceptsStop(JSONObject frame) {
-        return !reading
-                && !id.startsWith("s")
-                && (!frame.has("speech_id") || frame.optString("speech_id").equals(id));
+        return call("accepts_stop", "frame", frame).optBoolean("result");
     }
 
-    /** Only a local press/read interrupts a room speech, including a filler. */
     public JSONObject interrupted(boolean reports) {
-        return reports && !reading && !id.isEmpty()
-                ? Json.object("type", "interrupted", "speech_id", id)
-                : null;
+        return call("interrupted", "reports", reports).optJSONObject("result");
     }
 
     public JSONObject played(String key, long ms, boolean reports) {
-        if (!key.equals(playbackKey()) || id.isEmpty() || ms < 0) return null;
-        hardwareMs = Math.max(hardwareMs, ms);
-        return report(reports);
+        return ms < 0
+                ? null
+                : call("played", "key", key, "ms", ms, "reports", reports).optJSONObject("result");
     }
 
-    /** Silent new room blocks count immediately instead of holding the room's playback clock. */
     public JSONObject skipped(int samples, boolean reports) {
-        if (id.isEmpty() || reading || samples <= 0) return null;
-        skippedSamples += samples;
-        return report(reports);
+        return samples <= 0
+                ? null
+                : call("skipped", "samples", samples, "reports", reports).optJSONObject("result");
     }
 
-    private JSONObject report(boolean reports) {
-        long ms = playedMs();
-        if (!reports || reading || ms <= reportedMs) return null;
-        reportedMs = ms;
-        return Json.object("type", "played", "speech_id", id, "ms", ms);
+    private JSONObject call(String type, Object... args) {
+        JSONObject command = Json.object(args);
+        try {
+            command.put("type", type);
+            command.put("now_ms", clock.getAsLong());
+        } catch (org.json.JSONException impossible) {
+            throw new AssertionError(impossible);
+        }
+        return owner.dispatch(command);
+    }
+
+    @Override
+    public void close() {
+        owner.close();
     }
 }

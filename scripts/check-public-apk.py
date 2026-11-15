@@ -9,7 +9,7 @@ import zipfile
 
 apk = Path(sys.argv[1])
 expected = {f'lib/{abi}/{name}' for abi in ('arm64-v8a', 'x86_64')
-            for name in ('libgojni.so', 'libpocket_opus.so')}
+            for name in ('libgojni.so', 'libpocket_opus.so', 'libpocket_core.so', 'libpocket_jni.so')}
 with zipfile.ZipFile(apk) as archive:
     names = set(archive.namelist())
     native = {name for name in names if name.startswith('lib/') and name.endswith('.so')}

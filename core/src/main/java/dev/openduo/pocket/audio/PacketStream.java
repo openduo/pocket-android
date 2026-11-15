@@ -1,47 +1,55 @@
-// Copyright 2026 openduo and pocket-e2 contributors
+// Copyright 2026 openduo and OpenDuo contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
-
 package dev.openduo.pocket.audio;
+
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.RustProtocol;
+
+import org.json.JSONArray;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-/** Incremental voice packet framing, bounded to one legal Opus packet between callbacks. */
-public final class PacketStream {
+/** Incremental Rust packet owner. The stream worker closes it after completion or cancellation. */
+public final class PacketStream implements AutoCloseable {
     public static final int MAX_PACKET_BYTES = 1275;
-    private final byte[] packet = new byte[MAX_PACKET_BYTES];
-    private int prefixBytes, length, filled;
+    private final RustProtocol.Owner owner = new RustProtocol.Owner("packet_stream");
 
     public List<byte[]> push(byte[] chunk) throws IOException {
-        List<byte[]> completed = new ArrayList<>();
-        for (byte value : chunk) {
-            if (prefixBytes < 2) {
-                if (prefixBytes++ == 0) length = value & 255;
-                else {
-                    length |= (value & 255) << 8;
-                    if (length < 1 || length > MAX_PACKET_BYTES)
-                        throw new IOException("Invalid Opus packet length");
-                }
-            } else {
-                packet[filled++] = value;
-                if (filled == length) {
-                    completed.add(Arrays.copyOf(packet, length));
-                    filled = 0;
-                    prefixBytes = 0;
-                    length = 0;
-                }
-            }
+        try {
+            JSONArray packets = owner.binary(0, chunk).optJSONArray("result");
+            List<byte[]> result = new ArrayList<>();
+            for (int i = 0; i < packets.length(); i++)
+                result.add(RustProtocol.bytes(packets.optJSONArray(i)));
+            return result;
+        } catch (RustProtocol.Failure error) {
+            throw new IOException(error.code, error);
         }
-        return completed;
     }
 
     public int partial() {
-        return prefixBytes + filled;
+        return owner.state().optInt("partial");
+    }
+
+    public void validate(byte[] body) throws IOException {
+        try {
+            owner.binary(3, body);
+        } catch (RustProtocol.Failure error) {
+            throw new IOException(error.code, error);
+        }
     }
 
     public void finish() throws IOException {
-        if (partial() != 0) throw new IOException("Truncated Opus stream");
+        try {
+            owner.dispatch(Json.object("type", "finish"));
+        } catch (RustProtocol.Failure error) {
+            throw new IOException(error.code, error);
+        }
+    }
+
+    @Override
+    public void close() {
+        owner.close();
     }
 }

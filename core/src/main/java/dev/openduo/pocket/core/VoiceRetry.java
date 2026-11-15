@@ -1,37 +1,52 @@
-// Copyright 2026 openduo and pocket-e2 contributors
+// Copyright 2026 openduo and OpenDuo contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
-
 package dev.openduo.pocket.core;
+
+import org.json.JSONObject;
 
 import java.util.function.LongSupplier;
 
-/** The upstream voice upload's elapsed-time budget, including body preparation and backoff. */
+/** Rust's monotonic upload budget/backoff, with the caller's monotonic clock. */
 public final class VoiceRetry {
     private final LongSupplier now;
-    private final long start, budgetMs;
-    private long backoffMs = 500;
+    private final long budget;
+    private JSONObject state;
 
     public VoiceRetry() {
-        this(25_000, () -> System.nanoTime() / 1_000_000);
+        this(25_000, () -> System.nanoTime() / 1_000_000L);
     }
 
     public VoiceRetry(long budgetMs, LongSupplier monotonicMillis) {
         if (budgetMs <= 0) throw new IllegalArgumentException("Invalid voice upload budget");
-        this.budgetMs = budgetMs;
+        budget = budgetMs;
         now = monotonicMillis;
-        start = now.getAsLong();
+        call(false);
     }
 
     public long remainingMs() {
-        return Math.max(0, budgetMs - Math.max(0, now.getAsLong() - start));
+        return call(false).optLong("remaining_ms");
     }
 
-    /** No next attempt after expiry; the final wait may consume the remaining budget. */
     public long nextDelayMs() {
-        long remaining = remainingMs();
-        if (remaining == 0) return -1;
-        long delay = Math.min(backoffMs, remaining);
-        backoffMs = Math.min(4000, backoffMs * 2);
-        return delay;
+        JSONObject result = call(true);
+        return result.isNull("delay_ms") ? -1 : result.optLong("delay_ms");
+    }
+
+    private JSONObject call(boolean next) {
+        JSONObject result =
+                RustProtocol.call(
+                        Json.object(
+                                "op",
+                                "voice_retry",
+                                "state",
+                                state == null ? JSONObject.NULL : state,
+                                "now_ms",
+                                now.getAsLong(),
+                                "budget_ms",
+                                budget,
+                                "next",
+                                next));
+        state = result.optJSONObject("state");
+        return result;
     }
 }

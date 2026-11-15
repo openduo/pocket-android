@@ -1,22 +1,33 @@
-// Copyright 2026 openduo and pocket-e2 contributors
+// Copyright 2026 openduo and OpenDuo contributors
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
-
 package dev.openduo.pocket.core;
 
-/** PocketCore.RedialBackoff: short outages keep capture; the longest retry pause releases it. */
+import org.json.JSONObject;
+
+/** Opaque Rust retry state; the platform supplies scheduling only. */
 public final class RedialBackoff {
-    private int failures;
+    private JSONObject state = Json.object("failures", 0);
+    private boolean sustained;
 
     public long failedMs() {
-        failures = Math.min(failures + 1, 6);
-        return Math.min(1000L << (failures - 1), 30_000L);
+        return call(true, false);
     }
 
     public boolean sustained() {
-        return failures >= 6;
+        return sustained;
     }
 
     public void reset() {
-        failures = 0;
+        call(false, true);
+    }
+
+    private long call(boolean failed, boolean reset) {
+        JSONObject result =
+                RustProtocol.call(
+                        Json.object(
+                                "op", "redial", "state", state, "failed", failed, "reset", reset));
+        state = result.optJSONObject("state");
+        sustained = result.optBoolean("sustained");
+        return result.optLong("delay_ms");
     }
 }

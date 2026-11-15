@@ -4,6 +4,8 @@
 package dev.openduo.pocket.net;
 
 import dev.openduo.pocket.core.Endpoint;
+import dev.openduo.pocket.core.Json;
+import dev.openduo.pocket.core.RustProtocol;
 
 import org.json.JSONObject;
 
@@ -118,6 +120,18 @@ public final class RoomAccess implements ChannelTransport, AutoCloseable {
     @Override
     public synchronized void endRequest(long id) {
         if (requests.remove(id)) connection.endRequest(id);
+    }
+
+    public Response speech(
+            long id,
+            String text,
+            ChannelConnection.StreamListener listener,
+            BooleanSupplier current)
+            throws Exception {
+        RustProtocol.Request request =
+                RustProtocol.request(
+                        endpoint, token, room, Json.object("type", "speech", "text", text), null);
+        return stream(id, request.path, request.body, listener, current);
     }
 
     public Response stream(

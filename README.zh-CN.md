@@ -38,9 +38,11 @@
 
 ## 构建
 
-使用 JDK 17、Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1、Go 1.27.4，以及 `go.mod` 固定的 x/mobile。Gradle 8.13 wrapper 和 AGP 8.13.2 已固定。Android Studio 可直接打开仓库。
+使用 Rust 1.100.0、JDK 17、Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1、Go 1.27.4，以及 `go.mod` 固定的 x/mobile。Gradle 8.13 wrapper 和 AGP 8.13.2 已固定。Android Studio 可直接打开仓库。
 
 ```sh
+git submodule update --init --recursive
+rustup target add aarch64-linux-android x86_64-linux-android
 export ANDROID_HOME=/path/to/android-sdk
 sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
 go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
@@ -49,7 +51,8 @@ gomobile init
 ./gradlew :app:assembleDebug
 ```
 
-公开构建只使用标准 Android 音频，不会自动带入本机 E2 固件。Go bridge 会通过 Gradle 任务为两个 ABI 构建，Opus 由 CMake 从已校验的源码包构建。`./gradlew :core:check` 可单独运行纯 Java 契约，不需要设备。
+公开构建只使用标准 Android 音频，不会自动带入本机 E2 固件。Go bridge 会通过 Gradle 任务为两个 ABI 构建，Opus 由 CMake 从已校验的源码包构建。`./gradlew :core:check` 加载真实的宿主 Rust／JNI 库运行 JVM 契约，不需要设备。
+详见[共享协议接入](docs/rust.zh-CN.md)。
 
 需要独立签名的本地 Release：
 
@@ -65,7 +68,8 @@ E2 阵列录音的可选本地构建与固件要求见[设备适配指南](docs/
 
 | 模块 | 职责 |
 | --- | --- |
-| `:core` | 纯 Java 协议、模型、reducer、请求边界与 Try transport，不依赖 Android/UI/硬件 |
+| `:core` | 无 Android 依赖的模型／应用 reducer、Rust 协议门面、请求边界与 Try transport |
+| `:protocol` | 固定版本 pocket-rs 的 Java／JNI 接口；Rust 负责房间协议、分帧、Ambient 与重试 |
 | `:input` | 纯 Java 动作、输入目标和成对按键规则；不依赖 Android 或业务 |
 | `:ui-policy` | 纯 Java 窗口宽高/字号设计策略，不依赖业务与设备型号 |
 | `:device` | 通用 Android 音频、路由、能力发现、共享麦克风 lease 与设备接口 |
