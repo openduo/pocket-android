@@ -31,6 +31,11 @@
 
 Preview 3 使用 versionCode 3 和既有公开签名，可直接覆盖较早的公开预览版，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
 
+E2 固件 04319 的内置麦克风需要[本地阵列适配 `Pocket-E2.apk`](docs/devices.zh-CN.md#e2-案例)，
+应保持安装适配版。公开 `Pocket.apk` 不含厂商固件，在该固件上会提示内置输入不可用，避免上传
+无效音频。恢复后的公开包名阵列版已通过本地校准采集和 34 条输入短检查；
+[真人 ASR 验收单独记录](docs/audio.md#e2-built-in-capture)。
+
 1. 安装 Release 中的 `Pocket.apk`。
 2. 选择「登录 Tailscale」，使用链接或另一台设备扫描二维码完成授权。
 3. 从自己的 ambient 主机取得**新的配对链接**，粘贴或扫描后连接房间。

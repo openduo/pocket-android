@@ -25,7 +25,14 @@ if [[ ! -f "$sign_dir/$sign_file" ]]; then
     keytool -genkeypair -storetype PKCS12 -keystore "$sign_dir/$sign_file" -storepass:file "$sign_dir/password" -alias "$sign_alias" -keyalg RSA -keysize 3072 -validity 10000 -dname 'CN=OpenDuo Pocket Android' >/dev/null
 fi
 "$project_dir/gradlew" -p "$project_dir" :app:assembleRelease :app:exportProbeClasspath "$@" "${identity_args[@]}"
-"$tools/zipalign" -f -P 16 4 "$project_dir/android/build/outputs/apk/release/app-release-unsigned.apk" "$project_dir/dist/$artifact-aligned.apk"
+unsigned_apk="$project_dir/android/build/outputs/apk/release/app-release-unsigned.apk"
+if unzip -Z1 "$unsigned_apk" | rg -q '^assets/e2-array-models\.zip$'; then
+    # Keep local firmware builds distinct from the generic publication artifact.
+    artifact="$artifact-E2"
+elif [[ "$artifact" == Pocket ]]; then
+    python3 "$project_dir/scripts/check-public-apk.py" "$unsigned_apk"
+fi
+"$tools/zipalign" -f -P 16 4 "$unsigned_apk" "$project_dir/dist/$artifact-aligned.apk"
 "$tools/apksigner" sign --ks "$sign_dir/$sign_file" --ks-key-alias "$sign_alias" --ks-pass "file:$sign_dir/password" --out "$project_dir/dist/$artifact.apk" "$project_dir/dist/$artifact-aligned.apk"
 "$tools/apksigner" verify "$project_dir/dist/$artifact.apk"
 rm "$project_dir/dist/$artifact-aligned.apk"

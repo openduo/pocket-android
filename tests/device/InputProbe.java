@@ -68,7 +68,7 @@ final class InputProbe {
     }
 
     private boolean contains(View root, String text) {
-        if (root == null) return false;
+        if (root == null || !root.isShown()) return false;
         if (text.contentEquals(
                 root.getContentDescription() == null ? "" : root.getContentDescription()))
             return true;
@@ -130,6 +130,12 @@ final class InputProbe {
                 probe.startActivitySync(
                         new Intent(context, MainActivity.class)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        probe.runOnMainSync(
+                () ->
+                        screen.getWindow()
+                                .addFlags(
+                                        android.view.WindowManager.LayoutParams
+                                                .FLAG_KEEP_SCREEN_ON));
         controller = PocketController.get(context);
         await(() -> controller.snapshot() != null, 5000, "state is available");
         PocketController.Snapshot initial = controller.snapshot();
@@ -226,6 +232,12 @@ final class InputProbe {
                     5000,
                     "REC starts the shared native capture");
             String owner = controller.snapshot().holdOwner;
+            boolean[] hardwareControls = {false};
+            probe.runOnMainSync(
+                    () ->
+                            hardwareControls[0] =
+                                    contains(screen.getWindow().getDecorView(), ui.ui().t("发送录音")));
+            check(hardwareControls[0], "hardware recording retains explicit Send/Cancel controls");
             probe.runOnMainSync(
                     () -> find(screen.getWindow().getDecorView(), HoldToTalkView.class).cancel());
             barrier();
@@ -246,6 +258,98 @@ final class InputProbe {
                             .filter(m -> m.kind == Message.MINE && !m.voiceSource.isEmpty())
                             .count();
             check(sent == 1, "one recorded note is admitted to Try");
+            probe.waitForIdleSync();
+            long touchDown = SystemClock.uptimeMillis();
+            int[] initialPosition = new int[2];
+            probe.runOnMainSync(
+                    () -> {
+                        HoldToTalkView control =
+                                find(screen.getWindow().getDecorView(), HoldToTalkView.class);
+                        control.getLocationOnScreen(initialPosition);
+                        android.view.MotionEvent event =
+                                android.view.MotionEvent.obtain(
+                                        touchDown,
+                                        touchDown,
+                                        android.view.MotionEvent.ACTION_DOWN,
+                                        control.getWidth() / 2f,
+                                        control.getHeight() / 2f,
+                                        0);
+                        control.onTouchEvent(event);
+                        event.recycle();
+                    });
+            await(
+                    () ->
+                            controller.snapshot().holdLive
+                                    && controller.snapshot().holdDurationMs >= 400,
+                    5000,
+                    "touch hold starts the same native capture");
+            boolean[] touchControls = {true};
+            boolean[] touchFeedback = {false};
+            int[] activePosition = new int[2];
+            probe.runOnMainSync(
+                    () -> {
+                        HoldToTalkView control =
+                                find(screen.getWindow().getDecorView(), HoldToTalkView.class);
+                        control.getLocationOnScreen(activePosition);
+                        touchControls[0] =
+                                contains(screen.getWindow().getDecorView(), ui.ui().t("发送录音"));
+                        touchFeedback[0] =
+                                find(
+                                                        screen.getWindow().getDecorView(),
+                                                        HoldToTalkView.RecordingIndicator.class)
+                                                != null
+                                        && contains(
+                                                screen.getWindow().getDecorView(),
+                                                ui.ui().t("松开发送"));
+                    });
+            check(!touchControls[0], "touch recording presents no separate Send/Cancel panel");
+            check(
+                    touchFeedback[0],
+                    "touch recording shows the recording animation and release hint");
+            java.io.File image = new java.io.File(context.getExternalCacheDir(), "input-touch.png");
+            android.graphics.Bitmap bitmap = probe.getUiAutomation().takeScreenshot();
+            if (bitmap != null) {
+                try (java.io.FileOutputStream output = new java.io.FileOutputStream(image)) {
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+                } finally {
+                    bitmap.recycle();
+                }
+            }
+            check(
+                    java.util.Arrays.equals(initialPosition, activePosition),
+                    "the held touch target stays under the finger: "
+                            + java.util.Arrays.toString(initialPosition)
+                            + " -> "
+                            + java.util.Arrays.toString(activePosition));
+            probe.runOnMainSync(
+                    () -> {
+                        HoldToTalkView control =
+                                find(screen.getWindow().getDecorView(), HoldToTalkView.class);
+                        android.view.MotionEvent event =
+                                android.view.MotionEvent.obtain(
+                                        touchDown,
+                                        SystemClock.uptimeMillis(),
+                                        android.view.MotionEvent.ACTION_UP,
+                                        control.getWidth() / 2f,
+                                        control.getHeight() / 2f,
+                                        0);
+                        control.onTouchEvent(event);
+                        event.recycle();
+                    });
+            await(
+                    () ->
+                            !controller.snapshot().holdRecording
+                                    && !RecordingInput.isActive()
+                                    && controller.snapshot().outbox.isEmpty(),
+                    5000,
+                    "touch release sends without a directional gesture");
+            sent++;
+            check(
+                    controller.snapshot().rows.stream()
+                                    .filter(m -> m.kind == Message.MINE && !m.voiceSource.isEmpty())
+                                    .count()
+                            == sent,
+                    "one touch release admits exactly one Try note");
             controller.sendHold();
             controller.sendHold();
             barrier();

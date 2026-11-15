@@ -42,8 +42,10 @@ public final class E2DeviceAdapter extends AndroidDeviceAdapter {
     public RecordingInput openInput(
             Context context, String mode, String scene, AudioDeviceInfo preferred)
             throws IOException {
-        if (preferred == null && E2ArrayInput.available(context)) {
-            return new E2ArrayInput(context, mode, scene);
+        if (preferred == null && E2ArrayInput.requiresArray()) {
+            if (E2ArrayInput.available(context)) return new E2ArrayInput(context, mode, scene);
+            // This firmware's framework input opens successfully but supplies no microphone signal.
+            throw new RecordingInput.Unavailable("当前版本无法使用此设备的内置麦克风，请连接耳机麦克风");
         }
         return super.openInput(context, mode, scene, preferred);
     }

@@ -35,6 +35,12 @@ Implementation and real-service acceptance are tracked separately. The local ori
 
 Preview 3 uses version code 3 and the existing public signing key, so it updates earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
+E2 firmware 04319 requires the [local array-adapted `Pocket-E2.apk`](docs/devices.md#e2-example)
+for its built-in microphone. Keep that adapted package installed on E2. Public `Pocket.apk`
+contains no proprietary firmware and reports unavailable built-in input on this firmware instead
+of uploading invalid audio. The restored public-identity array build passes local calibration and
+34 bounded input checks; [human ASR acceptance remains separate](docs/audio.md#e2-built-in-capture).
+
 1. Install `Pocket.apk` from [Releases](https://github.com/openduo/pocket-android/releases).
 2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.
 3. Obtain a **fresh pairing link** from your ambient host, paste or scan it, then join the room.

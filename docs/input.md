@@ -4,8 +4,7 @@ English · [简体中文](input.zh-CN.md)
 
 Touch, accessibility activation, keyboard controls and foreground hardware keys use the same
 application actions. E2 is the included hardware example; the business layer has no E2 model,
-Android key-code or window-size branch. This implementation follows Preview 2 and is not in that
-published APK.
+Android key-code or window-size branch. Preview 3 includes this implementation.
 
 ## What demonstrates flexibility
 
@@ -30,11 +29,13 @@ illustrate this shared design.
 | --- | --- |
 | REC (`F1`, Android code 131) | Press and release to start a voice note; press again to send |
 | MARK (`F2`, Android code 132) | Cancel the current recording; otherwise stop speech playback |
-| On-screen voice control | Hold and release to send, move outside to cancel; OK/accessibility activation starts or sends |
-| Recording panel | Explicit Send and Cancel actions work for notes started by any input |
+| On-screen voice control | Hold and release to send, move outside to cancel; a stationary control shows recording animation, duration and release hint |
+| Recording panel | Explicit Send and Cancel actions for hardware/OK/accessibility recording; hidden during a touch hold |
 
 Recording switches to the conversation page and shows preparation, duration and the shared
-microphone meter. It works while the composer is in text mode without discarding its draft.
+recording state. Touch uses simple animated bars after capture starts, independent of microphone
+amplitude; no directional send gesture is needed. OK/accessibility activation starts or sends.
+Recording works while the composer is in text mode without discarding its draft.
 The E2 defaults come from the device adapter and the documented firmware key mapping, not from
 the room protocol. Generic Android devices additionally default `MEDIA_RECORD` to voice toggle.
 
@@ -110,11 +111,13 @@ capture, sends only to Try, restores custom bindings and reconnects the original
 
 ```sh
 ANDROID_SERIAL=YOUR_DEVICE_SERIAL \
-POCKET_LEGACY_IDENTITY=1 POCKET_TEST_INPUT_ONLY=1 POCKET_E2_TEST_CAPTURE=1 \
+POCKET_TEST_INPUT_ONLY=1 POCKET_E2_TEST_CAPTURE=1 \
 scripts/test-device.sh
 ```
 
-Install a same-signature [original-package build](devices.md#same-package-testing) first. Do not
+Install a same-signature [E2 local array build](devices.md#e2-example) first. The current public-identity
+E2 passes 34 assertions, including visible recording feedback, fixed touch position and exactly one
+Try note on release. Do not
 run while recording or outgoing work is active. The probe does not prove the user physically
 pressed REC/MARK, accept a real remote/speaker, repeat human speech acceptance, or run an
 unrelated UI/background matrix. Current results are in [status](status.md).

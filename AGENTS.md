@@ -1,7 +1,20 @@
 # Pocket Android engineering rules
 
+E2 recording correction (2026-11-15): firmware 04319 needs its local array build. The generic
+APK had overwritten that adaptation during the public-package migration; its framework input
+opens but supplies no microphone signal. The same-signature `dev.openduo.pocket` array APK is
+restored without clearing pairing/data. Local calibration confirms real array input; the bounded
+34-assertion input probe uses actual capture and Try-only sends, then restores the paired room
+Online. No new human ASR acceptance is claimed. Never install a generic APK over this E2 again.
+An explicit `-Pe2FirmwareDir=...` build now writes `dist/Pocket-E2.apk`, leaving `dist/Pocket.apk`
+for generic publication. Vendor libraries/models stay local. A generic build on this firmware
+refuses built-in capture with a localized explanation instead of uploading invalid audio; headset
+input keeps the standard route. Touch recording has a stationary button, timer, release hint and
+simple recording-state animation (the user explicitly declined real-time waveforms). Separate
+Send/Cancel controls remain for other input owners. Retain these narrow checks; no broad matrix.
+
 Sight resumed and accepted (2026-11-15): the user confirmed the room service update and resumed
-Sight. The public-package generic APK is updated in place on E2. Fourteen actual-service guards
+Sight. The public-package generic APK was tested in place on E2 before the array restoration above. Fourteen actual-service guards
 pass: media=1, real 1280x720 ask/master, first key and five native video frames, cleared server
 vision_off, explicit off, microphone restoration and retained pairing/composer/Online. E2's
 encoder accepts landscape but not 720x1280; generic YuvTransform rotates/aspect-fits with black

@@ -4,6 +4,42 @@ The reference is the pinned upstream `PocketCore/AmbientEdge.swift`, `AmbientInt
 `VoiceUploader.swift` and `App/Engine/AmbientController.swift`. See [Passport](passport.md) for the
 separate accessory protocol and its remaining hardware acceptance.
 
+## E2 built-in capture
+
+Firmware 04319's standard Android recording input opens successfully but supplies no useful
+microphone signal. During release preparation the generic public-package APK had replaced the
+local array build. Recording duration alone therefore did not establish that speech was captured.
+The same-package, same-signature array build is restored on E2 without clearing pairing or data.
+Use [the explicit local build](devices.md#e2-example), `dist/Pocket-E2.apk`; never replace it with
+the generic release APK. Vendor libraries/models remain private local inputs.
+
+A bounded local-only probe recorded three seconds each of voice/natural input while playing a
+one-second calibration tone. The restored array route captures the tone in both modes, unlike
+the generic input's effectively absent signal after startup. The microphone is released and no
+audio is uploaded or sent to the room. A separate generic-build check confirms that the adapter
+reports its localized limitation, emits zero packets and releases capture. A selected headset
+microphone can still use framework input. These checks establish input restoration, not new human
+ASR accuracy or end-to-end voice acceptance.
+
+Touch recording now keeps one stationary control with an explicit recording label, timer,
+release-to-send hint and simple animated bars after capture starts. The bars indicate recording
+state; they do not measure microphone amplitude. Releasing inside sends; moving outside and
+releasing cancels. A separate Send/Cancel panel is retained for hardware/accessibility recording.
+The restored E2 passes 34 bounded injected-event assertions, including visible animation, stable
+touch position, one send per release, hardware controls and capture cleanup. Sends stay in Try,
+custom bindings/settings are restored and the original paired room returns Online.
+
+The diagnostic probe is opt-in and saves private PCM only to the device's external cache and the
+ignored host build directory:
+
+```sh
+ANDROID_SERIAL=YOUR_DEVICE_SERIAL POCKET_TEST_VOICE_INPUT_ONLY=1 \
+POCKET_TEST_AUDIO_CALIBRATION=1 POCKET_E2_TEST_CAPTURE=1 scripts/test-device.sh
+```
+
+Run only while capture/playback is idle. The calibration tone plays locally at a bounded level
+without changing system volume. Omit `POCKET_TEST_AUDIO_CALIBRATION` for quiet input measurement.
+
 ## Finishing an ongoing reply while locked
 
 On 2026-11-15 the user reported spoken replies stopping when the screen locks. The previous
@@ -39,9 +75,10 @@ Seven new deterministic reception/completion/idle contracts pass; the host total
 Debug and signed Release builds, localization/source checks and public dual-ABI payload checks pass.
 The original-package local-array E2 update also builds. The user then requested migration to the
 public identity: the old app was uninstalled and the fixed signed `dev.openduo.pocket` APK was
-installed and opened on E2. Fresh Tailscale login/pairing and E2 screen-off acceptance remain pending.
-This installed APK uses default Android framework audio; earlier local-array speech acceptance
-does not transfer to it. No broader lifecycle/device matrix or actual-service speech test was repeated.
+installed and opened on E2. Fresh Tailscale login/pairing and 15 E2 screen-off assertions subsequently
+passed. That generic APK used framework audio; the E2 array correction above restores specialized
+capture under the same public identity. Earlier human-speech evidence retains its original build
+identity. No broader lifecycle/device matrix or actual-service speech test was repeated.
 
 ## Retained voice and ambient evidence
 

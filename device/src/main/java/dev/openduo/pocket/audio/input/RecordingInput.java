@@ -8,6 +8,13 @@ import android.content.Context;
 import java.io.IOException;
 
 public interface RecordingInput extends AutoCloseable {
+    /** A known adapter limitation with an application-localized explanation. */
+    final class Unavailable extends IOException {
+        public Unavailable(String message) {
+            super(message);
+        }
+    }
+
     static boolean isActive() {
         return ExclusiveRecordingInput.isActive();
     }

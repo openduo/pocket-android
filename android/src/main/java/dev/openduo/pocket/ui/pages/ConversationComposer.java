@@ -336,7 +336,7 @@ final class ConversationComposer {
         }
         chipRow.setVisibility(s.chips.isEmpty() ? View.GONE : View.VISIBLE);
         hold.update(s);
-        holdPanel.setVisibility(s.holdRecording ? View.VISIBLE : View.GONE);
+        holdPanel.setVisibility(s.holdRecording && !hold.touchHolding() ? View.VISIBLE : View.GONE);
         Ui.updateText(
                 holdLabel,
                 hold.cancelArmed()

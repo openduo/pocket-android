@@ -13,7 +13,7 @@ tested at that time; Preview 1/2 artifacts remain historical releases.
 
 ## Preview 3 release verification
 
-- 2,634 actual-JNI JVM assertions, source/ownership checks, 650 catalog entries across 145 production
+- 2,634 actual-JNI JVM assertions, source/ownership checks, 653 catalog entries across 145 production
   Java sources, Go vet/tests, dual-ABI Debug and signed generic Release builds pass.
 - The APK retains `dev.openduo.pocket`, version name `0.4.0` and the original public signing key;
   version code advances to 3. Only public native libraries for arm64-v8a and x86_64 are included.
@@ -23,6 +23,27 @@ tested at that time; Preview 1/2 artifacts remain historical releases.
 - The Sight service check and prior bounded Rust/lockscreen/Passport/input checks below retain
   their own build identities and limits. Metadata/version changes do not repeat capture or room
   sends. Matching remote CI links and published asset checksums are in the release notes.
+
+## E2 recording restoration and touch feedback
+
+The generic APK had replaced the E2 array build during the public-package migration. Firmware
+04319's framework recorder opens but supplies no useful microphone signal. The same-signature
+public-identity local array APK is now restored with data/pairing retained. Local voice/natural
+calibration captures the played tone through the native array; capture releases afterward and no
+recording is uploaded or sent to the room. The generic-build guard separately passes: localized
+unavailable-input reason, zero packets and released microphone. Headset input keeps its framework
+route. This confirms restored input, not new human ASR accuracy.
+
+Touch recording uses one stationary button showing a recording label, duration, release hint and
+simple recording-state animation after capture starts. The animation is independent of real-time
+amplitude. The separate Send/Cancel panel remains for other input owners. The adapted E2 passes
+34 bounded injected-event assertions with actual capture and Try-only sends, including visible
+feedback, fixed touch position and exactly one note on release; bindings/settings are restored and
+the paired room returns Online. Physical key presses remain unaccepted.
+
+Explicit firmware builds write local-only `dist/Pocket-E2.apk`, keeping `dist/Pocket.apk` available
+for generic publication. E2 must stay on the adapted APK. No proprietary libraries/models enter
+public assets. See [audio evidence](audio.md#e2-built-in-capture) and [local build](devices.md#e2-example).
 
 ## Sight resumed with the updated room service
 
@@ -68,7 +89,7 @@ integration and the subsequent media-v1 downlink correction. Rust protocol migra
 | Windows | Shared size classes, bounded columns, short-window/IME/Insets and page-state handling; business logic does not branch on E2 or physical-panel dimensions |
 | Hardware | Default Android capture/routing and capability discovery; MIC fallback; E2 model/firmware/system-bar and optional array integration isolated in one module |
 | Identity | DuoDuo Pocket / 多多, `dev.openduo.pocket`, `duoduopocket` links, upstream brand mark, legacy/adaptive/themed icons, one version source; arm64+x86_64 APK |
-| Internationalization | English/Simplified Chinese and system fallback, 650-entry current-source copy catalog (617 in the first preview), localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
+| Internationalization | English/Simplified Chinese and system fallback, 653-entry current-source copy catalog (617 in the first preview), localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
 | P0 implementation | Tailscale login/pairing/live and network recovery; text/attachments/history; durable/idempotent outbox/drafts; voice upload/retry, ambient playback/interruption |
 | P1 implementation | Sight negotiation and Camera2/H.264, sessions/details/notification controls, maps/coordinates/geocoder/arrival ledger, import/share/Try/diagnostics |
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
@@ -100,8 +121,9 @@ The full lightweight JVM check passes 2,622 assertions (seven new). Generic Debu
 650-entry localization checks, and public dual-ABI payload checks pass. No microphone, actual room
 content or broad matrix was used. At the user's subsequent request, the old E2 app was uninstalled
 and the fixed signed `dev.openduo.pocket` APK was installed and opened. Fresh Tailscale login/pairing is complete; E2 screen-off acceptance now passes in the Rust migration
-check described above. The installed public-identity APK uses standard Android
-framework audio; earlier local-array acceptance does not transfer. This fix ships in Preview 3. Starting a new spoken reply after the app is already idle in the background remains separate.
+check described above. That APK used standard Android framework audio; the E2 recording correction
+above subsequently restored the local array adapter under the same public identity. Earlier human
+ASR evidence keeps its original build identity. This fix ships in Preview 3. Starting a new spoken reply after the app is already idle in the background remains separate.
 
 ## Ownership decomposition and stopping point
 

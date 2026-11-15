@@ -34,8 +34,7 @@ public final class E2ArrayInput implements RecordingInput, ArrayRecorder.Callbac
 
     public static boolean available(Context context) {
         boolean compatible =
-                isE2()
-                        && Build.FINGERPRINT.endsWith("/04319:user/release-keys")
+                requiresArray()
                         && new File(
                                         context.getApplicationInfo().nativeLibraryDir,
                                         "libtr_recorder.so")
@@ -48,6 +47,10 @@ public final class E2ArrayInput implements RecordingInput, ArrayRecorder.Callbac
         } catch (IOException missing) {
             return false;
         }
+    }
+
+    static boolean requiresArray() {
+        return isE2() && Build.FINGERPRINT.endsWith("/04319:user/release-keys");
     }
 
     E2ArrayInput(Context context, String mode, String scene) throws IOException {

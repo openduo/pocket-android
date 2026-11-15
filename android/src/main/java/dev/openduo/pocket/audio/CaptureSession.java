@@ -99,6 +99,8 @@ public final class CaptureSession {
                 double db = 20 * Math.log10(Math.max(1, rms) / 32768.0);
                 level = (float) Math.pow(Math.max(0, Math.min(1, (db + 65) / 45)), .7);
             }
+        } catch (RecordingInput.Unavailable unavailable) {
+            reason = unavailable.getMessage();
         } catch (Exception | LinkageError failure) {
             reason = "麦克风打开或读取失败，请先结束其他录音";
         } finally {

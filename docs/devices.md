@@ -22,12 +22,14 @@ Android framework capabilities are the default. E2 ships as a concrete adapter e
 <p align="center"><img src="screens/e2.png" alt="English conversation and ambient controls captured on a physical E2 running the Android app" width="80%"></p>
 <p align="center"><sub>Physical E2, API 27, existing display configuration, English UI and prepared Try content. No actual room, microphone or camera was used for these documentation captures.</sub></p>
 
-`E2DeviceAdapter` matches API27 and model `E2 AI Recorder`. It declares the firmware's system-icon quirk. Array capture additionally requires firmware 04319 and locally supplied libraries/models. A generic APK without that payload falls back to standard Android input. Its acoustic performance on E2 is unverified; earlier native-array evidence belongs to the local firmware build and the old application ID.
+`E2DeviceAdapter` matches API27 and model `E2 AI Recorder`. It declares the firmware's system-icon quirk. Firmware 04319 requires locally supplied array libraries/models for its built-in microphone. Standard Android input opens on this firmware but supplies no microphone signal. A generic APK therefore reports that built-in input is unavailable instead of uploading invalid audio; a selected headset microphone retains the standard route. Use the local array build on E2.
 
 Array Java/JNI adapter source is public. Proprietary firmware libraries/models are excluded from the repository and public APK. Inclusion requires an explicit local property; no build automatically discovers `.build/firmware`:
 
 ```sh
 scripts/build-android.sh -Pe2FirmwareDir=/absolute/path/to/local/firmware
+# Local-only output, same public package and signing key:
+adb -s YOUR_DEVICE_SERIAL install -r dist/Pocket-E2.apk
 ```
 
 Expected local structure:
@@ -38,9 +40,13 @@ firmware/
   lib/arm64-v8a/… libraries for firmware 04319 …
 ```
 
-This local build uses the same application ID as the generic app. Keep the proprietary result out of public Releases. Building without the property returns to the generic payload. `scripts/build-e2-adapter.sh` writes only to an ignored build directory. Local array JNI compilation passed; prior physical capture evidence is retained in [acceptance](acceptance.md).
+This local build uses the same application ID and signing key as the generic app, preserving its data and pairing. It writes `dist/Pocket-E2.apk` without overwriting `dist/Pocket.apk`. Keep the proprietary result out of public Releases and leave E2 on its adapted build. Building without the property produces the generic payload for other hardware. `scripts/build-e2-adapter.sh` writes only to an ignored build directory. The restored public-identity E2 passes local calibration capture and 34 bounded input assertions; see [current audio evidence](audio.md#e2-built-in-capture).
 
 ## Same-package testing
+
+The current E2 uses the public `dev.openduo.pocket` identity and the local array APK above. Keep
+that identity, signature, pairing and node; do not reinstall the retired legacy app. The following
+compatibility option documents earlier installations only.
 
 An existing `top.kuaner.pockete2` installation can receive an explicit, same-signature compatibility
 build. This reuses its login, room pairing, cache and Tailscale node instead of registering another
@@ -62,8 +68,9 @@ cross-package credential transfer.
 
 For an E2 that used the local array integration, append
 `-Pe2FirmwareDir=/absolute/path/to/local/firmware` to the same command. That proprietary result
-is local-only. Without `POCKET_LEGACY_IDENTITY`, the build keeps the public `dev.openduo.pocket`
-identity and writes `dist/Pocket.apk`; no firmware is included unless explicitly requested.
+is local-only and writes `dist/PocketLegacy-E2.apk`. Without `POCKET_LEGACY_IDENTITY`, the build
+keeps the public `dev.openduo.pocket` identity: generic output is `dist/Pocket.apk`, and explicit
+array output is `dist/Pocket-E2.apk`. No firmware is included unless explicitly requested.
 
 The original-package readiness check is read-only and does not record, play, capture or send:
 

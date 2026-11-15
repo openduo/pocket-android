@@ -41,6 +41,19 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("voiceInputOnly"))) {
+                if (!"1".equals(arguments.getString("capture")))
+                    throw new AssertionError("Input measurement requires explicit capture opt-in");
+                report.putString(
+                        "result",
+                        new VoiceInputProbe(this)
+                                .run(
+                                        context,
+                                        "1".equals(arguments.getString("audioCalibration")),
+                                        "1".equals(arguments.getString("expectInputUnavailable"))));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("rustMigrationOnly"))) {
                 report.putString("result", new RustMigrationProbe(this).run(context));
                 finish(Activity.RESULT_OK, report);

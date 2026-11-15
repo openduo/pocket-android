@@ -29,12 +29,14 @@
 
 英文界面、预设体验内容，未采集麦克风/相机或发送真实房间消息。
 
-`E2DeviceAdapter` 只匹配 Android API27 的 `E2 AI Recorder`；保留该固件无法绘制深色系统图标的例外。阵列输入还要求固件 04319 指纹与本地 native 库/模型存在。未提供阵列 payload 的通用 APK 走标准 Android 输入；**该路径在 E2 上的声学效果未验证**，不等同已验证的私有阵列路径。
+`E2DeviceAdapter` 只匹配 Android API27 的 `E2 AI Recorder`；保留该固件无法绘制深色系统图标的例外。固件 04319 的内置麦克风必须使用本地阵列库／模型。该固件的标准 Android 输入虽然能打开，却收不到有效麦克风信号；通用 APK 现在会明确提示内置输入不可用，避免上传无效音频。选定耳机麦克风时仍使用标准路由。E2 应安装本地阵列适配包。
 
 阵列 Java/JNI adapter 源码可公开，厂商库和模型不属于项目可公开分发内容。只有显式传入属性时才打包，不会自动读取 `.build/firmware`：
 
 ```sh
 scripts/build-android.sh -Pe2FirmwareDir=/absolute/path/to/local/firmware
+# 仅限本地的产物，保持公开包名与原签名：
+adb -s YOUR_DEVICE_SERIAL install -r dist/Pocket-E2.apk
 ```
 
 本地目录结构：
@@ -45,9 +47,12 @@ firmware/
   lib/arm64-v8a/… vendor libraries for firmware 04319 …
 ```
 
-本地 E2 包与通用包使用相同应用 ID，请不要把带私有固件的产物上传公共 Release。去掉属性后重新构建即可回到通用版本。`scripts/build-e2-adapter.sh` 只向 ignored 模块 build 目录写产物。历史 E2 验证保存在[验收记录](acceptance.md)，不将其自动归给改包名后的 APK。
+本地 E2 包与通用包使用相同应用 ID 和签名，可保留现有数据与配对。适配产物单独命名为 `dist/Pocket-E2.apk`，不会覆盖通用 `dist/Pocket.apk`。带私有固件的产物不能上传公共 Release，E2 应保持安装适配版。去掉属性构建的是面向其他设备的通用版本。`scripts/build-e2-adapter.sh` 只向 ignored 模块 build 目录写产物。恢复后的公开包名 E2 已通过本地校准采集和 34 条输入短检查，见[当前音频证据](audio.md#e2-built-in-capture)。
 
 ## 原包覆盖测试
+
+当前 E2 已使用公开身份 `dev.openduo.pocket` 和上面的本地阵列包。保留该包名、签名、配对和节点，
+不要重新安装已经退役的旧包；以下兼容选项只记录此前安装的维护方式。
 
 已有 `top.kuaner.pockete2` 安装时，可以显式生成同签名兼容包，复用登录、房间配对、缓存和
 Tailscale 节点，无需再注册设备。Java namespace 和共用应用代码仍为 `dev.openduo.pocket`；
@@ -64,8 +69,9 @@ adb -s YOUR_DEVICE_SERIAL install -r dist/PocketLegacy.apk
 不会生成新的兼容包签名。只用 `install -r` 覆盖，不能先卸载或清数据；这是原地更新，不是跨包凭据迁移。
 
 原机使用本地 E2 阵列时，在上述构建命令后追加
-`-Pe2FirmwareDir=/absolute/path/to/local/firmware`，带私有固件的产物仅留本地。
-不设置 `POCKET_LEGACY_IDENTITY` 时仍构建公开包 `dev.openduo.pocket`，输出 `dist/Pocket.apk`；
+`-Pe2FirmwareDir=/absolute/path/to/local/firmware`，带私有固件的产物仅留本地，输出为
+`dist/PocketLegacy-E2.apk`。不设置 `POCKET_LEGACY_IDENTITY` 时仍构建公开包
+`dev.openduo.pocket`：通用产物为 `dist/Pocket.apk`，显式阵列产物为 `dist/Pocket-E2.apk`；
 只有显式传入固件属性才包含固件。
 
 以下原包前置检查只读状态，不录音、不播放、不采集相机、不发送内容：

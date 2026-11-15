@@ -5,6 +5,7 @@ package dev.openduo.pocket.ui.components;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
@@ -24,7 +25,8 @@ public final class HoldToTalkView extends LinearLayout {
     private final PageHost host;
     private final PocketController controller;
     private final Ui ui;
-    private final TextView label;
+    private final TextView label, hint;
+    private final RecordingIndicator indicator;
     private boolean held, cancel, live;
     private boolean tapGesture, tapToSend;
     private final String owner;
@@ -36,12 +38,26 @@ public final class HoldToTalkView extends LinearLayout {
         ui = host.ui();
         owner = host.input().owner("voice-control:" + java.util.UUID.randomUUID());
         setGravity(Gravity.CENTER);
-        setMinimumHeight(ui.touchTarget());
+        setMinimumHeight(Math.max(ui.touchTarget(), ui.dp(72)));
         setOrientation(VERTICAL);
+        ui.inset(this, 6, 8);
         label = ui.label(ui.t("按住说话"), 14, ui.palette.text, true);
         label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
+        label.setEllipsize(TextUtils.TruncateAt.END);
         label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        addView(label);
+        addView(label, new LayoutParams(-1, -2));
+        indicator = new RecordingIndicator(ui);
+        indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        // Reserve the indicator's space so starting capture never moves the held target.
+        addView(indicator, new LayoutParams(-1, ui.dp(18)));
+        indicator.setVisibility(INVISIBLE);
+        hint = ui.label(ui.t("松开发送"), 11, ui.palette.secondary, false);
+        hint.setGravity(Gravity.CENTER);
+        hint.setSingleLine(true);
+        hint.setEllipsize(TextUtils.TruncateAt.END);
+        hint.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        addView(hint, new LayoutParams(-1, -2));
         ui.clickable(
                 this,
                 ui.palette.raised,
@@ -71,8 +87,6 @@ public final class HoldToTalkView extends LinearLayout {
         host.input().end(owner, canceled);
         cancel = false;
         live = false;
-        setScaleX(1);
-        setScaleY(1);
         update(controller.snapshot());
     }
 
@@ -139,8 +153,6 @@ public final class HoldToTalkView extends LinearLayout {
                 }
                 getParent().requestDisallowInterceptTouchEvent(true);
                 begin();
-                setScaleX(.98f);
-                setScaleY(.98f);
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (tapGesture) {
@@ -204,11 +216,15 @@ public final class HoldToTalkView extends LinearLayout {
                         ? armed
                                 ? ui.t("松手取消")
                                 : s.holdLive
-                                        ? (touching ? ui.t("松开发送 · ") : ui.t("发送录音 · "))
-                                                + duration(s.holdDurationMs)
+                                        ? ui.format("录音中 · %s", duration(s.holdDurationMs))
                                         : ui.t("准备中…")
                         : ui.t("按住说话"));
-        label.setTextColor(active && s.holdLive && !armed ? ui.palette.onAccent : ui.palette.text);
+        int color = active && s.holdLive && !armed ? ui.palette.onAccent : ui.palette.text;
+        label.setTextColor(color);
+        hint.setText(armed ? ui.t("松手取消") : active && !touching ? ui.t("发送录音") : ui.t("松开发送"));
+        hint.setTextColor(active ? color : ui.palette.secondary);
+        indicator.setColor(color);
+        indicator.setVisibility(active && s.holdLive ? VISIBLE : INVISIBLE);
         setBackground(
                 ui.focusSurface(
                         active
@@ -231,6 +247,12 @@ public final class HoldToTalkView extends LinearLayout {
         return cancel;
     }
 
+    /** Touch release sends directly; separate Send/Cancel controls are for other input owners. */
+    public boolean touchHolding() {
+        PocketController.Snapshot state = controller.snapshot();
+        return held && state != null && owner.equals(state.holdOwner);
+    }
+
     private void haptic(int kind) {
         if (controller.settings.haptics())
             performHapticFeedback(kind, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
@@ -251,6 +273,39 @@ public final class HoldToTalkView extends LinearLayout {
     public static String duration(long ms) {
         long sec = ms / 1000;
         return String.format(java.util.Locale.ROOT, "%d:%02d", sec / 60, sec % 60);
+    }
+
+    /** A recording-state animation, independent of microphone amplitude. */
+    public static final class RecordingIndicator extends View {
+        private final Ui ui;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        RecordingIndicator(Ui ui) {
+            super(ui.context);
+            this.ui = ui;
+            paint.setStrokeWidth(ui.dp(3));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+        }
+
+        void setColor(int color) {
+            if (paint.getColor() == color) return;
+            paint.setColor(color);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            double phase = android.os.SystemClock.uptimeMillis() / 180.0;
+            float center = getHeight() / 2f;
+            for (int i = 0; i < 5; i++) {
+                float pulse = (float) (.5 + .5 * Math.sin(phase + i * .8));
+                float amplitude = ui.dp(2) + pulse * Math.max(0, center - ui.dp(4));
+                float x = getWidth() / 2f + (i - 2) * ui.dp(6);
+                canvas.drawLine(x, center - amplitude, x, center + amplitude, paint);
+            }
+            if (isShown()) postInvalidateDelayed(50);
+        }
     }
 
     public static final class Meter extends View {
