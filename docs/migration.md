@@ -27,6 +27,15 @@ prepared Try-only sends, silent playback and a brief cancelled real capture; no 
 to the actual room, which returns Online with its pairing/composer retained. Preview 2 is unchanged.
 This refactor does not close the remaining actual-service or target-hardware gaps below.
 
+A later user report exposed non-ambient replies stopping on screen lock. The old generic APK
+reproduces it; the fix separates ongoing receive/playback from Activity visibility, adds the Android
+mediaPlayback service/wake-lock lifetime, and releases work after matching completion and native
+drain. Fifteen focused API35 assertions and seven new pure contracts pass (2,622 host assertions).
+No microphone or real-service send was used. At the user's subsequent request, the old E2 app was
+uninstalled and the fixed signed public-identity APK was installed and opened. Fresh Tailscale
+login/pairing and E2 screen-off acceptance remain pending. This APK uses standard framework audio;
+earlier local-array acceptance does not transfer. Published Preview 2 is unchanged. See [audio evidence](audio.md).
+
 Read the [current status](status.md) first. [Expanded acceptance](acceptance.md) retains historical evidence; it does not require another full run.
 The current UI layer has a complete 22-case API 35 window/font matrix (9,616 checks), actual display
 rotation (20), freeform (8) and system split (12), actual TalkBack 15.0 traversal/gestures (12 scenes,

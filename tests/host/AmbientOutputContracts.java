@@ -87,6 +87,40 @@ public final class AmbientOutputContracts {
                         && output.played(output.playbackKey(), 20, true).optLong("ms") == 20,
                 "reusing a wire id without clearing the hardware queue still isolates declaration"
                         + " receipts");
+        long[] now = {0};
+        AmbientOutput lifetime = new AmbientOutput(() -> now[0]);
+        lifetime.speech("c-lockscreen");
+        check(
+                lifetime.receiving(),
+                "a declared reply retains its receive lifetime before hardware starts");
+        lifetime.received(16_000);
+        lifetime.completed(Json.object("state", "done", "speech_id", "old", "played_ms", 1000));
+        check(lifetime.receiving(), "an older speech completion cannot release the current reply");
+        lifetime.completed(
+                Json.object("state", "done", "speech_id", "c-lockscreen", "played_ms", 2000));
+        check(
+                lifetime.receiving(),
+                "synthesis completion can precede the last network audio chunk");
+        now[0] = 1000;
+        lifetime.received(16_000);
+        check(
+                !lifetime.receiving(),
+                "the full decoded duration ends reception independently of hardware drain");
+        lifetime.speech("c-missing-receipt");
+        now[0] = 30_999;
+        check(
+                !lifetime.expire(false) && lifetime.receiving(),
+                "an idle chunk gap retains the reply within its bounded window");
+        now[0] = 31_000;
+        check(
+                !lifetime.expire(true) && lifetime.expire(false) && !lifetime.receiving(),
+                "a missing completion expires only after idle and hardware drain");
+        lifetime.read("local");
+        check(
+                !lifetime.receiving()
+                        && !lifetime.completed(
+                                Json.object("state", "done", "speech_id", "read:local")),
+                "local reads use HTTP completion rather than room reception state");
         return assertions;
     }
 }

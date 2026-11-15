@@ -18,14 +18,14 @@ if [[ "${POCKET_LEGACY_IDENTITY:-0}" == 1 ]]; then
   sign_dir="${POCKET_E2_SIGN_DIR:-$HOME/.local/share/pocket-e2/signing}"
   sign_file="pocket-e2.p12"
   sign_alias="pocket-e2"
-  if [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}${POCKET_E2_TEST_SIGHT_ROOM_ONLY:-0}${POCKET_E2_TEST_BUILD_ONLY:-0}${POCKET_TEST_INPUT_ONLY:-0}${POCKET_TEST_COORDINATION_ONLY:-0}" != *1* ]]; then
+  if [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}${POCKET_E2_TEST_VOICE_ROOM_ONLY:-0}${POCKET_E2_TEST_AMBIENT_ROOM_ONLY:-0}${POCKET_E2_TEST_SIGHT_ROOM_ONLY:-0}${POCKET_E2_TEST_BUILD_ONLY:-0}${POCKET_TEST_INPUT_ONLY:-0}${POCKET_TEST_COORDINATION_ONLY:-0}${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" != *1* ]]; then
     echo 'Select a targeted service check for the paired legacy app; the full historical suite is disabled.' >&2
     exit 1
   fi
   for flag in "${!POCKET_E2_TEST_@}" "${!POCKET_TEST_@}" POCKET_CAPTURE_SHOWCASE; do
     [[ "${!flag:-0}" == 1 ]] || continue
     case "$flag" in
-      POCKET_TEST_COORDINATION_ONLY|POCKET_TEST_INPUT_ONLY|POCKET_TEST_SERVICE_READINESS_ONLY|POCKET_E2_TEST_NOTIFY_ROOM_ONLY|POCKET_E2_TEST_VOICE_ROOM_ONLY|POCKET_E2_TEST_AMBIENT_ROOM_ONLY|POCKET_E2_TEST_SIGHT_ROOM_ONLY|POCKET_E2_TEST_BUILD_ONLY|POCKET_E2_TEST_AMBIENT_BRAIN|POCKET_E2_TEST_CAPTURE|POCKET_E2_TEST_CAMERA) ;;
+      POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY|POCKET_TEST_COORDINATION_ONLY|POCKET_TEST_INPUT_ONLY|POCKET_TEST_SERVICE_READINESS_ONLY|POCKET_E2_TEST_NOTIFY_ROOM_ONLY|POCKET_E2_TEST_VOICE_ROOM_ONLY|POCKET_E2_TEST_AMBIENT_ROOM_ONLY|POCKET_E2_TEST_SIGHT_ROOM_ONLY|POCKET_E2_TEST_BUILD_ONLY|POCKET_E2_TEST_AMBIENT_BRAIN|POCKET_E2_TEST_CAPTURE|POCKET_E2_TEST_CAMERA) ;;
       *) echo "Unsupported legacy service option: $flag" >&2; exit 1 ;;
     esac
   done
@@ -124,6 +124,7 @@ if [[ "${POCKET_E2_TEST_VOICE_DEATH:-0}" == 1 ]]; then
 fi
 if [[ "${POCKET_E2_TEST_IMPORT_UI:-0}" == 1 ]]; then adb shell am start -n dev.openduo.pocket.qa/.ProviderWarmup >/dev/null; fi
 probe_args=(
+  -e lockscreenPlaybackOnly "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}"
   -e showcaseOnly "${POCKET_CAPTURE_SHOWCASE:-0}"
   -e showcaseLanguage "${POCKET_SHOWCASE_LANGUAGE:-en}"
   -e showcaseTheme "${POCKET_SHOWCASE_THEME:-light}"
@@ -169,7 +170,7 @@ probe_args=(
 if [[ -n "${POCKET_TEST_NOTIFY_TARGET:-}" ]]; then
   probe_args+=(-e notifyTargetBase64 "$(printf '%s' "$POCKET_TEST_NOTIFY_TARGET" | base64 | tr -d '\r\n')")
 fi
-if [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 ]]; then
+if [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
   resume_after_probe=1
 fi
 adb shell am instrument -w -r "${probe_args[@]}" "$probe_package/dev.openduo.pocket.qa.Probe" | tee "$build/result.txt"
@@ -180,6 +181,6 @@ if [[ "${POCKET_CAPTURE_SHOWCASE:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/showcase" "$build/showcase" >/dev/null
 elif [[ "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/service-readiness" "$build/service-readiness" >/dev/null
-elif [[ "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 && "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" != 1 && "${POCKET_TEST_INPUT_ONLY:-0}" != 1 && "${POCKET_TEST_COORDINATION_ONLY:-0}" != 1 ]]; then
+elif [[ "${POCKET_TEST_HARDWARE_SMOKE:-0}" != 1 && "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" != 1 && "${POCKET_TEST_INPUT_ONLY:-0}" != 1 && "${POCKET_TEST_COORDINATION_ONLY:-0}" != 1 && "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" != 1 ]]; then
   adb pull "/sdcard/Android/data/$target_package/cache/qa" "$build/screenshots" >/dev/null
 fi

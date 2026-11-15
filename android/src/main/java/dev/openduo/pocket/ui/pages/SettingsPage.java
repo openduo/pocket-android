@@ -95,7 +95,7 @@ public final class SettingsPage implements PocketController.Listener {
         toggle(
                 body,
                 ui.t("播放语音回复"),
-                ui.t("环境模式关闭时，在前台播放回答"),
+                ui.t("环境模式关闭时播放回答，锁屏后继续播完"),
                 pref.ambientOutput(),
                 controller::setReplyAudio);
         toggle(

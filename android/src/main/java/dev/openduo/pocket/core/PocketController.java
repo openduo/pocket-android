@@ -118,6 +118,7 @@ public final class PocketController {
                 trying,
                 olderLoading,
                 uploadingVoice,
+                playingAudio,
                 ambientActive,
                 ambientLinkPaused,
                 accessoryActive,
@@ -182,6 +183,7 @@ public final class PocketController {
             trying = c.trying;
             olderLoading = c.history.loading();
             uploadingVoice = c.uploadForeground;
+            playingAudio = c.playback.pending();
             ambientActive = c.ambientWanted;
             accessoryActive = PassportPolicy.ENABLED && !c.trying && c.passport.backgroundEnabled();
             pressMuted = c.ambientInput.pressMuted();
@@ -274,6 +276,7 @@ public final class PocketController {
     private boolean legacyMedia;
     private String lastHeard = "";
     private boolean uploadForeground, serviceRunning, voiceUploadDeferred;
+    private int serviceModes;
     private long pairingEpoch;
     private boolean pairingActive;
     private final AttachmentStore attachmentStore;
@@ -429,6 +432,8 @@ public final class PocketController {
                         new RoomPlayback.Listener() {
                             public void changed() {
                                 releaseAudioIfIdle();
+                                refreshService();
+                                closeBackgroundLinkIfIdle();
                                 publish();
                             }
 
@@ -438,6 +443,8 @@ public final class PocketController {
 
                             public void failed(String reason) {
                                 releaseAudioIfIdle();
+                                refreshService();
+                                closeBackgroundLinkIfIdle();
                                 notice(reason);
                             }
                         });
@@ -556,6 +563,7 @@ public final class PocketController {
                 () -> {
                     if (PassportPolicy.ENABLED) passport.tick();
                     sightSession.busy();
+                    playback.tick();
                 },
                 1,
                 1,
@@ -656,7 +664,11 @@ public final class PocketController {
 
     /** Rechecks a held live socket after Android reports a default-network/path change. */
     private void networkPathChanged() {
-        if (!foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting()) return;
+        if (!foreground
+                && !ambientWanted
+                && !playback.pending()
+                && pending.isEmpty()
+                && !accessoryWaiting()) return;
         resetRedial("network_path");
         channel.rebind();
         verifyLiveOnState();
@@ -705,8 +717,7 @@ public final class PocketController {
                     arrivals.refresh();
                     if (PassportPolicy.ENABLED) passport.foreground(value);
                     surface();
-                    if (!value && !ambientWanted) stopPlayback();
-                    else if (value && audioSuspended && !audioFocus.interrupted()) {
+                    if (value && audioSuspended && !audioFocus.interrupted()) {
                         audioSuspended = false;
                         if (ambientWanted) ambient = Ambient.STARTING;
                     }
@@ -717,15 +728,7 @@ public final class PocketController {
                         updateSight();
                         releaseOnState(true);
                         if (trying || !settings.keepListening()) ambientOff();
-                        if (!ambientWanted
-                                && pending.isEmpty()
-                                && !accessoryWaiting()
-                                && !liveLink.closing()) {
-                            stopPlayback();
-                            channel.closeLive();
-                            liveLink.invalidate();
-                            connection = Connection.OFFLINE;
-                        }
+                        closeBackgroundLinkIfIdle();
                     } else if (trying || settings.isComplete()) {
                         resetRedial("foreground");
                         channel.rebind();
@@ -964,8 +967,11 @@ public final class PocketController {
                         && (!settings.isComplete()
                                 || settings.unauthorized()
                                 || tailnetNeedsLogin())
-                || !foreground && !ambientWanted && pending.isEmpty() && !accessoryWaiting())
-            return;
+                || !foreground
+                        && !ambientWanted
+                        && !playback.pending()
+                        && pending.isEmpty()
+                        && !accessoryWaiting()) return;
         if (restoreOutboxBeforeConnect) {
             try {
                 repo.select(repo.roomIdentity());
@@ -988,7 +994,10 @@ public final class PocketController {
         ChannelClient client = client();
         boolean resume = repo.hasCursor();
         boolean audio =
-                !audioSuspended && (ambientWanted || foreground && settings.ambientOutput());
+                !audioSuspended
+                        && (ambientWanted
+                                || playback.pending()
+                                || foreground && settings.ambientOutput());
         liveCerebellumOk = null;
         liveLink.open(
                 target,
@@ -1282,6 +1291,8 @@ public final class PocketController {
                 if (ambientInput.metaSeen()) sightSession.keyFrame();
             } else if (type.equals("speech")) {
                 speech(frame.optString("speech_id"));
+            } else if (type.equals("playback")) {
+                playback.completed(frame);
             } else if (type.equals("stop_audio")) {
                 if (playback.acceptsStop(frame)) stopPlayback();
             } else if (type.equals("cerebellum") && roomState != null) {
@@ -2084,8 +2095,15 @@ public final class PocketController {
 
     private void refreshService() {
         boolean bluetooth = PassportPolicy.ENABLED && passport.backgroundEnabled();
-        boolean needed = !trying && (ambientWanted || uploadForeground || bluetooth);
+        boolean playing = playback.pending();
+        int modes =
+                (ambientWanted ? 1 : 0)
+                        | (bluetooth ? 2 : 0)
+                        | (uploadForeground ? 4 : 0)
+                        | (playing ? 8 : 0);
+        boolean needed = !trying && modes != 0;
         if (needed) {
+            if (serviceRunning && serviceModes == modes) return;
             // The service may receive an older queued notification before this call returns.
             // Publish current intent before Android can create it or it can stop itself as idle.
             publish();
@@ -2094,24 +2112,59 @@ public final class PocketController {
                         new Intent(context, PocketSessionService.class)
                                 .putExtra("microphone", ambientWanted)
                                 .putExtra("bluetooth", bluetooth)
-                                .putExtra("upload", uploadForeground));
+                                .putExtra("upload", uploadForeground)
+                                .putExtra("playback", playing));
                 serviceRunning = true;
+                serviceModes = modes;
             } catch (IllegalStateException | SecurityException failure) {
                 serviceRunning = false;
+                serviceModes = 0;
                 if (ambientWanted) {
                     ambientWanted = false;
                     ambient = Ambient.FAILED;
                     stopCapture();
                     lastError = "无法在后台收音，请回到 多多 后重新开启";
+                } else if (playing) {
+                    lastError = "无法在后台播放语音，请回到 多多 后重试";
+                    if (!foreground) {
+                        playback.stop();
+                        releaseAudioIfIdle();
+                        closeBackgroundLinkIfIdle();
+                    }
                 }
                 log.event("service", "foreground_start_denied");
             }
         } else if (serviceRunning) {
             serviceRunning = false;
+            serviceModes = 0;
             // A requested foreground service must acknowledge its start before stopping itself.
             // The service observes this snapshot after promotion, even if its creation is pending.
             publish();
         }
+    }
+
+    /** Backgrounding ends UI ownership, not a reply already being received or played. */
+    private void closeBackgroundLinkIfIdle() {
+        if (foreground
+                || ambientWanted
+                || playback.pending()
+                || !pending.isEmpty()
+                || accessoryWaiting()
+                || liveLink.closing()) return;
+        if (channel.isOpen() || liveLink.opening()) {
+            liveLink.invalidate();
+            channel.closeLive();
+            connection = Connection.OFFLINE;
+        }
+    }
+
+    public void stopSessionPlayback() {
+        state.execute(
+                () -> {
+                    interruptPlayback();
+                    surface();
+                    publish();
+                });
     }
 
     private void surface() {
@@ -2129,7 +2182,9 @@ public final class PocketController {
                                             ? "passport"
                                             : "later",
                             "spoken",
-                            (ambientWanted || settings.ambientOutput() && foreground)
+                            (ambientWanted
+                                            || playback.pending()
+                                            || settings.ambientOutput() && foreground)
                                     && !ambientMuted
                                     && !audioSuspended));
     }
@@ -2143,7 +2198,7 @@ public final class PocketController {
     }
 
     private void speech(String id) {
-        if (id.isEmpty()) return;
+        if (id.isEmpty() || !foreground && !ambientWanted && !playback.pending()) return;
         if (ambientInput.pressMuted()) {
             stopPlayback();
             if (reportsPlayback()) send(Json.object("type", "interrupted", "speech_id", id));
@@ -2153,6 +2208,7 @@ public final class PocketController {
             ensurePlayer();
             playback.speech(id);
         } catch (Exception failure) {
+            stopPlayback();
             notice("无法启动语音播放");
         }
     }
@@ -2165,7 +2221,7 @@ public final class PocketController {
         }
         if (ambientInput.pressMuted()
                 || !playback.readingId().isEmpty()
-                || !foreground && !ambientWanted) return;
+                || !foreground && !ambientWanted && !playback.pending()) return;
         try {
             playback.packet(bytes, ambientWanted && ambientMuted);
         } catch (Exception failure) {
@@ -2191,6 +2247,8 @@ public final class PocketController {
     private void interruptPlayback() {
         playback.interrupt();
         releaseAudioIfIdle();
+        refreshService();
+        closeBackgroundLinkIfIdle();
     }
 
     private void stopPlayback() {
@@ -2200,6 +2258,8 @@ public final class PocketController {
                 && connection == Connection.ONLINE
                 && ambientInput.role().equals("master")) ambient = Ambient.LISTENING;
         releaseAudioIfIdle();
+        refreshService();
+        closeBackgroundLinkIfIdle();
     }
 
     public void readAloud(Message message) {

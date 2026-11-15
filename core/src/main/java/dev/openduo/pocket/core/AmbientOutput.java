@@ -5,11 +5,24 @@ package dev.openduo.pocket.core;
 
 import org.json.JSONObject;
 
+import java.util.function.LongSupplier;
+
 /** PocketCore.AmbientEdge's output policy. State-owner only; no decoder or hardware ownership. */
 public final class AmbientOutput {
+    private static final long RECEIVE_IDLE_MS = 30_000;
+    private final LongSupplier clock;
     private String id = "";
-    private boolean reading;
+    private boolean reading, receiving;
     private long hardwareMs, skippedSamples, reportedMs, declaration;
+    private long receivedSamples, completedMs = -1, lastActivity;
+
+    public AmbientOutput() {
+        this(() -> System.nanoTime() / 1_000_000L);
+    }
+
+    public AmbientOutput(LongSupplier clock) {
+        this.clock = clock;
+    }
 
     public String id() {
         return id;
@@ -17,6 +30,41 @@ public final class AmbientOutput {
 
     public boolean reading() {
         return reading;
+    }
+
+    /** A hardware queue can drain between network chunks without ending the reply. */
+    public boolean receiving() {
+        return receiving;
+    }
+
+    public void received(int samples) {
+        if (reading || id.isEmpty() || samples <= 0) return;
+        receivedSamples += samples;
+        lastActivity = clock.getAsLong();
+        if (completedMs >= 0 && receivedSamples * 1000 / 16_000 >= completedMs) receiving = false;
+    }
+
+    /** The room's synthesis receipt does not replace the device's hardware drain. */
+    public boolean completed(JSONObject frame) {
+        if (reading
+                || id.isEmpty()
+                || !frame.optString("state").equals("done")
+                || !frame.optString("speech_id").equals(id)
+                || frame.optLong("played_ms", 0) < 0) return false;
+        completedMs = frame.optLong("played_ms", 0);
+        lastActivity = clock.getAsLong();
+        if (receivedSamples * 1000 / 16_000 >= completedMs) receiving = false;
+        return true;
+    }
+
+    /**
+     * Older/interrupted services may omit completion; never keep an idle playback service forever.
+     */
+    public boolean expire(boolean hardwarePending) {
+        if (!receiving || hardwarePending || clock.getAsLong() - lastActivity < RECEIVE_IDLE_MS)
+            return false;
+        receiving = false;
+        return true;
     }
 
     /** Hardware keys are local; a repeated wire id still starts a different Opus declaration. */
@@ -33,17 +81,22 @@ public final class AmbientOutput {
         stop();
         declaration++;
         id = speech;
+        receiving = !speech.isEmpty();
+        lastActivity = clock.getAsLong();
     }
 
     public void read(String message) {
         speech("read:" + message);
         reading = true;
+        receiving = false;
     }
 
     public void stop() {
         id = "";
-        reading = false;
+        reading = receiving = false;
         hardwareMs = skippedSamples = reportedMs = 0;
+        receivedSamples = lastActivity = 0;
+        completedMs = -1;
     }
 
     /** A room stop neither cuts a local read nor fillers; a named stale stop is ignored. */

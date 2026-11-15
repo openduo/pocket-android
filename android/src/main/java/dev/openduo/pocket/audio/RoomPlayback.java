@@ -24,7 +24,7 @@ public final class RoomPlayback {
     private final Executor state;
     private final BooleanSupplier reports;
     private final Listener listener;
-    private final AmbientOutput output = new AmbientOutput();
+    private final AmbientOutput output = new AmbientOutput(android.os.SystemClock::elapsedRealtime);
     private final SpeechReader reader;
     private SpeechPlayer player;
     private OpusDecoder decoder;
@@ -52,7 +52,21 @@ public final class RoomPlayback {
     }
 
     public boolean pending() {
-        return reader.inFlight() || player != null && player.hasPending();
+        return output.receiving() || reader.inFlight() || player != null && player.hasPending();
+    }
+
+    public void tick() {
+        if (output.expire(player != null && player.hasPending())) {
+            drained();
+            listener.changed();
+        }
+    }
+
+    public void completed(JSONObject frame) {
+        if (output.completed(frame)) {
+            drained();
+            listener.changed();
+        }
     }
 
     public boolean acceptsStop(JSONObject frame) {
@@ -116,13 +130,20 @@ public final class RoomPlayback {
         decoder = null;
         output.speech(id);
         decoder = new OpusDecoder();
+        listener.changed();
     }
 
     public void packet(byte[] packet, boolean skip) throws Exception {
         if (decoder == null || !reader.id().isEmpty()) return;
         short[] pcm = decoder.packet(packet);
+        boolean receiving = output.receiving();
+        output.received(pcm.length);
         if (skip) report(output.skipped(pcm.length, reports.getAsBoolean()));
         else if (player != null) player.enqueue(output.playbackKey(), pcm);
+        if (receiving && !output.receiving()) {
+            drained();
+            listener.changed();
+        }
     }
 
     public void read(
@@ -139,11 +160,16 @@ public final class RoomPlayback {
                     drained();
                     completion.finished(received, failure);
                 });
+        listener.changed();
     }
 
     private void drained() {
         if (!reader.inFlight() && output.reading() && (player == null || !player.hasPending()))
             reader.cancel();
+        if (!pending() && decoder != null) {
+            decoder.close();
+            decoder = null;
+        }
     }
 
     public void interrupt() {

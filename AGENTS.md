@@ -1,5 +1,17 @@
 # Pocket Android engineering rules
 
+Lockscreen playback fix (2026-11-15): Activity backgrounding must not stop an already-started
+spoken reply or local read. RoomPlayback/AmbientOutput retain reception through chunk gaps and
+matching completion duration; native drain is separate. PocketSessionService uses mediaPlayback
+with a playback-only partial wake lock and a localized stop action, then releases idle work.
+The old APK failed the actual API35 screen-off probe; the fixed generic APK passes its 15 bounded
+assertions, plus 2,622 JVM assertions (seven new), localization/source checks and Debug/Release
+builds. No microphone, room sends or broad matrix. The user subsequently reconnected E2 and
+explicitly requested migration to the public package: the old app was uninstalled and the fixed
+signed `dev.openduo.pocket` APK was installed and opened. The user will log into Tailscale and
+provide a fresh pairing link. Do not take over that login or reuse old credentials. E2 screen-off
+acceptance remains pending; do not turn this handoff into an unrelated device/service regression.
+
 Current milestone (2026-11-15): continue splitting by actual ownership until further splitting
 would add forwarding, duplicate state or conceal necessary coordination. Composer/HistoryPager own
 pure composition/pagination, RoomLink owns live generations/queues/final controls, TailnetSession
@@ -39,7 +51,7 @@ Implemented in pure `:input`, Android `app/input` and owned `:core/VoiceNotes`; 
 The final original-package E2 check passes 27 bounded assertions using injected keys, real array
 capture and Try-only sends, restoring the actual room Online. Physical key presses and target
 speaker/remote hardware remain unaccepted. Do not repeat that check without a relevant change.
-Do not intercept system navigation keys or add a new tailnet node. Its bounded input check is
+Do not intercept system navigation keys. Its bounded input check is
 historical evidence, not a requirement for subsequent unrelated controller extraction.
 
 Passport protocol milestone (2026-11-15): protocol 1.3 and Android integration are implemented
@@ -100,11 +112,12 @@ Push (including crypto/identifiers/ledger) remains explicitly deferred.
   Try fixtures are distinct from real recordings and pinned by checksum.
 - Keep implementation, prepared responses and real-service acceptance distinct in `docs/status.md`
   and `docs/migration.md`. Do not invent a parity percentage.
-- The old physical E2 app `top.kuaner.pockete2` retains its login/pairing. Do not uninstall, clear or
-  replace its data while developing `dev.openduo.pocket`; package IDs cannot share AndroidKeyStore.
-  The user explicitly requested testing on the original package on 2026-11-15. A signed in-place
-  legacy-identity build may update it while preserving its storage names, key alias and tailnet.
-  Do not require another node or pairing for these tests.
+- On 2026-11-15 the user explicitly requested uninstalling the old physical E2 app
+  `top.kuaner.pockete2` and migrating to `dev.openduo.pocket`. That uninstall and the new-package
+  update are complete. Earlier original-package checks remain historical evidence. Use the public
+  identity for subsequent device work; do not reinstall the legacy app or clear the new app's data.
+  Package IDs cannot share AndroidKeyStore: use the user's fresh login and pairing, not copied
+  credentials. Leave the device available while the user completes Tailscale login.
 - Do not spawn subagents without an explicit user request. No unsolicited full regression, long
   wait, or notification/message to a person. Existing opt-in probes can send real room content;
   read their scope before use and never silently run them for a build/refactor.

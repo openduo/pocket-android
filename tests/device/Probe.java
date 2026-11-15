@@ -41,6 +41,11 @@ public final class Probe extends Instrumentation {
         Bundle report = new Bundle();
         Context context = getTargetContext();
         try {
+            if (arguments != null && "1".equals(arguments.getString("lockscreenPlaybackOnly"))) {
+                report.putString("result", new LockscreenPlaybackProbe(this).run(context));
+                finish(Activity.RESULT_OK, report);
+                return;
+            }
             if (arguments != null && "1".equals(arguments.getString("showcaseOnly"))) {
                 report.putString("result", new ShowcaseCapture(this).run(context, arguments));
                 finish(Activity.RESULT_OK, report);

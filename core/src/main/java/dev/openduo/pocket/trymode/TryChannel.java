@@ -553,6 +553,7 @@ public final class TryChannel implements ChannelConnection, AutoCloseable {
                                         bytes, offset, Math.min(bytes.length, offset + 4096))))
                     if (isOpen()) live.binary(packet);
             parser.finish();
+            frame(Json.object("type", "playback", "speech_id", id, "state", "done"));
             return true;
         } catch (IOException missing) {
             return false;

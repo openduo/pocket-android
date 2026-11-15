@@ -16,7 +16,7 @@ version code 2). This adds the localization follow-up to the first preview and c
 | Windows | Shared size classes, bounded columns, short-window/IME/Insets and page-state handling; business logic does not branch on E2 or physical-panel dimensions |
 | Hardware | Default Android capture/routing and capability discovery; MIC fallback; E2 model/firmware/system-bar and optional array integration isolated in one module |
 | Identity | DuoDuo Pocket / 多多, `dev.openduo.pocket`, `duoduopocket` links, upstream brand mark, legacy/adaptive/themed icons, one version source; arm64+x86_64 APK |
-| Internationalization | English/Simplified Chinese and system fallback, 646-entry current-source copy catalog (617 in the first preview), localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
+| Internationalization | English/Simplified Chinese and system fallback, 650-entry current-source copy catalog (617 in the first preview), localized native controls/accessibility/notifications/errors; all production modules and native resources checked; English public docs with Chinese companions and English screenshots |
 | P0 implementation | Tailscale login/pairing/live and network recovery; text/attachments/history; durable/idempotent outbox/drafts; voice upload/retry, ambient playback/interruption |
 | P1 implementation | Sight negotiation and Camera2/H.264, sessions/details/notification controls, maps/coordinates/geocoder/arrival ledger, import/share/Try/diagnostics |
 | Real recovery fix | Restored Wi-Fi left tsnet caching network-down; recovery injects a netmon event. Earlier physical E2 build recovered Online in about 2.7s, same process, independently observed from the computer |
@@ -33,7 +33,26 @@ version code 2). This adds the localization follow-up to the first preview and c
 
 Earlier actual text/history/files/session reading, E2 array/camera and synthetic-ASR → brain/tool → muted-playback results belong to earlier application IDs/APKs. They are useful evidence, not full acceptance of the new package. The eight-hour task ended early and is not restarted. See [verification limits](acceptance.md) and [historical status](status-2026-11-14-history.md).
 
-## Current ownership decomposition and stopping point
+## Lockscreen spoken-reply fix
+
+The user-reported interruption is reproduced: the previous generic APK stopped non-ambient playback
+and closed its socket when the actual display went to sleep. Ongoing replies and local reads now
+keep their receive/playback lifetime independent of Activity visibility. The session service protects
+playback with `mediaPlayback`, a partial CPU wake lock and a localized Stop playback action. Matching
+completion plus native drain releases otherwise idle background work; missing receipts have a bounded
+idle fallback. See [ownership and evidence](audio.md#finishing-an-ongoing-reply-while-locked).
+
+The fixed signed generic APK passes 15 short API35 screen-off assertions, including exact six-second
+silent native playback with packets received after screen-off and service/socket/wake-lock cleanup.
+The full lightweight JVM check passes 2,622 assertions (seven new). Generic Debug/Release, source and
+650-entry localization checks, and public dual-ABI payload checks pass. No microphone, actual room
+content or broad matrix was used. At the user's subsequent request, the old E2 app was uninstalled
+and the fixed signed `dev.openduo.pocket` APK was installed and opened. Fresh Tailscale login/pairing
+and E2 screen-off acceptance remain pending. The installed public-identity APK uses standard Android
+framework audio; earlier local-array acceptance does not transfer. Published Preview 2 remains
+unchanged. Starting a new spoken reply after the app is already idle in the background remains separate.
+
+## Ownership decomposition and stopping point
 
 The follow-up moves draft/quote/attachments and edit acknowledgement into `:core/Composer`,
 bounded history pagination into `:core/HistoryPager`, live generations/queues/final controls into

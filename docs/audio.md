@@ -1,8 +1,49 @@
 # Voice and ambient audio ownership
 
 The reference is the pinned upstream `PocketCore/AmbientEdge.swift`, `AmbientInterruption.swift`,
-`VoiceUploader.swift` and `App/Engine/AmbientController.swift`. External Passport integration is
-deferred by the user; the standalone E2 microphone and output paths remain in scope.
+`VoiceUploader.swift` and `App/Engine/AmbientController.swift`. See [Passport](passport.md) for the
+separate accessory protocol and its remaining hardware acceptance.
+
+## Finishing an ongoing reply while locked
+
+On 2026-11-15 the user reported spoken replies stopping when the screen locks. The previous
+controller explicitly stopped non-ambient output on Activity backgrounding, closed the idle live
+socket and rejected subsequent binary frames. Only ambient capture/uploads/accessory work could
+hold the foreground service; ordinary reply playback had no such lifetime.
+
+An already-started reply or local read now retains its receive/playback lifetime independently
+of Activity visibility. `AmbientOutput` tracks the current declaration, decoded duration and
+matching `playback/done` duration; completion may arrive before the last audio bytes. Hardware
+drain remains a separate condition. Gaps between chunks do not end the reply. An omitted or
+incomplete receipt expires after 30 seconds without incoming progress and without pending hardware
+audio, so an idle service does not survive indefinitely. Local reads use their existing HTTP-end
+and hardware-drain ownership.
+
+`PocketSessionService` declares the `mediaPlayback` type for this work and holds an app-only
+partial CPU wake lock while playback is pending. It does not keep the screen on or start a
+microphone. Its English/Chinese notification offers Stop playback. Drain, explicit stop or failure
+releases playback protection; an otherwise idle background live connection also closes. Existing
+ambient capture, uploads and accessory work keep their independent service needs. This fixes
+continuation of an already-started reply, not automatic speech initiated after the app is idle
+in the background.
+
+The focused `POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY=1 scripts/test-device.sh` probe first failed on
+the old generic APK at the actual screen-off generation/connection check. The fixed signed generic
+APK passes 15 bounded API35 assertions: Activity stops with the display asleep, the playback
+generation and spoken surface survive, native service type is `mediaPlayback`, the CPU wake lock
+is held, late incoming packets play, and the exact six-second silent timeline drains before the
+service/socket/wake lock release. Settings, pairing and composer are restored. Storage and transport
+are isolated, with no network delegate, microphone or actual room sends.
+
+Seven new deterministic reception/completion/idle contracts pass; the host total is 2,622. Generic
+Debug and signed Release builds, localization/source checks and public dual-ABI payload checks pass.
+The original-package local-array E2 update also builds. The user then requested migration to the
+public identity: the old app was uninstalled and the fixed signed `dev.openduo.pocket` APK was
+installed and opened on E2. Fresh Tailscale login/pairing and E2 screen-off acceptance remain pending.
+This installed APK uses default Android framework audio; earlier local-array speech acceptance
+does not transfer to it. No broader lifecycle/device matrix or actual-service speech test was repeated.
+
+## Retained voice and ambient evidence
 
 On 2026-11-15 one human hold-to-talk turn passed on the local original-package E2 array build.
 The actual room UI shows a four-second voice note, recognition, delivery and a reply; the user

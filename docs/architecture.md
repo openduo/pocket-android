@@ -67,6 +67,13 @@ packets and a retired unauthorized response cannot affect the next read. Each wo
 closes its own `ReadAloudOutput`; the controller never releases another thread's decoder. Initial
 errors stop playback, while partial failures retain admitted audio and show the existing warning.
 
+Activity visibility does not own ongoing playback. `AmbientOutput` retains the current live
+receive lifetime through chunk gaps until its matching completion duration arrives; native drain
+is separate, with bounded idle expiry for missing receipts. `RoomPlayback` supplies the resulting
+pending state to application policy. The Android session service uses `mediaPlayback` and a
+playback-only partial CPU wake lock, while capture, uploads and accessory work retain independent
+service needs. Once playback drains, otherwise idle background work is released. See [audio](audio.md).
+
 Uploads removed/replaced by the user cancel their own request scope; a late response cannot change
 the draft. Room reset invalidates file results even after state has posted them to Android's main
 thread. Cached/local previews still work without a current network credential. History scans stop
