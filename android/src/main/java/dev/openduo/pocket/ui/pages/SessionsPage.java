@@ -23,7 +23,7 @@ import dev.openduo.pocket.ui.markdown.MarkdownView;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-/** Narrow-screen session list and thread. A watch exists only while the page is visible. */
+/** Session list and thread use one pane on phones and adjacent panes on wide windows. */
 public final class SessionsPage implements PocketController.Listener {
     /** Retained across native theme/configuration recreation without retaining an Activity. */
     public static final class State {
@@ -45,7 +45,8 @@ public final class SessionsPage implements PocketController.Listener {
     private final PageHost host;
     private final PocketController controller;
     private final Ui ui;
-    private LinearLayout root, content, notify, roomReturn;
+    private LinearLayout root, content, listContent, notify, roomReturn;
+    private boolean twoPane;
     private TextView heading, result, notifyTarget, roomTitle;
     private View sendNotify;
     private EditText input;
@@ -79,6 +80,7 @@ public final class SessionsPage implements PocketController.Listener {
 
     public View render() {
         if (root != null) return root;
+        twoPane = ui.metrics.twoPaneWorkspace();
         dev.openduo.pocket.ui.AdaptiveColumn adaptive = ui.adaptiveColumn();
         root = adaptive;
         LinearLayout bar = ui.row();
@@ -89,7 +91,7 @@ public final class SessionsPage implements PocketController.Listener {
                         ui.palette.secondary,
                         () -> {
                             SessionViewer.Snapshot s = controller.snapshot().sessions;
-                            if (!s.openKey.isEmpty()) {
+                            if (!twoPane && !s.openKey.isEmpty()) {
                                 controller.sessionList();
                                 anchor.toTop();
                             } else host.back();
@@ -116,16 +118,13 @@ public final class SessionsPage implements PocketController.Listener {
         roomParams.leftMargin = ui.dp(10);
         roomReturn.addView(roomLabels, roomParams);
         ui.clickable(roomReturn, ui.palette.surface, 12, () -> host.navigate("conversation"));
-        root.addView(roomReturn);
         content = ui.column();
         ui.inset(content, ui.pagePaddingDp(), 10);
         ScrollView scroll = ui.scroll(content);
         scroll.setId(dev.openduo.pocket.R.id.page_scroll);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         anchor = new ScrollAnchor(scroll);
         result = ui.label("", 12, ui.palette.attention, false);
         ui.inset(result, 12, 6);
-        root.addView(result);
         notify = ui.column();
         ui.inset(notify, 8, 8);
         notifyTarget = ui.label("", 13, ui.palette.text, true);
@@ -161,7 +160,33 @@ public final class SessionsPage implements PocketController.Listener {
                 sendNotify,
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         ui.add(notify, notifyRow, 6);
-        root.addView(ui.scrollFooter(notify));
+        if (twoPane) {
+            LinearLayout left = ui.column(), right = ui.column();
+            listContent = ui.column();
+            ui.inset(listContent, 12, 10);
+            left.addView(roomReturn);
+            ScrollView listScroll = ui.scroll(listContent);
+            listScroll.setId(dev.openduo.pocket.R.id.session_list_scroll);
+            left.addView(listScroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            right.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            right.addView(result);
+            right.addView(ui.scrollFooter(notify));
+            LinearLayout panes = ui.row();
+            panes.setPadding(ui.pagePadding(), 0, ui.pagePadding(), 0);
+            left.setBackground(ui.surface(ui.palette.surface, 14));
+            panes.addView(
+                    left,
+                    new LinearLayout.LayoutParams(ui.dp(ui.metrics.sidebarWidthDp() + 36), -1));
+            LinearLayout.LayoutParams detail = new LinearLayout.LayoutParams(0, -1, 1);
+            detail.leftMargin = ui.dp(12);
+            panes.addView(right, detail);
+            root.addView(panes, new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            root.addView(roomReturn);
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            root.addView(result);
+            root.addView(ui.scrollFooter(notify));
+        }
         controller.addListener(this);
         changed();
         return root;
@@ -203,8 +228,11 @@ public final class SessionsPage implements PocketController.Listener {
             handledNotify = s.notifyId;
         }
         anchor.capture(!s.openKey.isEmpty());
+        View focusedItem = listContent == null ? null : listContent.findFocus();
+        Object focusedTag = focusedItem == null ? null : focusedItem.getTag();
         content.removeAllViews();
-        roomReturn.setVisibility(s.openKey.isEmpty() ? View.VISIBLE : View.GONE);
+        if (listContent != null) listContent.removeAllViews();
+        roomReturn.setVisibility(twoPane || s.openKey.isEmpty() ? View.VISIBLE : View.GONE);
         Ui.updateText(roomTitle, room.trying ? ui.t("体验房间") : room.roomName);
         if (!access.canView) {
             content.addView(
@@ -225,8 +253,9 @@ public final class SessionsPage implements PocketController.Listener {
             result.setVisibility(View.GONE);
             return;
         }
+        LinearLayout list = twoPane ? listContent : content;
         if (!s.error.isEmpty())
-            content.addView(
+            list.addView(
                     ui.label(
                             s.error.equals("forbidden")
                                     ? ui.t("当前设备没有查看会话的权限")
@@ -237,14 +266,20 @@ public final class SessionsPage implements PocketController.Listener {
         if (s.openKey.isEmpty()) {
             heading.setText(ui.t("会话"));
             notify.setVisibility(View.GONE);
-            if (!s.listed)
-                content.addView(ui.label(ui.t("正在读取会话列表…"), 14, ui.palette.subtle, false));
+            if (!s.listed) list.addView(ui.label(ui.t("正在读取会话列表…"), 14, ui.palette.subtle, false));
             else if (s.sessions.isEmpty())
-                content.addView(ui.label(ui.t("还没有会话"), 14, ui.palette.subtle, false));
-            for (String group : new String[] {"chat", "job"}) group(s, group);
+                list.addView(ui.label(ui.t("还没有会话"), 14, ui.palette.subtle, false));
+            for (String group : new String[] {"chat", "job"}) group(s, group, list);
+            if (twoPane)
+                ui.add(content, ui.label(ui.t("从左侧选择一个会话"), 18, ui.palette.secondary, false), 24);
         } else {
             SessionViewer.Summary open = s.open();
-            heading.setText(open == null ? ui.t("会话") : open.name);
+            heading.setText(twoPane || open == null ? ui.t("会话") : open.name);
+            if (twoPane) {
+                for (String group : new String[] {"chat", "job"}) group(s, group, list);
+                if (open != null)
+                    ui.add(content, ui.label(open.name, 20, ui.palette.text, true), 4);
+            }
             if (!s.loaded) content.addView(ui.label(ui.t("正在读取会话…"), 14, ui.palette.subtle, false));
             if (s.loaded && s.rows.isEmpty())
                 content.addView(ui.label(ui.t("最近没有活动"), 14, ui.palette.subtle, false));
@@ -254,10 +289,10 @@ public final class SessionsPage implements PocketController.Listener {
                     tools.add(row);
                     continue;
                 }
-                flushTools(tools);
-                row(s, row);
+                flushTools(tools, content);
+                row(s, row, content);
             }
-            flushTools(tools);
+            flushTools(tools, content);
             if (open != null && !access.canNotify)
                 ui.add(
                         content,
@@ -272,6 +307,12 @@ public final class SessionsPage implements PocketController.Listener {
             input.setEnabled(s.canNotify(access) && s.pending.isEmpty());
         }
         updateSend();
+        if (focusedTag != null && listContent != null)
+            listContent.post(
+                    () -> {
+                        View row = listContent.findViewWithTag(focusedTag);
+                        if (row != null && row.isShown()) row.requestFocus();
+                    });
     }
 
     private void updateSend() {
@@ -310,13 +351,13 @@ public final class SessionsPage implements PocketController.Listener {
         }
     }
 
-    private void group(SessionViewer.Snapshot state, String group) {
+    private void group(SessionViewer.Snapshot state, String group, LinearLayout target) {
         List<SessionViewer.Summary> items = new ArrayList<>();
         for (SessionViewer.Summary item : state.sessions)
             if (item.group.equals(group)) items.add(item);
         if (items.isEmpty()) return;
         ui.add(
-                content,
+                target,
                 ui.label(
                         group.equals("chat") ? ui.t("会话") : ui.t("任务"),
                         12,
@@ -352,18 +393,19 @@ public final class SessionsPage implements PocketController.Listener {
             row.addView(labels, lp);
             ui.clickable(
                     row,
-                    ui.palette.surface,
+                    item.key.equals(state.openKey) ? ui.palette.selected : ui.palette.surface,
                     12,
                     () -> {
                         controller.openSession(item.key);
                         anchor.toBottom();
                     });
             row.setContentDescription(item.name + (detail.isEmpty() ? "" : ", " + detail));
-            ui.add(content, row, 6);
+            row.setTag("session:" + item.key);
+            ui.add(target, row, 6);
         }
         if (items.size() > FOLD_AFTER)
             ui.add(
-                    content,
+                    target,
                     ui.button(
                             expanded ? ui.t("收起") : ui.format("还有 %d 个", items.size() - FOLD_AFTER),
                             ui.palette.accent,
@@ -408,7 +450,7 @@ public final class SessionsPage implements PocketController.Listener {
         return String.join(" · ", values);
     }
 
-    private void row(SessionViewer.Snapshot state, SessionViewer.Row row) {
+    private void row(SessionViewer.Snapshot state, SessionViewer.Row row, LinearLayout target) {
         if (row.kind.equals("gap") || row.kind.equals("system")) {
             TextView text =
                     ui.label(
@@ -418,7 +460,7 @@ public final class SessionsPage implements PocketController.Listener {
                             false);
             text.setGravity(Gravity.CENTER);
             ui.inset(text, 8, 6);
-            ui.add(content, text, 4);
+            ui.add(target, text, 4);
             return;
         }
         if (row.text.trim().isEmpty()) return;
@@ -465,10 +507,10 @@ public final class SessionsPage implements PocketController.Listener {
                     ui.copy(ui.t("会话内容"), row.text);
                     return true;
                 });
-        ui.add(content, box, 8);
+        ui.add(target, box, 8);
     }
 
-    private void flushTools(java.util.List<SessionViewer.Row> tools) {
+    private void flushTools(java.util.List<SessionViewer.Row> tools, LinearLayout target) {
         if (tools.isEmpty()) return;
         java.util.List<Sheets.Action> actions = new java.util.ArrayList<>();
         for (SessionViewer.Row row : tools)
@@ -479,7 +521,7 @@ public final class SessionsPage implements PocketController.Listener {
         boolean failed = tools.stream().anyMatch(row -> row.failed);
         String last = tools.get(tools.size() - 1).toolLine();
         ui.add(
-                content,
+                target,
                 ui.button(
                         (failed ? ui.t("失败 · ") : "")
                                 + (tools.size() == 1

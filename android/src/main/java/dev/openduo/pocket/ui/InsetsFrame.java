@@ -85,8 +85,14 @@ public final class InsetsFrame extends FrameLayout {
             android.graphics.Insets bars =
                     insets.getInsets(
                             WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            android.graphics.Insets navigation =
+                    insets.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars());
             android.graphics.Insets ime = insets.getInsets(WindowInsets.Type.ime());
-            setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            setPadding(
+                    bars.left,
+                    bars.top,
+                    bars.right,
+                    Math.max(Math.max(bars.bottom, navigation.bottom), ime.bottom));
             publishKeyboard(insets.isVisible(WindowInsets.Type.ime()));
         } else
             setPadding(

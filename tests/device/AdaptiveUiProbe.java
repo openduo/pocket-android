@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -69,6 +70,7 @@ final class AdaptiveUiProbe {
     }
 
     String run(Context context, Bundle arguments) throws Exception {
+        boolean layoutOnly = arguments.getString("layoutOnly", "0").equals("1");
         if (!android.os.Build.HARDWARE.contains("ranchu"))
             throw new AssertionError("The UI matrix is restricted to an isolated Android emulator");
         controller = PocketController.get(context);
@@ -128,6 +130,8 @@ final class AdaptiveUiProbe {
                         "diagnostics"
                     }) {
                 navigate(destination);
+                inspectCanvas(destination);
+                inspectPrimaryActions(destination);
                 inspect(destination, screen.getWindow().getDecorView());
                 capture(directory, destination);
                 for (ScrollView scroll : main(() -> scrolls(screen.getWindow().getDecorView()))) {
@@ -142,23 +146,94 @@ final class AdaptiveUiProbe {
                 capture(directory, destination + "-end");
             }
             navigate("sessions");
-            controller.openSession("try-chat");
+            if (screen.ui().metrics.twoPaneWorkspace()) {
+                View item =
+                        main(
+                                () ->
+                                        screen.getWindow()
+                                                .getDecorView()
+                                                .findViewWithTag("session:try-chat"));
+                check(item != null && item.isShown(), "wide sessions show a selectable list");
+                if (item != null) {
+                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN);
+                    main(
+                            () -> {
+                                item.requestFocus();
+                                return null;
+                            });
+                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+                } else controller.openSession("try-chat");
+            } else controller.openSession("try-chat");
             await(() -> controller.snapshot().sessions.loaded, 5000);
             settle();
+            if (screen.ui().metrics.twoPaneWorkspace())
+                check(
+                        main(
+                                () -> {
+                                    View selected =
+                                            screen.getWindow()
+                                                    .getDecorView()
+                                                    .findViewWithTag("session:try-chat");
+                                    return selected != null && selected.hasFocus();
+                                }),
+                        "wide session selection retains D-pad focus in the list");
             inspect("session-thread", screen.getWindow().getDecorView());
             capture(directory, "session-thread");
-            keyboard(directory, "session-keyboard");
+            if (!layoutOnly) keyboard(directory, "session-keyboard");
             navigate("conversation");
-            controller.draft("QA window and font retained draft");
-            await(() -> controller.draft().equals("QA window and font retained draft"), 2000);
-            keyboard(directory, "conversation-keyboard");
-            check(
-                    controller.draft().equals("QA window and font retained draft"),
-                    "opening the keyboard preserves the draft");
-            navigate("pairing");
-            keyboard(directory, "pairing-keyboard");
-            navigate("location");
-            keyboard(directory, "location-keyboard");
+            if (screen.ui().metrics.compactNavigation()) {
+                View menu =
+                        main(
+                                () ->
+                                        described(
+                                                screen.getWindow().getDecorView(),
+                                                screen.ui().t("切换页面")));
+                check(menu != null, "compact conversation exposes the page menu");
+                if (menu != null) {
+                    View ambientButton =
+                            main(
+                                    () ->
+                                            described(
+                                                    screen.getWindow().getDecorView(),
+                                                    screen.ui().t("环境模式")));
+                    main(
+                            () -> {
+                                if (ambientButton != null) ambientButton.requestFocus();
+                                return null;
+                            });
+                    check(
+                            ambientButton != null && main(ambientButton::hasFocus),
+                            "compact ambient header control accepts focus");
+                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT);
+                    boolean reached = main(menu::hasFocus);
+                    check(reached, "D-pad can reach compact page menu from header");
+                    if (reached) {
+                        probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+                        settle();
+                        capture(directory, "compact-menu");
+                        probe.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+                        settle();
+                        check(main(menu::isShown), "Back closes compact menu without leaving chat");
+                    }
+                }
+            }
+            if (!layoutOnly) {
+                controller.draft("QA window and font retained draft");
+                await(() -> controller.draft().equals("QA window and font retained draft"), 2000);
+                keyboard(directory, "conversation-keyboard");
+                check(
+                        controller.draft().equals("QA window and font retained draft"),
+                        "opening the keyboard preserves the draft");
+                navigate("pairing");
+                keyboard(directory, "pairing-keyboard");
+                keyboard(
+                        directory,
+                        "pairing-code-keyboard",
+                        screen.getWindow(),
+                        dev.openduo.pocket.R.id.pair_code);
+                navigate("location");
+                keyboard(directory, "location-keyboard");
+            }
             Dialog dialog =
                     main(
                             () ->
@@ -177,20 +252,22 @@ final class AdaptiveUiProbe {
                         dialog.dismiss();
                         return null;
                     });
-            Dialog edit =
-                    main(
-                            () ->
-                                    Sheets.edit(
-                                            screen.ui(),
-                                            screen.ui().t("输入文字"),
-                                            "QA long edit text with a retained selection",
-                                            value -> {}));
-            keyboard(directory, "edit-keyboard", edit.getWindow());
-            main(
-                    () -> {
-                        edit.dismiss();
-                        return null;
-                    });
+            if (!layoutOnly) {
+                Dialog edit =
+                        main(
+                                () ->
+                                        Sheets.edit(
+                                                screen.ui(),
+                                                screen.ui().t("输入文字"),
+                                                "QA long edit text with a retained selection",
+                                                value -> {}));
+                keyboard(directory, "edit-keyboard", edit.getWindow());
+                main(
+                        () -> {
+                            edit.dismiss();
+                            return null;
+                        });
+            }
             android.content.res.Configuration config = screen.getResources().getConfiguration();
             report.put("widthDp", config.screenWidthDp)
                     .put("heightDp", config.screenHeightDp)
@@ -200,6 +277,7 @@ final class AdaptiveUiProbe {
                     .put("api", android.os.Build.VERSION.SDK_INT)
                     .put("language", arguments.getString("uiLanguage", "en"))
                     .put("theme", arguments.getString("uiTheme", "dark"))
+                    .put("layoutOnly", layoutOnly)
                     .put("pages", pages)
                     .put("failures", failures)
                     .put("assertions", assertions);
@@ -266,8 +344,18 @@ final class AdaptiveUiProbe {
 
     private void keyboard(File directory, String name, android.view.Window window)
             throws Exception {
+        keyboard(directory, name, window, 0);
+    }
+
+    private void keyboard(File directory, String name, android.view.Window window, int editorId)
+            throws Exception {
         await(() -> main(() -> window.getDecorView().hasWindowFocus()), 3000);
-        EditText editor = main(() -> input(window.getDecorView()));
+        EditText editor =
+                main(
+                        () ->
+                                editorId == 0
+                                        ? input(window.getDecorView())
+                                        : window.getDecorView().findViewById(editorId));
         check(editor != null, name + " editor exists");
         if (editor == null) return;
         main(
@@ -313,6 +401,157 @@ final class AdaptiveUiProbe {
         main(
                 () -> {
                     inspectTree(page, root);
+                    return null;
+                });
+    }
+
+    private void inspectCanvas(String page) {
+        main(
+                () -> {
+                    try {
+                        java.lang.reflect.Field field =
+                                MainActivity.class.getDeclaredField("pages");
+                        field.setAccessible(true);
+                        ViewGroup pages = (ViewGroup) field.get(screen);
+                        for (int i = 0; i < pages.getChildCount(); i++) {
+                            View wrapper = pages.getChildAt(i);
+                            if (!wrapper.isShown() || !(wrapper instanceof ViewGroup)) continue;
+                            View child = ((ViewGroup) wrapper).getChildAt(0);
+                            check(
+                                    child != null && child.getWidth() == pages.getWidth(),
+                                    page + " page does not span the available window");
+                            break;
+                        }
+                        if (page.equals("conversation")
+                                || page.equals("ambient")
+                                || page.equals("settings")) {
+                            field = MainActivity.class.getDeclaredField("navSlot");
+                            field.setAccessible(true);
+                            View nav = (View) field.get(screen);
+                            if (screen.ui().metrics.compactNavigation()) {
+                                check(!nav.isShown(), page + " compact page keeps content height");
+                                String access =
+                                        page.equals("conversation")
+                                                ? screen.ui().t("切换页面")
+                                                : page.equals("settings")
+                                                        ? screen.ui().t("返回")
+                                                        : screen.ui().t("最小化环境模式");
+                                View button = described(pages, access);
+                                check(
+                                        button != null
+                                                && button.isShown()
+                                                && button.isFocusable()
+                                                && button.getWidth() >= screen.ui().touchTarget(),
+                                        page + " compact page has a focusable way back");
+                            } else if (screen.ui().metrics.navigationRail())
+                                check(
+                                        nav.getWidth() < pages.getWidth() / 3
+                                                && nav.getHeight() >= pages.getHeight(),
+                                        page
+                                                + " wide/short navigation does not save vertical"
+                                                + " room");
+                            else
+                                check(
+                                        nav.getWidth() >= pages.getWidth()
+                                                && nav.getHeight() <= screen.ui().dp(100),
+                                        page + " compact navigation does not span the bottom");
+                        }
+                    } catch (ReflectiveOperationException failure) {
+                        throw new AssertionError(failure);
+                    }
+                    return null;
+                });
+    }
+
+    private View described(View root, String description) {
+        if (!root.isShown()) return null;
+        if (root.getContentDescription() != null
+                && description.contentEquals(root.getContentDescription())) return root;
+        if (root instanceof ViewGroup)
+            for (int i = 0; i < ((ViewGroup) root).getChildCount(); i++) {
+                View found = described(((ViewGroup) root).getChildAt(i), description);
+                if (found != null) return found;
+            }
+        return null;
+    }
+
+    private View text(View root, String value) {
+        if (!root.isShown()) return null;
+        if (root instanceof TextView && value.contentEquals(((TextView) root).getText()))
+            return root;
+        if (root instanceof ViewGroup)
+            for (int i = 0; i < ((ViewGroup) root).getChildCount(); i++) {
+                View found = text(((ViewGroup) root).getChildAt(i), value);
+                if (found != null) return found;
+            }
+        return null;
+    }
+
+    private void inspectPrimaryActions(String page) {
+        main(
+                () -> {
+                    View decor = screen.getWindow().getDecorView();
+                    String label =
+                            page.equals("pairing")
+                                    ? screen.ui().t("配对并连接")
+                                    : page.equals("location") ? screen.ui().t("使用这个位置") : "";
+                    if (!label.isEmpty()) {
+                        View action = text(decor, label);
+                        Rect visible = new Rect();
+                        android.view.WindowInsets insets = decor.getRootWindowInsets();
+                        int navigation =
+                                insets == null
+                                        ? 0
+                                        : insets.getInsetsIgnoringVisibility(
+                                                        android.view.WindowInsets.Type
+                                                                .navigationBars())
+                                                .bottom;
+                        check(
+                                action != null
+                                        && action.getGlobalVisibleRect(visible)
+                                        && visible.height() >= screen.ui().touchTarget()
+                                        && visible.bottom <= decor.getHeight() - navigation + 1,
+                                page + " primary action clears the navigation gesture area");
+                    }
+                    if (page.equals("onboarding")) {
+                        View introduction = text(decor, screen.ui().t("随时说，接着聊"));
+                        View join = text(decor, screen.ui().t("连接房间"));
+                        View trial = text(decor, screen.ui().t("先体验 · 预设对话"));
+                        Rect descriptionBounds = new Rect(), actionBounds = new Rect();
+                        boolean bothVisible =
+                                introduction != null
+                                        && join != null
+                                        && introduction.getGlobalVisibleRect(descriptionBounds)
+                                        && join.getGlobalVisibleRect(actionBounds);
+                        check(
+                                introduction != null
+                                        && join != null
+                                        && trial != null
+                                        && (!screen.ui().metrics.twoPaneOnboarding()
+                                                        && screen.ui().metrics.shortHeight()
+                                                || bothVisible
+                                                        && actionBounds.height()
+                                                                >= screen.ui().touchTarget()),
+                                "onboarding keeps its primary action reachable at each window"
+                                    + " size");
+                        if (bothVisible) {
+                            boolean beside = actionBounds.left > descriptionBounds.right;
+                            check(
+                                    beside == screen.ui().metrics.twoPaneOnboarding(),
+                                    "onboarding reflows choices according to available pane width");
+                        }
+                    }
+                    if (page.equals("conversation") && !screen.ui().metrics.twoPaneWorkspace()) {
+                        check(
+                                text(decor, screen.ui().t("体验房间 · 回答为预设内容")) == null,
+                                "try room context is not duplicated below the chat heading");
+                        if (screen.ui().metrics.compactNavigation()) {
+                            EditText editor = decor.findViewById(dev.openduo.pocket.R.id.composer);
+                            check(
+                                    editor != null && editor.getWidth() >= screen.ui().dp(120),
+                                    "narrow chat keeps a readable text composer");
+                        }
+                    }
                     return null;
                 });
     }

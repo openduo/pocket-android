@@ -3,6 +3,7 @@
 
 package dev.openduo.pocket.ui.pages;
 
+import android.graphics.Rect;
 import android.text.InputType;
 import android.view.View;
 import android.widget.EditText;
@@ -24,7 +25,9 @@ public final class PairingPage implements PocketController.Listener {
     private EditText address, port, code, link;
     private Switch tls;
     private TextView error, commit;
+    private View footer;
     private boolean pairing;
+    private boolean keyboardVisible;
     private android.app.Dialog scanner;
 
     public PairingPage(PageHost host, PocketController controller) {
@@ -42,41 +45,48 @@ public final class PairingPage implements PocketController.Listener {
         root.addView(header);
         LinearLayout body = ui.column();
         ui.inset(body, ui.pagePaddingDp(), 10);
-        ui.add(
-                body,
-                ui.label(
-                        ui.t("在房间管理页生成配对链接，粘贴到这里。房间和设备凭据会由配对结果保存。"),
-                        14,
-                        ui.palette.secondary,
-                        false),
-                0);
-        link = field(body, ui.t("配对链接"), "");
+        LinearLayout intro = ui.column();
+        boolean narrow = ui.metrics.compactNavigation();
+        ui.add(intro, ui.label(ui.t("配对链接"), 12, ui.palette.subtle, false), 0);
+        LinearLayout linkRow = ui.row();
+        link = ui.input(ui.t("配对链接"), "", false);
         link.setId(dev.openduo.pocket.R.id.pair_link);
-        ui.add(
-                body,
-                ui.button(
-                        ui.t("扫描房间二维码"),
-                        ui.palette.accent,
-                        ui.palette.raised,
-                        () ->
-                                host.permission(
-                                        new String[] {android.Manifest.permission.CAMERA},
-                                        () -> {
-                                            hidden();
-                                            ui.hideKeyboard(link);
-                                            scanner =
-                                                    dev.openduo.pocket.ui.components.QrScanner.show(
-                                                            ui, this::parseLink);
-                                        })),
-                6);
-        ui.add(
-                body,
-                ui.button(
-                        ui.t("读取链接"),
-                        ui.palette.accent,
-                        ui.palette.raised,
-                        () -> parseLink(link.getText().toString())),
-                6);
+        linkRow.addView(link, new LinearLayout.LayoutParams(0, -2, 1));
+        Runnable scan =
+                () ->
+                        host.permission(
+                                new String[] {android.Manifest.permission.CAMERA},
+                                () -> {
+                                    hidden();
+                                    ui.hideKeyboard(link);
+                                    scanner =
+                                            dev.openduo.pocket.ui.components.QrScanner.show(
+                                                    ui, this::parseLink);
+                                });
+        Runnable read = () -> parseLink(link.getText().toString());
+        if (narrow) {
+            linkRow.addView(ui.iconButton("camera", ui.t("扫描房间二维码"), ui.palette.accent, scan));
+            linkRow.addView(ui.iconButton("chevron_right", ui.t("读取链接"), ui.palette.accent, read));
+        }
+        ui.add(intro, linkRow, 6);
+        if (!narrow) {
+            LinearLayout linkActions = ui.row();
+            linkActions.addView(
+                    ui.button(ui.t("扫描房间二维码"), ui.palette.accent, ui.palette.raised, scan),
+                    new LinearLayout.LayoutParams(0, -2, 1));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1);
+            rp.leftMargin = ui.dp(8);
+            linkActions.addView(
+                    ui.button(ui.t("读取链接"), ui.palette.accent, ui.palette.raised, read), rp);
+            ui.add(intro, linkActions, 8);
+        }
+        TextView explanation =
+                ui.label(
+                        narrow ? ui.t("链接可从房间管理页获取") : ui.t("在房间管理页生成配对链接，粘贴到这里。房间和设备凭据会由配对结果保存。"),
+                        13,
+                        ui.palette.secondary,
+                        false);
+        ui.add(intro, explanation, narrow ? 6 : 10);
         address = field(body, ui.t("主机地址"), controller.settings.host());
         address.setId(dev.openduo.pocket.R.id.pair_host);
         LinearLayout advanced = ui.row();
@@ -86,7 +96,8 @@ public final class PairingPage implements PocketController.Listener {
         advanced.addView(port, new LinearLayout.LayoutParams(0, -2, 1));
         tls = new Switch(ui.context);
         tls.setId(dev.openduo.pocket.R.id.pair_tls);
-        tls.setText("HTTPS");
+        tls.setText(narrow ? "TLS" : "HTTPS");
+        tls.setContentDescription("HTTPS");
         tls.setTextColor(ui.palette.text);
         tls.setChecked(controller.settings.tls());
         tls.setPadding(ui.dp(12), 0, 0, 0);
@@ -96,20 +107,46 @@ public final class PairingPage implements PocketController.Listener {
         code.setId(dev.openduo.pocket.R.id.pair_code);
         code.setInputType(
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-        error = ui.label(ui.t("配对需要先登录同一个 Tailscale 网络。"), 12, ui.palette.secondary, false);
-        ui.add(body, error, 12);
-        LinearLayout actions = ui.column();
-        ui.inset(actions, ui.pagePaddingDp(), 8);
-        commit = ui.button(ui.t("配对并连接"), ui.palette.onAccent, ui.palette.accent, this::pair);
-        actions.addView(commit);
         ui.add(
-                actions,
+                body,
                 ui.button(ui.t("登录 Tailscale"), ui.palette.secondary, 0, host::loginTailnet),
-                4);
-        body.addView(actions);
+                12);
+        LinearLayout actions = ui.column();
+        ui.inset(actions, ui.pagePaddingDp(), 4);
+        error = ui.label(ui.t("配对需要先登录同一个 Tailscale 网络。"), 12, ui.palette.secondary, false);
+        actions.addView(error);
+        commit = ui.button(ui.t("配对并连接"), ui.palette.onAccent, ui.palette.accent, this::pair);
+        ui.add(actions, commit, 4);
         View form = ui.scroll(body);
         form.setId(dev.openduo.pocket.R.id.page_scroll);
-        root.addView(form, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (ui.metrics.twoPanePairing()) {
+            body.addView(actions);
+            LinearLayout panes = ui.row();
+            ui.inset(intro, ui.pagePaddingDp(), 20);
+            panes.addView(ui.scroll(intro), new LinearLayout.LayoutParams(0, -1, 1));
+            panes.addView(form, new LinearLayout.LayoutParams(0, -1, 1));
+            root.addView(panes, new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            body.addView(intro, 0);
+            root.addView(form, new LinearLayout.LayoutParams(-1, 0, 1));
+            footer = ui.scrollFooter(actions);
+            root.addView(footer);
+        }
+        root.getViewTreeObserver()
+                .addOnGlobalLayoutListener(
+                        () -> {
+                            if (!keyboardVisible || !root.isShown()) return;
+                            View focused = root.findFocus();
+                            if (focused instanceof EditText) {
+                                Rect field =
+                                        new Rect(
+                                                0,
+                                                0,
+                                                focused.getWidth(),
+                                                focused.getHeight() + ui.dp(12));
+                                focused.requestRectangleOnScreen(field, true);
+                            }
+                        });
         controller.addListener(this);
         return root;
     }
@@ -193,5 +230,10 @@ public final class PairingPage implements PocketController.Listener {
             scanner.dismiss();
             scanner = null;
         }
+    }
+
+    public void keyboard(boolean visible) {
+        keyboardVisible = visible;
+        if (footer != null) footer.setVisibility(visible ? View.GONE : View.VISIBLE);
     }
 }

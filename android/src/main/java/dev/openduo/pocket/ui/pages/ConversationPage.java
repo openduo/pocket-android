@@ -20,6 +20,7 @@ import dev.openduo.pocket.core.PocketController;
 import dev.openduo.pocket.core.TurnState;
 import dev.openduo.pocket.core.UpgradeNotice;
 import dev.openduo.pocket.ui.PageHost;
+import dev.openduo.pocket.ui.ReadableColumn;
 import dev.openduo.pocket.ui.ScrollAnchor;
 import dev.openduo.pocket.ui.Ui;
 import dev.openduo.pocket.ui.components.AttachmentImages;
@@ -45,6 +46,8 @@ public final class ConversationPage implements PocketController.Listener {
     private final Map<String, String> fingerprints = new LinkedHashMap<>();
     private final java.util.Set<String> expandedHeard = new java.util.HashSet<>();
     private LinearLayout root, feed;
+    private View page;
+    private TextView sideRoom, sideStatus, sideHeard;
     private TextView title, subtitle, upgradeNotice, banner, older, working, jump;
     private ScrollView scroll;
     private ScrollAnchor anchor;
@@ -65,7 +68,7 @@ public final class ConversationPage implements PocketController.Listener {
     }
 
     public View render() {
-        if (root != null) return root;
+        if (root != null) return page;
         dev.openduo.pocket.ui.AdaptiveColumn adaptive = ui.adaptiveColumn();
         root = adaptive;
         root.setBackgroundColor(ui.palette.background);
@@ -73,26 +76,57 @@ public final class ConversationPage implements PocketController.Listener {
         adaptive.chrome(chrome);
         root.addView(chrome);
         LinearLayout header = ui.row();
-        header.setPadding(ui.dp(8), 0, ui.dp(4), 0);
+        header.setPadding(ui.dp(ui.metrics.compactNavigation() ? 0 : 8), 0, ui.dp(4), 0);
+        if (!readOnly && ui.metrics.compactNavigation()) {
+            View menu =
+                    ui.iconButton(
+                            "ellipsis",
+                            ui.t("切换页面"),
+                            ui.palette.secondary,
+                            () ->
+                                    Sheets.actions(
+                                            ui,
+                                            ui.t("切换页面"),
+                                            new Sheets.Action(
+                                                    ui.t("环境模式"), () -> host.navigate("ambient")),
+                                            new Sheets.Action(
+                                                    ui.t("会话查看器"), () -> host.navigate("sessions")),
+                                            new Sheets.Action(
+                                                    ui.t("设置"), () -> host.navigate("settings"))));
+            menu.setId(dev.openduo.pocket.R.id.compact_page_menu);
+            menu.setNextFocusRightId(dev.openduo.pocket.R.id.compact_ambient_button);
+            header.addView(
+                    menu, new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
+        }
         LinearLayout heading = ui.column();
         title = ui.label(ui.t("多多"), 18, ui.palette.text, true);
+        if (ui.metrics.compactNavigation()) title.setTextSize(16);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
         subtitle = ui.label(ui.t("加载中…"), 11, ui.palette.secondary, false);
         subtitle.setMaxLines(1);
         subtitle.setEllipsize(TextUtils.TruncateAt.END);
         heading.addView(title);
         ui.add(heading, subtitle, 4);
-        heading.setMinimumHeight(ui.rowHeight());
+        heading.setMinimumHeight(
+                ui.metrics.compactNavigation() ? ui.touchTarget() : ui.rowHeight());
         header.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
         heading.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(
+        View ambientButton =
                 ui.iconButton(
                         "audio_lines",
                         ui.t("环境模式"),
                         ui.palette.accent,
-                        () -> host.navigate("ambient")),
+                        () -> host.navigate("ambient"));
+        if (!readOnly && ui.metrics.compactNavigation()) {
+            ambientButton.setId(dev.openduo.pocket.R.id.compact_ambient_button);
+            ambientButton.setNextFocusLeftId(dev.openduo.pocket.R.id.compact_page_menu);
+        }
+        header.addView(
+                ambientButton,
                 new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
         chrome.addView(header);
-        if (readOnly) header.setVisibility(View.GONE);
+        if (readOnly || ui.metrics.twoPaneWorkspace()) header.setVisibility(View.GONE);
         upgradeNotice = ui.label("", 12, ui.palette.attention, true);
         upgradeNotice.setTag("upgrade-notice");
         upgradeNotice.setMinHeight(ui.touchTarget());
@@ -155,17 +189,58 @@ public final class ConversationPage implements PocketController.Listener {
         working.setBackground(ui.surface(ui.palette.raised, 12));
         root.getViewTreeObserver().addOnGlobalLayoutListener(images::refreshVisible);
         if (readOnly) {
+            page = root;
             controller.addListener(this);
             changed();
             anchor.toBottom();
-            return root;
+            return page;
         }
         editor = new ConversationComposer(host, controller, anchor::toBottom);
         editor.render(adaptive);
+        page = ui.metrics.twoPaneWorkspace() ? workspace() : root;
         controller.addListener(this);
         changed();
         anchor.toBottom();
-        return root;
+        return page;
+    }
+
+    private View workspace() {
+        LinearLayout layout = ui.row();
+        layout.setPadding(ui.pagePadding() / 2, 0, ui.pagePadding() / 2, 0);
+        LinearLayout sidebar = ui.column();
+        sidebar.setPadding(ui.dp(18), ui.dp(20), ui.dp(18), ui.dp(16));
+        sidebar.setBackground(ui.surface(ui.palette.surface, 16));
+        ui.add(sidebar, ui.label(ui.t("房间"), 12, ui.palette.subtle, true), 2);
+        sideRoom = ui.label("", 21, ui.palette.text, true);
+        ui.add(sidebar, sideRoom, 8);
+        sideStatus = ui.label("", 13, ui.palette.secondary, false);
+        ui.add(sidebar, sideStatus, 6);
+        sideHeard = ui.label("", 15, ui.palette.text, false);
+        sideHeard.setBackground(ui.surface(ui.palette.raised, 12));
+        sideHeard.setPadding(ui.dp(12), ui.dp(12), ui.dp(12), ui.dp(12));
+        ui.add(sidebar, sideHeard, 28);
+        ui.add(
+                sidebar,
+                ui.button(
+                        ui.t("会话查看器"),
+                        ui.palette.text,
+                        ui.palette.raised,
+                        () -> host.navigate("sessions")),
+                8);
+        ui.add(
+                sidebar,
+                ui.button(
+                        ui.t("打开环境模式"),
+                        ui.palette.accent,
+                        ui.palette.raised,
+                        () -> host.navigate("ambient")),
+                8);
+        layout.addView(
+                sidebar, new LinearLayout.LayoutParams(ui.dp(ui.metrics.sidebarWidthDp()), -1));
+        LinearLayout.LayoutParams main = new LinearLayout.LayoutParams(0, -1, 1);
+        main.leftMargin = ui.dp(14);
+        layout.addView(root, main);
+        return layout;
     }
 
     @Override
@@ -173,17 +248,24 @@ public final class ConversationPage implements PocketController.Listener {
         if (root == null) return;
         PocketController.Snapshot s = controller.snapshot();
         if (s == null) return;
+        if (sideRoom != null) {
+            Ui.updateText(sideRoom, s.trying ? ui.t(s.roomName) : s.roomName);
+            Ui.updateText(sideStatus, ui.explain(s.status));
+            Ui.updateText(sideHeard, s.lastHeard);
+            sideHeard.setVisibility(s.lastHeard.isEmpty() ? View.GONE : View.VISIBLE);
+        }
         Ui.updateText(
                 title,
                 s.roomName.isEmpty() ? ui.t("多多") : s.trying ? ui.t(s.roomName) : s.roomName);
         Ui.updateText(subtitle, ui.explain(s.status));
+        subtitle.setVisibility(View.VISIBLE);
         Ui.updateText(upgradeNotice, upgradeTitle(s.upgrade));
         upgradeNotice.setVisibility(s.upgrade == UpgradeNotice.NONE ? View.GONE : View.VISIBLE);
         String notice =
                 !s.lastError.isEmpty()
                         ? ui.explain(s.lastError)
                         : s.trying
-                                ? ui.t("体验房间 · 回答为预设内容")
+                                ? readOnly ? ui.t("体验房间 · 回答为预设内容") : ""
                                 : !s.daemonAvailable ? ui.t("暂时无法回复，消息会先记下") : "";
         Ui.updateText(banner, notice);
         banner.setVisibility(notice.isEmpty() ? View.GONE : View.VISIBLE);
@@ -388,7 +470,7 @@ public final class ConversationPage implements PocketController.Listener {
                             () -> traceSheet(trace));
             row.addView(detail);
         }
-        LinearLayout bubble = ui.column();
+        LinearLayout bubble = new ReadableColumn(ui.context, ui.dp(ui.metrics.messageMaxWidthDp()));
         bubble.setPadding(ui.dp(12), ui.dp(10), ui.dp(12), ui.dp(10));
         bubble.setBackground(ui.surface(mine ? ui.palette.mine : ui.palette.answer, 16));
         if (!m.voiceSource.isEmpty()) {

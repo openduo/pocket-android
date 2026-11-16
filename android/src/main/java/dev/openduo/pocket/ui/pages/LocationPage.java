@@ -45,6 +45,7 @@ public final class LocationPage implements AutoCloseable {
     private TileMapView map;
     private EditText query;
     private TextView selected, use;
+    private View footer;
     private double latitude, longitude;
     private String name = "", address = "";
     private boolean approximate, closed, hidden, locating, searching;
@@ -112,11 +113,12 @@ public final class LocationPage implements AutoCloseable {
         use = ui.button(ui.t("使用这个位置"), ui.palette.onAccent, ui.palette.accent, this::insert);
         use.setEnabled(false);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-        p.setMargins(ui.dp(12), 0, ui.dp(12), ui.dp(12));
-        body.addView(use, p);
+        p.setMargins(ui.pagePadding(), ui.dp(4), ui.pagePadding(), ui.dp(8));
         View content = ui.scroll(body);
         content.setId(dev.openduo.pocket.R.id.page_scroll);
         root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
+        footer = ui.scrollFooter(use);
+        root.addView(footer, p);
         return root;
     }
 
@@ -398,6 +400,10 @@ public final class LocationPage implements AutoCloseable {
 
     public void visible() {
         hidden = false;
+    }
+
+    public void keyboard(boolean visible) {
+        if (footer != null) footer.setVisibility(visible ? View.GONE : View.VISIBLE);
     }
 
     public void hidden() {

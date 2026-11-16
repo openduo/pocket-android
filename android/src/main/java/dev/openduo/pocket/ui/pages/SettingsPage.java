@@ -5,6 +5,7 @@ package dev.openduo.pocket.ui.pages;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.Switch;
@@ -45,11 +46,36 @@ public final class SettingsPage implements PocketController.Listener {
         if (root != null) return root;
         root = ui.column();
         TextView heading = ui.label(ui.t("设置"), 22, ui.palette.text, true);
-        ui.inset(heading, ui.pagePaddingDp(), 14);
-        root.addView(heading);
+        if (ui.metrics.compactNavigation()) {
+            LinearLayout bar = ui.row();
+            bar.addView(
+                    ui.iconButton(
+                            "chevron_left",
+                            ui.t("返回"),
+                            ui.palette.secondary,
+                            () -> host.navigate("conversation")));
+            bar.addView(heading);
+            root.addView(bar);
+        } else {
+            ui.inset(heading, ui.pagePaddingDp(), 14);
+            root.addView(heading);
+        }
         LinearLayout body = ui.column();
-        body.setPadding(ui.pagePadding(), 0, ui.pagePadding(), ui.dp(24));
-        View content = ui.scroll(body);
+        boolean columns = ui.metrics.twoPaneSettings();
+        LinearLayout second = ui.column();
+        View content;
+        if (columns) {
+            body.setPadding(ui.pagePadding(), 0, ui.dp(8), ui.dp(24));
+            second.setPadding(ui.dp(8), 0, ui.pagePadding(), ui.dp(24));
+            LinearLayout spread = ui.row();
+            spread.setGravity(Gravity.TOP);
+            spread.addView(body, new LinearLayout.LayoutParams(0, -2, 1));
+            spread.addView(second, new LinearLayout.LayoutParams(0, -2, 1));
+            content = ui.scroll(spread);
+        } else {
+            body.setPadding(ui.pagePadding(), 0, ui.pagePadding(), ui.dp(24));
+            content = ui.scroll(body);
+        }
         content.setId(dev.openduo.pocket.R.id.page_scroll);
         root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
         Settings pref = controller.settings;
@@ -125,6 +151,7 @@ public final class SettingsPage implements PocketController.Listener {
                                                 .FLAG_KEEP_SCREEN_ON);
                 });
         toggle(body, ui.t("触感反馈"), ui.t("麦克风就绪、取消和发送时轻震"), pref.haptics(), controller::setHaptics);
+        if (columns) body = second;
         section(body, ui.t("后台回答"));
         toggle(
                 body,

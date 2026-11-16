@@ -8,7 +8,7 @@ package dev.openduo.pocket.ui;
  *
  * <p>This class deliberately has no Android or controller dependency. Pages consume named design
  * tokens through {@code Ui}; they do not decide layout from a physical screen or a business state.
- * The width breakpoints follow Android's compact/medium/expanded window-size guidance.
+ * Window-size classes choose navigation; pane footprints use the remaining content width.
  */
 public final class AdaptiveMetrics {
     public enum WidthClass {
@@ -70,6 +70,11 @@ public final class AdaptiveMetrics {
         return heightDp < 480;
     }
 
+    /** A very narrow display uses page-level navigation to keep the transcript tall. */
+    public boolean compactNavigation() {
+        return widthDp < 320;
+    }
+
     /** The horizontal breathing room used by page content and full-width cards. */
     public int pagePaddingDp() {
         if (widthDp < 320) return 10;
@@ -78,12 +83,66 @@ public final class AdaptiveMetrics {
         return 32;
     }
 
-    /** Maximum page column width; wide windows keep reading and forms at a useful measure. */
-    public int contentMaxWidthDp() {
-        if (widthClass == WidthClass.COMPACT) return widthDp;
-        int available = widthDp - pagePaddingDp() * 2;
-        int maximum = widthClass == WidthClass.MEDIUM ? 640 : 720;
-        return Math.max(1, Math.min(maximum, available));
+    /**
+     * Tall windows use bottom navigation; wide or short landscape windows reclaim vertical room.
+     */
+    public boolean navigationRail() {
+        return widthDp >= 840 || widthDp >= 600 && heightDp < 480;
+    }
+
+    public boolean iconOnlyRail() {
+        return navigationRail() && (shortHeight() || largeText());
+    }
+
+    public int navigationRailWidthDp() {
+        return iconOnlyRail() ? 64 : 88;
+    }
+
+    /** Width that a page can actually use after shared navigation and outer margins. */
+    public int contentWidthDp(boolean withNavigation) {
+        return Math.max(
+                1,
+                widthDp
+                        - (withNavigation && navigationRail() ? navigationRailWidthDp() : 0)
+                        - pagePaddingDp() * 2);
+    }
+
+    private boolean fitsPanes(
+            boolean withNavigation, int firstMinDp, int secondMinDp, int gapDp, int minHeightDp) {
+        return heightDp >= minHeightDp
+                && contentWidthDp(withNavigation) >= firstMinDp + secondMinDp + gapDp;
+    }
+
+    /** Short landscape and medium windows can put onboarding choices beside the introduction. */
+    public boolean twoPaneOnboarding() {
+        return fitsPanes(false, shortHeight() ? 260 : 320, shortHeight() ? 260 : 300, 24, 300);
+    }
+
+    /** Pairing needs room for the link actions and a complete manual form. */
+    public boolean twoPanePairing() {
+        return fitsPanes(false, 280, 360, 16, 420);
+    }
+
+    /** Settings columns have to fit after the persistent navigation rail. */
+    public boolean twoPaneSettings() {
+        return fitsPanes(true, 320, 320, 16, 480);
+    }
+
+    /** Two useful workspace panes need enough width after navigation and page margins. */
+    public boolean twoPaneWorkspace() {
+        return fitsPanes(true, sidebarWidthDp(), largeText() ? 800 : 560, 16, 520);
+    }
+
+    public int sidebarWidthDp() {
+        return Math.min(300, Math.max(240, widthDp / 4));
+    }
+
+    public int ambientControlWidthDp() {
+        return Math.min(440, Math.max(320, widthDp / 3));
+    }
+
+    public int messageMaxWidthDp() {
+        return Math.min(760, Math.max(1, widthDp - pagePaddingDp() * 2));
     }
 
     /** Bottom sheets stay full width on phones and readable on large windows. */

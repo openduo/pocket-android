@@ -97,18 +97,31 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         pairIntentHandled = saved != null && saved.getBoolean("pairIntentHandled");
         inboundPresented = saved != null && saved.getBoolean("inboundPresented");
         loginWaiting = saved != null && saved.getBoolean("loginWaiting");
-        shell = ui.column();
+        boolean rail = ui.metrics.navigationRail();
+        shell = rail ? ui.row() : ui.column();
         shell.setBackgroundColor(ui.palette.background);
         pages = new FrameLayout(this);
-        shell.addView(pages, new LinearLayout.LayoutParams(-1, 0, 1));
         navSlot = ui.column();
-        shell.addView(navSlot);
+        if (rail) {
+            navSlot.setBackgroundColor(ui.palette.surface);
+            shell.addView(
+                    navSlot,
+                    new LinearLayout.LayoutParams(ui.dp(ui.metrics.navigationRailWidthDp()), -1));
+            shell.addView(pages, new LinearLayout.LayoutParams(0, -1, 1));
+        } else {
+            shell.addView(pages, new LinearLayout.LayoutParams(-1, 0, 1));
+            shell.addView(navSlot);
+        }
         InsetsFrame frame = new InsetsFrame(ui);
         frame.keyboardListener(
                 shown -> {
                     keyboardVisible = shown;
+                    if (pairing != null) pairing.keyboard(shown);
+                    if (location != null) location.keyboard(shown);
                     navSlot.setVisibility(
-                            shown || !page.matches("conversation|ambient|settings")
+                            shown
+                                            || ui.metrics.compactNavigation()
+                                            || !page.matches("conversation|ambient|settings")
                                     ? View.GONE
                                     : View.VISIBLE);
                 });
@@ -302,14 +315,20 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
             entry.getValue().setVisibility(entry.getKey().equals(page) ? View.VISIBLE : View.GONE);
         if (sessions != null && page.equals("sessions")) sessions.visible(true);
         if (location != null && page.equals("location")) location.visible();
+        if (pairing != null && page.equals("pairing")) pairing.keyboard(keyboardVisible);
+        if (location != null && page.equals("location")) location.keyboard(keyboardVisible);
         navSlot.removeAllViews();
         boolean navigation =
                 page.equals("conversation") || page.equals("ambient") || page.equals("settings");
-        navSlot.setVisibility(navigation && !keyboardVisible ? View.VISIBLE : View.GONE);
-        if (navigation)
+        navSlot.setVisibility(
+                navigation && !keyboardVisible && !ui.metrics.compactNavigation()
+                        ? View.VISIBLE
+                        : View.GONE);
+        if (navigation && !ui.metrics.compactNavigation())
             navSlot.addView(
-                    ui.adaptiveWidth(new BottomNav(ui, this::navigate).render(page)),
-                    new LinearLayout.LayoutParams(-1, -2));
+                    new BottomNav(ui, this::navigate)
+                            .render(page, ui.metrics.navigationRail(), ui.metrics.iconOnlyRail()),
+                    new LinearLayout.LayoutParams(-1, ui.metrics.navigationRail() ? -1 : -2));
         ui.immersive();
         focusNavigation.restore(page, selected);
     }

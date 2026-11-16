@@ -22,8 +22,9 @@ public final class AmbientPage implements PocketController.Listener {
     private final Ui ui;
     private LinearLayout root;
     private TextView status, caption, action, mute, detail, hush, camera, flip, sightStatus;
-    private LinearLayout cameras;
+    private LinearLayout cameras, controls;
     private View room, transcript, off;
+    private boolean twoPane;
     private ConversationPage thread;
     private TextView transcriptToggle;
     private dev.openduo.pocket.ui.components.SightViewfinder viewfinder;
@@ -36,6 +37,7 @@ public final class AmbientPage implements PocketController.Listener {
 
     public View render() {
         if (root != null) return root;
+        twoPane = ui.metrics.twoPaneWorkspace();
         root = ui.column();
         LinearLayout bar = ui.row();
         bar.addView(
@@ -90,11 +92,25 @@ public final class AmbientPage implements PocketController.Listener {
         caption.setBackground(ui.surface(ui.palette.raised, 14));
         ui.add(center, caption, 20);
         room = ui.scroll(center);
-        root.addView(room, new LinearLayout.LayoutParams(-1, 0, 1));
+        room.setDefaultFocusHighlightEnabled(false);
         thread = new ConversationPage(host, controller, true);
         transcript = thread.render();
-        root.addView(transcript, new LinearLayout.LayoutParams(-1, 0, 1));
-        LinearLayout controls = ui.row();
+        if (twoPane) {
+            LinearLayout workspace = ui.row();
+            workspace.setPadding(ui.pagePadding(), 0, ui.pagePadding(), 0);
+            room.setBackground(ui.surface(ui.palette.surface, 16));
+            workspace.addView(
+                    room,
+                    new LinearLayout.LayoutParams(ui.dp(ui.metrics.ambientControlWidthDp()), -1));
+            LinearLayout.LayoutParams transcriptPane = new LinearLayout.LayoutParams(0, -1, 1);
+            transcriptPane.leftMargin = ui.dp(16);
+            workspace.addView(transcript, transcriptPane);
+            root.addView(workspace, new LinearLayout.LayoutParams(-1, 0, 1));
+        } else {
+            root.addView(room, new LinearLayout.LayoutParams(-1, 0, 1));
+            root.addView(transcript, new LinearLayout.LayoutParams(-1, 0, 1));
+        }
+        controls = ui.row();
         ui.inset(controls, ui.pagePaddingDp(), 6);
         mute =
                 ui.button(
@@ -207,11 +223,15 @@ public final class AmbientPage implements PocketController.Listener {
         if (s == null) return;
         boolean on = s.ambientActive;
         off.setVisibility(on ? View.VISIBLE : View.GONE);
+        controls.setVisibility(on || s.playingAudio ? View.VISIBLE : View.GONE);
+        mute.setVisibility(on ? View.VISIBLE : View.GONE);
+        hush.setVisibility(on || s.playingAudio ? View.VISIBLE : View.GONE);
         boolean expanded = controller.settings.ambientTranscript();
-        transcript.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        room.setVisibility(expanded ? View.GONE : View.VISIBLE);
+        transcript.setVisibility(twoPane || expanded ? View.VISIBLE : View.GONE);
+        room.setVisibility(twoPane || !expanded ? View.VISIBLE : View.GONE);
+        transcriptToggle.setVisibility(twoPane ? View.GONE : View.VISIBLE);
         viewfinder.setVisibility(
-                !expanded && s.cameraOn && !s.cameraFront ? View.VISIBLE : View.GONE);
+                (twoPane || !expanded) && s.cameraOn && !s.cameraFront ? View.VISIBLE : View.GONE);
         Ui.updateText(transcriptToggle, expanded ? ui.t("收起") : ui.t("对话"));
         transcriptToggle.setContentDescription(expanded ? ui.t("隐藏对话") : ui.t("展开完整对话"));
         String phase =

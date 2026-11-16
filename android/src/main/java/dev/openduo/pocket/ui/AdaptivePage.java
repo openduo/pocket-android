@@ -7,7 +7,7 @@ import android.content.Context;
 import android.view.View;
 import android.widget.FrameLayout;
 
-/** Centers a bounded page column without making page code depend on a physical display size. */
+/** Measures pages against the current window, including split screen and resized windows. */
 final class AdaptivePage extends FrameLayout {
     private final Ui ui;
 
@@ -22,7 +22,7 @@ final class AdaptivePage extends FrameLayout {
         int widthMode = MeasureSpec.getMode(widthSpec);
         int availableWidth = MeasureSpec.getSize(widthSpec);
         if (widthMode == MeasureSpec.UNSPECIFIED) availableWidth = ui.screenWidth();
-        int contentWidth = Math.min(availableWidth, ui.dp(ui.metrics.contentMaxWidthDp()));
+        int contentWidth = availableWidth;
         int heightMode = MeasureSpec.getMode(heightSpec);
         int availableHeight = MeasureSpec.getSize(heightSpec);
         if (getChildCount() > 0) {

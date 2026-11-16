@@ -173,16 +173,10 @@ public final class Ui {
         return dp(metrics.markdownTableFitThresholdDp());
     }
 
-    /** Constrains page content on medium and expanded windows while keeping phones full width. */
+    /** Pages use the window; individual reading surfaces may keep their own line length. */
     public View adaptivePage(View child) {
         AdaptivePage page = new AdaptivePage(context, this);
         page.addView(child, new FrameLayout.LayoutParams(-1, -1));
-        return page;
-    }
-
-    public View adaptiveWidth(View child) {
-        AdaptivePage page = new AdaptivePage(context, this);
-        page.addView(child, new FrameLayout.LayoutParams(-1, -2));
         return page;
     }
 

@@ -29,12 +29,65 @@ final class AdaptiveMetricsContracts {
         AdaptiveMetrics medium = AdaptiveMetrics.of(720, 900, 1f);
         AdaptiveMetrics wide = AdaptiveMetrics.of(1440, 900, 1f);
         AdaptiveMetrics tiny = AdaptiveMetrics.of(64, 240, 1f);
+        AdaptiveMetrics speaker = AdaptiveMetrics.of(259, 610, 1f);
         check(
-                phone.contentMaxWidthDp() == 320 && phone.pagePaddingDp() > 0,
-                "compact content remains full width with positive breathing room");
+                speaker.compactNavigation()
+                        && !phone.compactNavigation()
+                        && !speaker.navigationRail(),
+                "very narrow windows use page navigation without a persistent bar");
         check(
-                medium.contentMaxWidthDp() <= 640 && wide.contentMaxWidthDp() == 720,
-                "medium and expanded content columns have bounded reading widths");
+                !phone.navigationRail()
+                        && !medium.navigationRail()
+                        && wide.navigationRail()
+                        && AdaptiveMetrics.of(740, 360, 1f).navigationRail(),
+                "navigation moves to a rail for wide or short landscape windows");
+        check(
+                AdaptiveMetrics.of(740, 360, 1f).iconOnlyRail()
+                        && AdaptiveMetrics.of(1280, 800, 2f).iconOnlyRail()
+                        && !wide.iconOnlyRail()
+                        && wide.navigationRailWidthDp()
+                                > AdaptiveMetrics.of(740, 360, 1f).navigationRailWidthDp(),
+                "short or large-text rails keep icon targets without clipped labels");
+        check(
+                wide.twoPaneWorkspace()
+                        && !medium.twoPaneWorkspace()
+                        && !AdaptiveMetrics.of(1100, 460, 1f).twoPaneWorkspace()
+                        && !AdaptiveMetrics.of(1180, 900, 1.8f).twoPaneWorkspace()
+                        && AdaptiveMetrics.of(1280, 800, 2f).twoPaneWorkspace(),
+                "workspace panes require usable width and height at the current text scale");
+        check(
+                AdaptiveMetrics.of(740, 360, 1f).twoPaneOnboarding()
+                        && AdaptiveMetrics.of(600, 320, 1f).twoPaneOnboarding()
+                        && AdaptiveMetrics.of(840, 600, 1f).twoPaneOnboarding()
+                        && !AdaptiveMetrics.of(600, 960, 1f).twoPaneOnboarding()
+                        && !AdaptiveMetrics.of(259, 545, 1f).twoPaneOnboarding(),
+                "onboarding uses adjacent choices when two readable columns fit, including short"
+                    + " landscape");
+        check(
+                AdaptiveMetrics.of(840, 600, 1f).twoPanePairing()
+                        && !AdaptiveMetrics.of(740, 360, 1f).twoPanePairing()
+                        && AdaptiveMetrics.of(961, 541, 1f).twoPaneSettings()
+                        && AdaptiveMetrics.of(840, 600, 1f).twoPaneSettings()
+                        && !AdaptiveMetrics.of(600, 960, 1f).twoPaneSettings(),
+                "pairing and settings use their own form footprints after shared navigation");
+        check(
+                AdaptiveMetrics.of(961, 541, 1f).contentWidthDp(true) == 809
+                        && AdaptiveMetrics.of(961, 541, 1f).contentWidthDp(false) == 897
+                        && !AdaptiveMetrics.of(961, 541, 1f).twoPaneWorkspace()
+                        && AdaptiveMetrics.of(1000, 600, 1f).twoPaneWorkspace(),
+                "workspace decisions account for rail and margins rather than device identity");
+        check(
+                wide.ambientControlWidthDp() <= 440
+                        && AdaptiveMetrics.of(1280, 800, 2f).ambientControlWidthDp() < 440,
+                "ambient status keeps a bounded pane while conversation uses the remainder");
+        check(
+                phone.messageMaxWidthDp() <= phone.widthDp() - 2 * phone.pagePaddingDp()
+                        && phone.pagePaddingDp() > 0,
+                "compact messages fit inside the available page width");
+        check(
+                medium.messageMaxWidthDp() < wide.messageMaxWidthDp()
+                        && wide.messageMaxWidthDp() == 760,
+                "long messages keep readable line lengths as the page grows");
         check(
                 medium.sheetMaxWidthDp() <= 720
                         && wide.sheetMaxWidthDp() == 720

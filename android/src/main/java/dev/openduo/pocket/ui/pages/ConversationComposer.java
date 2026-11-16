@@ -203,18 +203,20 @@ final class ConversationComposer {
     }
 
     private void attachMenu() {
-        Sheets.actions(
-                ui,
-                ui.t("添加到消息"),
-                new Sheets.Action(ui.t("照片"), () -> host.pickAttachment("image/*")),
-                new Sheets.Action(ui.t("拍照"), host::takePhoto),
-                new Sheets.Action(ui.t("文件"), () -> host.pickAttachment("*/*")),
-                new Sheets.Action(ui.t("位置"), () -> host.navigate("location")));
+        java.util.List<Sheets.Action> actions = new java.util.ArrayList<>();
+        if (ui.metrics.compactNavigation())
+            actions.add(new Sheets.Action(ui.t("切换语音或文字"), controller::toggleVoiceInput));
+        actions.add(new Sheets.Action(ui.t("照片"), () -> host.pickAttachment("image/*")));
+        actions.add(new Sheets.Action(ui.t("拍照"), host::takePhoto));
+        actions.add(new Sheets.Action(ui.t("文件"), () -> host.pickAttachment("*/*")));
+        actions.add(new Sheets.Action(ui.t("位置"), () -> host.navigate("location")));
+        Sheets.actions(ui, ui.t("添加到消息"), actions.toArray(new Sheets.Action[0]));
     }
 
     void update(PocketController.Snapshot s) {
         boolean ambientOn = s.ambientActive, voice = s.holdRecording || s.voiceInput && !ambientOn;
-        voiceToggle.setVisibility(ambientOn ? View.GONE : View.VISIBLE);
+        voiceToggle.setVisibility(
+                ambientOn || ui.metrics.compactNavigation() ? View.GONE : View.VISIBLE);
         voiceToggle.setContentDescription(voice ? ui.t("切换到文字输入") : ui.t("切换到按住说话"));
         hold.setVisibility(voice ? View.VISIBLE : View.GONE);
         input.setVisibility(voice ? View.GONE : View.VISIBLE);

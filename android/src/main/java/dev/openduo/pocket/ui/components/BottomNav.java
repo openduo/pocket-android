@@ -24,9 +24,18 @@ public final class BottomNav {
     }
 
     public View render(String selected) {
-        LinearLayout root = ui.row();
-        root.setMinimumHeight(ui.navigationHeight());
-        root.setPadding(ui.dp(10), ui.dp(4), ui.dp(10), ui.dp(4));
+        return render(selected, false, false);
+    }
+
+    public View render(String selected, boolean rail, boolean iconsOnly) {
+        LinearLayout root = rail ? ui.column() : ui.row();
+        if (rail) {
+            root.setPadding(ui.dp(6), ui.dp(iconsOnly ? 4 : 12), ui.dp(6), ui.dp(8));
+            root.setBackgroundColor(ui.palette.surface);
+        } else {
+            root.setMinimumHeight(ui.navigationHeight());
+            root.setPadding(ui.dp(10), ui.dp(4), ui.dp(10), ui.dp(4));
+        }
         for (String[] item :
                 new String[][] {
                     {"messages_square", ui.t("对话"), "conversation"},
@@ -36,8 +45,8 @@ public final class BottomNav {
             boolean active = item[2].equals(selected);
             LinearLayout control = ui.column();
             control.setGravity(Gravity.CENTER);
-            control.setMinimumHeight(ui.touchTarget());
-            control.setPadding(0, ui.dp(4), 0, ui.dp(4));
+            control.setMinimumHeight(rail ? ui.dp(iconsOnly ? 60 : 76) : ui.touchTarget());
+            control.setPadding(0, ui.dp(6), 0, ui.dp(6));
             control.addView(ui.icon(item[0], active ? ui.palette.accent : ui.palette.subtle, 21));
             TextView text =
                     ui.label(item[1], 11, active ? ui.palette.text : ui.palette.subtle, active);
@@ -45,13 +54,17 @@ public final class BottomNav {
             text.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams label = new LinearLayout.LayoutParams(-1, -2);
             label.topMargin = ui.dp(4);
-            control.addView(text, label);
+            if (!iconsOnly) control.addView(text, label);
             control.setContentDescription(item[1]);
             control.setSelected(active);
             ui.clickable(
                     control, active ? ui.palette.selected : 0, 12, () -> listener.select(item[2]));
-            root.addView(control, new LinearLayout.LayoutParams(0, -2, 1));
+            root.addView(
+                    control,
+                    rail
+                            ? new LinearLayout.LayoutParams(-1, -2)
+                            : new LinearLayout.LayoutParams(0, -2, 1));
         }
-        return root;
+        return rail ? ui.scroll(root) : root;
     }
 }

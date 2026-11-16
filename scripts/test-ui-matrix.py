@@ -21,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', default=os.environ.get('ANDROID_SERIAL', ''))
     parser.add_argument('--case', action='append', help='Run only the named case; repeatable')
+    parser.add_argument('--layout-only', action='store_true',
+                        help='Capture pages and layout assertions without the editor keyboard probes')
     parser.add_argument('--installed', action='store_true', help='Use already installed app and probe')
     args = parser.parse_args()
     if not args.serial.startswith('emulator-'):
@@ -37,11 +39,14 @@ def main():
         for name, width, height in [('phone', 360, 740), ('tablet', 1280, 800)]:
             cases.append((f'{name}-font-{scale}', width, height, scale, 'en', 'dark'))
     for name, width, height, scale in [
+            ('micro', 259, 545, 1.0), ('micro-large', 259, 545, 1.5),
             ('narrow', 320, 640, 1.0), ('medium', 600, 960, 1.0),
+            ('medium-wide', 720, 900, 1.0), ('short-narrow', 600, 320, 1.0),
             ('expanded', 840, 600, 1.0), ('landscape', 740, 360, 1.0),
             ('landscape-large', 740, 360, 2.0), ('short-large', 600, 320, 2.0)]:
         cases.append((name, width, height, scale, 'en', 'dark'))
-    cases += [('phone-zh-light', 360, 740, 2.0, 'zh-Hans', 'light'),
+    cases += [('micro-zh-light', 259, 545, 1.0, 'zh-Hans', 'light'),
+              ('phone-zh-light', 360, 740, 2.0, 'zh-Hans', 'light'),
               ('tablet-zh-light', 1280, 800, 2.0, 'zh-Hans', 'light')]
     if args.case:
         names = set(args.case)
@@ -102,6 +107,7 @@ def main():
             run = subprocess.run(
                 ['adb', '-s', args.serial, 'shell', 'am', 'instrument', '-w', '-r',
                  '-e', 'uiOnly', '1', '-e', 'uiLanguage', language, '-e', 'uiTheme', theme,
+                 '-e', 'layoutOnly', '1' if args.layout_only else '0',
                  PACKAGE + '.qa/' + PACKAGE + '.qa.Probe'], capture_output=True,
                 text=True, timeout=150)
             (directory / 'instrumentation.txt').write_text(run.stdout + run.stderr)
@@ -115,6 +121,7 @@ def main():
             passed = (run.returncode == 0 and 'result=PASS' in run.stdout
                       and result.get('failures') == [] and configuration_matches)
             case = {'name': name, 'requestedWidthDp': width, 'requestedHeightDp': height,
+                    'layoutOnly': args.layout_only,
                     'fontScale': scale, 'configurationMatches': configuration_matches,
                     'passed': passed,
                     'seconds': round(time.monotonic() - started, 2), 'result': result}

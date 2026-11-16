@@ -15,7 +15,7 @@ Android framework capabilities are the default. E2 ships as a concrete adapter e
 | Windows | Compact <600dp, medium 600–839dp, expanded >=840dp; short-window, IME and inset handling | Current representative captures/checks and earlier E2 ~259dp evidence are identified separately |
 | Framework audio | AudioRecord 16kHz mono PCM16, MIC fallback when communication input is unsupported, system AEC when available | Actual drivers and acoustic quality need target-device verification |
 | Camera/location/Bluetooth | Optional manifest features, runtime capability/permission/error handling | No camera means no Sight/QR capture; pairing can use a pasted link. Arrivals need a location source and geocoder |
-| Display-equipped smart speakers | Reusable standard audio/UI; OEM adapters can add specialized capture | No target speaker hardware accepted; far-field, AEC, background and remote-only interaction remain open |
+| Display-equipped smart speakers | Reusable standard audio/UI; OEM adapters can add specialized capture | E11 screen and D-pad UI checked; room audio, physical voice key, far-field, AEC and background remain open |
 
 ## E2 example
 
@@ -95,8 +95,12 @@ To add an OEM integration, create `:device-<vendor>` depending on `:device`, imp
 
 ## Bringing up a smart speaker
 
+On 2026-11-15 the earlier signed layout APK (`a58e337ac2db16dc6d3622df69a00d02743a615cff243589ac9a2c607ec16cbf`) was installed in place on an AIUniBOX E11 (Android 11, ARM64, 1280×720 px at 213 dpi, approximately 961×541dp). Its onboarding, Try conversation and Ambient screens occupied the actual window; D-pad/OK navigated from onboarding to Try and between the conversation and Ambient pages. These were prepared Try responses with Ambient off. The E11 showed `network: Failed`, so no room login, pairing, audio capture, camera upload or audible reply was accepted. Captures are kept in ignored `.build/acceptance/ui/`, not public screenshots. The later general layout revision in [UI validation](ui.md#validation) has not been installed on this device.
+
+The kernel reports `adc-keys` with volume up/down and `KEY_MICMUTE`, and a separate remote input with `KEY_VOICECOMMAND`. On this firmware Android maps the latter to `VOICE_ASSIST` and consumes an injected event before it reaches Pocket's foreground Activity; an injected `MEDIA_RECORD` event does reach the Activity. We did not identify the user's physical voice button from an actual press, so no OEM key default or system remapping has been applied. A real key event capture is needed before deciding how to route that button. No density, launcher or system key layout was changed.
+
 First establish Android/API/ABI, install permission, AudioRecord/AudioTrack, authorization and whether navigation is touch, remote or physical keys. Some locked-down devices restrict third-party recording or background work. Default foreground use needs no root, system signing, replacement launcher or density change.
 
 Foreground key learning, D-pad/OK/Back navigation and the E2 REC/MARK example are now implemented in the current source; see [keys and remotes](input.md). Firmware-consumed keys remain outside the app.
 
-Once hardware is available, verify login/room online, natural voice upload and audible replies first. Add full-duplex/array and background checks only as required by that device. Wake words, kiosk/always-on launcher behavior, system-level background execution, OEM AEC and target-speaker hardware acceptance remain open. The shared foreground no-touch input path is implemented, with bounded E2 event-delivery evidence. The landscape screenshot shows layout reuse, not completed speaker-hardware acceptance.
+For the E11, verify login/room online, natural voice upload and audible replies before full-duplex/array and background checks. Wake words, kiosk/always-on launcher behavior, system-level background execution and OEM AEC remain open. The shared foreground no-touch input path is implemented, with bounded E2 event-delivery evidence. The landscape screenshot shows layout reuse, while the separate E11 inspection covers its actual display and D-pad route.

@@ -4,7 +4,7 @@ English · [简体中文](README.zh-CN.md)
 
 The native Android client for [OpenDuo Pocket](https://github.com/openduo/pocket-ios): text, voice, files and an ambient room on your own tailnet. The app shares the iOS name, pompom-and-voice-bars icon, `dev.openduo.pocket` application ID and `duoduopocket://pair` links. The reference is iOS 0.4.0 at `b9d91bb9b77a12c3e59e6f359af1e4537a4ded39`.
 
-Built for phones, tablets and other Android devices with a display. **E2 ships as a hardware-adapter example.** Window layout and hardware integration are independent, so future display-equipped smart speakers can reuse the protocol, business logic and UI. Target smart-speaker hardware has not yet been validated.
+Built for phones, tablets and other Android devices with a display. **E2 ships as a hardware-adapter example.** Window layout and hardware integration are independent. An earlier layout was inspected on an AIUniBOX E11; the current general reflow is validated on representative emulator windows. Its room audio and physical voice key have not been accepted.
 
 <p align="center">
   <img src="docs/screens/app.png" alt="DuoDuo Pocket on Android: English conversation, Markdown schedule, file reply and ambient controls using prepared demo content" width="100%">
@@ -13,7 +13,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 <p align="center">
   <img src="docs/screens/devices.png" alt="The same Android app on a physical E2, a phone emulator, a tablet emulator and a landscape display layout" width="100%">
 </p>
-<p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The landscape example illustrates a reusable layout; target smart-speaker compatibility remains unverified.</sub></p>
+<p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The separate E11 bring-up covers the revised UI only; see the device guide for its limits.</sub></p>
 
 [Download 0.4.0 Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
@@ -27,7 +27,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
 - Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example in Preview 3; [input guide](docs/input.md).
 - Shared [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) protocol/JNI owners, corrected media-v1 audio downlink and ongoing reply playback through screen lock.
-- Compact/medium/expanded window policy, bounded reading columns, system-bar/IME insets, scrollable short-window controls and page-state restoration.
+- Current source reflows full-width pages with page-level navigation below 320dp, side navigation in wide or short landscape windows, content-width based pane fitting, a scrollable first-run flow, readable message widths, system-bar/IME insets and page-state restoration. This layout revision is not in Preview 3.
 
 Implementation and real-service acceptance are tracked separately. The local original-package E2 build has passed one human voice-note turn with a user-confirmed audible reply, and one notification delivery with a correlated success and unique recipient record. Recognition had a wording error. These results use the earlier local E2 array build and do not establish human-speech acceptance for the public framework-audio APK. Sight has now resumed and passes actual media negotiation and native video uplink on the updated public-package E2 build; [scene recognition and sustained-rate limits](docs/sight.md) remain explicit. Full hands-free ambient conversation, physical arrivals and long-term background behavior remain unverified. Android push remains deferred. Passport has resumed in the current source and passes fixed protocol vectors on the JVM and E2 Android runtime; physical accessory acceptance is still open. Preview 3 includes these implementations, the shared Rust protocol and the lockscreen playback fix. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
 
