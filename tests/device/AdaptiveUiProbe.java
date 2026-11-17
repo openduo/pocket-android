@@ -181,40 +181,23 @@ final class AdaptiveUiProbe {
             capture(directory, "session-thread");
             if (!layoutOnly) keyboard(directory, "session-keyboard");
             navigate("conversation");
-            if (screen.ui().metrics.compactNavigation()) {
-                View menu =
-                        main(
-                                () ->
-                                        described(
-                                                screen.getWindow().getDecorView(),
-                                                screen.ui().t("切换页面")));
-                check(menu != null, "compact conversation exposes the page menu");
-                if (menu != null) {
-                    View ambientButton =
-                            main(
-                                    () ->
-                                            described(
-                                                    screen.getWindow().getDecorView(),
-                                                    screen.ui().t("环境模式")));
-                    main(
-                            () -> {
-                                if (ambientButton != null) ambientButton.requestFocus();
-                                return null;
-                            });
-                    check(
-                            ambientButton != null && main(ambientButton::hasFocus),
-                            "compact ambient header control accepts focus");
-                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT);
-                    boolean reached = main(menu::hasFocus);
-                    check(reached, "D-pad can reach compact page menu from header");
-                    if (reached) {
-                        probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
-                        settle();
-                        capture(directory, "compact-menu");
-                        probe.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
-                        settle();
-                        check(main(menu::isShown), "Back closes compact menu without leaving chat");
-                    }
+            View settings =
+                    main(() -> screen.findViewById(dev.openduo.pocket.R.id.chat_settings_button));
+            View ambient =
+                    main(() -> screen.findViewById(dev.openduo.pocket.R.id.chat_ambient_button));
+            if (settings != null && ambient != null) {
+                probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN);
+                check(main(ambient::requestFocus), "ambient header control accepts focus");
+                probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_LEFT);
+                boolean reached = main(settings::hasFocus);
+                check(reached, "D-pad can reach settings directly from the Ambient control");
+                if (reached) {
+                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER);
+                    settle();
+                    check(!main(settings::isShown), "OK opens Settings from the chat header");
+                    probe.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
+                    settle();
+                    check(main(settings::hasFocus), "Back returns to the chat header and focus");
                 }
             }
             if (!layoutOnly) {
@@ -422,39 +405,19 @@ final class AdaptiveUiProbe {
                                     page + " page does not span the available window");
                             break;
                         }
-                        if (page.equals("conversation")
-                                || page.equals("ambient")
-                                || page.equals("settings")) {
-                            field = MainActivity.class.getDeclaredField("navSlot");
-                            field.setAccessible(true);
-                            View nav = (View) field.get(screen);
-                            if (screen.ui().metrics.compactNavigation()) {
-                                check(!nav.isShown(), page + " compact page keeps content height");
-                                String access =
-                                        page.equals("conversation")
-                                                ? screen.ui().t("切换页面")
-                                                : page.equals("settings")
-                                                        ? screen.ui().t("返回")
-                                                        : screen.ui().t("最小化环境模式");
-                                View button = described(pages, access);
-                                check(
-                                        button != null
-                                                && button.isShown()
-                                                && button.isFocusable()
-                                                && button.getWidth() >= screen.ui().touchTarget(),
-                                        page + " compact page has a focusable way back");
-                            } else if (screen.ui().metrics.navigationRail())
-                                check(
-                                        nav.getWidth() < pages.getWidth() / 3
-                                                && nav.getHeight() >= pages.getHeight(),
-                                        page
-                                                + " wide/short navigation does not save vertical"
-                                                + " room");
-                            else
-                                check(
-                                        nav.getWidth() >= pages.getWidth()
-                                                && nav.getHeight() <= screen.ui().dp(100),
-                                        page + " compact navigation does not span the bottom");
+                        String leftAction =
+                                page.equals("conversation")
+                                        ? "设置"
+                                        : page.equals("ambient")
+                                                ? "最小化环境模式"
+                                                : page.equals("settings") ? "返回" : null;
+                        if (leftAction != null) {
+                            View button = described(pages, screen.ui().t(leftAction));
+                            check(
+                                    button != null
+                                            && button.isFocusable()
+                                            && button.getWidth() >= screen.ui().touchTarget(),
+                                    page + " has a full-size header action");
                         }
                     } catch (ReflectiveOperationException failure) {
                         throw new AssertionError(failure);
@@ -533,7 +496,7 @@ final class AdaptiveUiProbe {
                                                         && actionBounds.height()
                                                                 >= screen.ui().touchTarget()),
                                 "onboarding keeps its primary action reachable at each window"
-                                    + " size");
+                                        + " size");
                         if (bothVisible) {
                             boolean beside = actionBounds.left > descriptionBounds.right;
                             check(
@@ -541,19 +504,45 @@ final class AdaptiveUiProbe {
                                     "onboarding reflows choices according to available pane width");
                         }
                     }
-                    if (page.equals("conversation") && !screen.ui().metrics.twoPaneWorkspace()) {
+                    if (page.equals("conversation")) {
                         check(
                                 text(decor, screen.ui().t("体验房间 · 回答为预设内容")) == null,
                                 "try room context is not duplicated below the chat heading");
-                        if (screen.ui().metrics.compactNavigation()) {
-                            EditText editor = decor.findViewById(dev.openduo.pocket.R.id.composer);
-                            check(
-                                    editor != null && editor.getWidth() >= screen.ui().dp(120),
-                                    "narrow chat keeps a readable text composer");
-                        }
+                        inspectChat(decor);
                     }
                     return null;
                 });
+    }
+
+    private void inspectChat(View decor) {
+        View left = decor.findViewById(dev.openduo.pocket.R.id.chat_settings_button);
+        View right = decor.findViewById(dev.openduo.pocket.R.id.chat_ambient_button);
+        View title = text(decor, screen.ui().t(controller.snapshot().roomName));
+        Rect start = new Rect(), end = new Rect(), center = new Rect();
+        int touch = screen.ui().touchTarget();
+        check(
+                left != null
+                        && left.getGlobalVisibleRect(start)
+                        && right != null
+                        && right.getGlobalVisibleRect(end)
+                        && title != null
+                        && title.getGlobalVisibleRect(center)
+                        && start.width() >= touch
+                        && end.width() >= touch
+                        && start.right <= center.left
+                        && center.right <= end.left
+                        && Math.abs(center.centerX() - (start.left + end.right) / 2) <= 1,
+                "chat header keeps a centered room title between usable side actions");
+        EditText editor = decor.findViewById(dev.openduo.pocket.R.id.composer);
+        Rect field = new Rect();
+        check(
+                editor != null
+                        && editor.getGlobalVisibleRect(field)
+                        && field.height() >= touch
+                        && field.width() >= screen.ui().dp(120)
+                        && Math.abs(editor.getTotalPaddingTop() - editor.getTotalPaddingBottom())
+                                <= 1,
+                "idle chat composer has a visible, vertically centered editor");
     }
 
     private void inspectTree(String page, View view) {

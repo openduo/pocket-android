@@ -160,23 +160,10 @@ final class AccessibilityProbe {
                             node.recycle();
                         }
                         View root = screen.getWindow().getDecorView();
+                        geometry(root, "设置");
                         geometry(root, "环境模式");
                         geometry(root, "切换到文字输入");
                         geometry(root, "添加照片、拍照、文件或位置");
-                        View nav = described(root, ui.t("对话"));
-                        AccessibilityNodeInfo selected =
-                                nav == null ? null : nav.createAccessibilityNodeInfo();
-                        try {
-                            check(
-                                    selected != null
-                                            && selected.isSelected()
-                                            && "android.widget.Button"
-                                                    .contentEquals(selected.getClassName()),
-                                    "bottom navigation exposes the selected conversation as a"
-                                            + " button");
-                        } finally {
-                            if (selected != null) selected.recycle();
-                        }
                     });
 
             sheet();

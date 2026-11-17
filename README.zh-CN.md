@@ -6,7 +6,7 @@
 
 项目面向手机、平板和其他带屏 Android 设备。**E2 是随项目提供的硬件适配案例**。窗口布局由公共 UI 策略管理，硬件差异通过设备接口接入；业务逻辑不按屏幕尺寸或设备型号分叉。较早的布局曾在 AIUniBOX E11 检查；当前通用重排在多个模拟器窗口验证，房间音频和实体语音键仍需验收。
 
-[下载 0.4.0 Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
+[下载 0.4.0 RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
 
 <p align="center"><img src="docs/screens/app.png" alt="Android 英文界面的对话、Markdown、文件与环境模式" width="100%"></p>
 <p align="center"><sub>Android 模拟器，英文界面，内置预设体验内容；采集与播放关闭。</sub></p>
@@ -21,15 +21,15 @@
 - Passport 1.3 协议与 Android BLE 接入：按压/音频组装、RESULT/WORK/REPLY、quiet 提醒与重放记忆；[上游差分验证及硬件边界](docs/passport.zh-CN.md)。
 - 会话读取与详情/通知控制，Camera2/H.264 Sight、地图/坐标/地名查询及到达检测的实现。
 - 中英文、浅色/深色/跟随系统、诊断、本地通知、明确标记为预设内容的 Try 模式。
-- 当前源码增加触屏／实体键／遥控器统一动作、可修改的前台按键映射、方向／确认／返回导航，以及 E2 录音／MARK 案例；见[输入指南](docs/input.zh-CN.md)。Preview 3 已包含这些改动。
+- 触屏／实体键／遥控器统一动作、可修改的前台按键映射、方向／确认／返回导航，以及 E2 录音／MARK 案例；见[输入指南](docs/input.zh-CN.md)。
 - 共享 [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) 协议／JNI 所有者、正确的媒体下行音频及锁屏后继续播完当前回复。
-- 公共窗口策略：全宽页面、低于 320dp 时页内导航、矮横屏与宽屏的侧边导航、按实际剩余宽度分栏、首次连接整体滚动、消息可读行宽、系统栏/IME Insets 与页面状态保存。当前源码的布局重做尚未纳入 Preview 3。
+- 聊天顶部提供设置、房间名与环境模式入口；占位文字垂直居中，触屏与实体键共用录音面板。低于 320dp 时收发气泡铺满聊天区，宽屏的消息和输入栏共用一条阅读列；见[窗口和键盘适配](docs/ui.zh-CN.md)。
 
 **实现状态与真实服务验收分开记录。** 本地原包 E2 已通过一次真人语音消息与用户确认的可听回复，也已向专用会话发送一条唯一标记通知，取得匹配回执和实际收件记录。语音识别有个别字词偏差；这些结果来自此前本地 E2 阵列构建，不代表公开标准音频 APK 的人声路径已验收。Sight 已恢复，更新后的公开包名 E2 已通过真实媒体协商与原生视频上传，[场景识别和持续帧率的验证边界](docs/sight.zh-CN.md)仍明确保留。完整免按键 ambient 对话、真实到访和长期后台行为仍未验收。Push 继续暂缓。Passport 已恢复实现，在 JVM 和 E2 Android 运行时通过固定协议向量；真实外设尚未验收。Preview 3 已包含这些实现、共享 Rust 协议和锁屏播放修复。没有 1:1 完成度百分比，详细缺口保存在[迁移记录](docs/migration.md)。
 
 ## 安装与首次连接
 
-Preview 3 使用 versionCode 3 和既有公开签名，可直接覆盖较早的公开预览版，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
+RC 1 使用 versionCode 4 和既有公开签名，可直接覆盖较早的公开预览版，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
 
 E2 固件 04319 的内置麦克风需要[本地阵列适配 `Pocket-E2.apk`](docs/devices.zh-CN.md#e2-案例)，
 应保持安装适配版。公开 `Pocket.apk` 不含厂商固件，在该固件上会提示内置输入不可用，避免上传

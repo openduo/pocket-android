@@ -2,8 +2,8 @@
 <!-- Copyright 2026 pocket-e2 contributors; SPDX-License-Identifier: FSL-1.1-Apache-2.0 -->
 <resources>
     <item type="id" name="page_scroll" />
-    <item type="id" name="compact_page_menu" />
-    <item type="id" name="compact_ambient_button" />
+    <item type="id" name="chat_settings_button" />
+    <item type="id" name="chat_ambient_button" />
     <item type="id" name="session_list_scroll" />
     <item type="id" name="composer" />
     <item type="id" name="pair_link" />

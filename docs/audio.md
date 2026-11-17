@@ -21,13 +21,11 @@ reports its localized limitation, emits zero packets and releases capture. A sel
 microphone can still use framework input. These checks establish input restoration, not new human
 ASR accuracy or end-to-end voice acceptance.
 
-Touch recording now keeps one stationary control with an explicit recording label, timer,
-release-to-send hint and simple animated bars after capture starts. The bars indicate recording
-state; they do not measure microphone amplitude. Releasing inside sends; moving outside and
-releasing cancels. A separate Send/Cancel panel is retained for hardware/accessibility recording.
-The restored E2 passes 34 bounded injected-event assertions, including visible animation, stable
-touch position, one send per release, hardware controls and capture cleanup. Sends stay in Try,
-custom bindings/settings are restored and the original paired room returns Online.
+The composer keeps the hold button in place and displays one recording panel for touch, hardware
+and accessibility. The timer and simple bars show recording state. Releasing inside sends; moving
+outside and releasing cancels. The same panel shows explicit Send/Cancel controls for recordings
+started without touch. The [E2 probe](input.md#bounded-verification) checks both paths, stable touch
+position, one send per release and capture cleanup in Try.
 
 The diagnostic probe is opt-in and saves private PCM only to the device's external cache and the
 ignored host build directory:

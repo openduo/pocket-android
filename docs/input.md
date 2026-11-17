@@ -115,9 +115,9 @@ POCKET_TEST_INPUT_ONLY=1 POCKET_E2_TEST_CAPTURE=1 \
 scripts/test-device.sh
 ```
 
-Install a same-signature [E2 local array build](devices.md#e2-example) first. The current public-identity
-E2 passes 34 assertions, including visible recording feedback, fixed touch position and exactly one
-Try note on release. Do not
-run while recording or outgoing work is active. The probe does not prove the user physically
+Install a same-signature [E2 local array build](devices.md#e2-example) first. The 2026-11-17 navigation
+build passed 44 assertions, including the shared recording panel for touch and REC, fixed touch position,
+one Try note on release, centered composer text, and Ambient open/minimize/off navigation. Do not run
+while recording or outgoing work is active. The probe does not prove the user physically
 pressed REC/MARK, accept a real remote/speaker, repeat human speech acceptance, or run an
 unrelated UI/background matrix. Current results are in [status](status.md).

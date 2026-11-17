@@ -6,12 +6,14 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import dev.openduo.pocket.R;
 import dev.openduo.pocket.app.MainActivity;
 import dev.openduo.pocket.app.input.InputBindings;
 import dev.openduo.pocket.audio.input.RecordingInput;
@@ -21,6 +23,7 @@ import dev.openduo.pocket.input.InputAction;
 import dev.openduo.pocket.ui.PageHost;
 import dev.openduo.pocket.ui.components.HoldToTalkView;
 import dev.openduo.pocket.ui.components.Sheets;
+import dev.openduo.pocket.ui.components.VoiceRecordingPanel;
 
 import java.util.concurrent.*;
 import java.util.function.BooleanSupplier;
@@ -80,6 +83,30 @@ final class InputProbe {
                 if (contains(group.getChildAt(i), text)) return true;
         }
         return false;
+    }
+
+    private View described(View root, String description) {
+        if (!root.isShown()) return null;
+        if (description.equals(root.getContentDescription())) return root;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = described(group.getChildAt(i), description);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private void screenshot(Context context, String name) throws Exception {
+        android.graphics.Bitmap bitmap = probe.getUiAutomation().takeScreenshot();
+        if (bitmap == null) throw new AssertionError("No screenshot: " + name);
+        java.io.File image = new java.io.File(context.getExternalCacheDir(), name + ".png");
+        try (java.io.FileOutputStream output = new java.io.FileOutputStream(image)) {
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
+        } finally {
+            bitmap.recycle();
+        }
     }
 
     private boolean focused(String text) throws Exception {
@@ -168,7 +195,7 @@ final class InputProbe {
                                     == InputAction.CANCEL_OR_STOP,
                     "E2 adapter supplies REC and MARK defaults");
             controller.startTrying();
-            controller.setVoiceInput(true);
+            controller.setVoiceInput(false);
             await(
                     () ->
                             controller.snapshot().trying
@@ -178,9 +205,38 @@ final class InputProbe {
                     "outgoing acceptance is isolated in Try");
             controller.ambientMute();
             barrier();
-            probe.runOnMainSync(() -> ((MainActivity) screen).navigate("settings"));
-            key(KeyEvent.KEYCODE_DPAD_DOWN);
             PageHost ui = (PageHost) screen;
+            probe.runOnMainSync(() -> ui.navigate("conversation"));
+            probe.waitForIdleSync();
+            probe.runOnMainSync(
+                    () -> {
+                        android.widget.EditText field = screen.findViewById(R.id.composer);
+                        check(
+                                field.isShown()
+                                        && field.length() == 0
+                                        && Math.abs(
+                                                        field.getTotalPaddingTop()
+                                                                - field.getTotalPaddingBottom())
+                                                <= 1,
+                                "the empty chat input is vertically centred");
+                        View settings = screen.findViewById(R.id.chat_settings_button);
+                        View ambient = screen.findViewById(R.id.chat_ambient_button);
+                        Rect editor = new Rect(), left = new Rect(), right = new Rect();
+                        field.getGlobalVisibleRect(editor);
+                        settings.getGlobalVisibleRect(left);
+                        ambient.getGlobalVisibleRect(right);
+                        check(
+                                left.top == right.top
+                                        && left.centerX() < editor.centerX()
+                                        && right.centerX() > editor.centerX(),
+                                "Settings and Ambient sit on opposite sides of the top bar");
+                    });
+            screenshot(context, "input-chat");
+            controller.setVoiceInput(true);
+            probe.runOnMainSync(
+                    () -> screen.findViewById(R.id.chat_settings_button).performClick());
+            check(page().equals("settings"), "top-left Settings opens directly from chat");
+            key(KeyEvent.KEYCODE_DPAD_DOWN);
             for (int i = 0; i < 25 && !focused(ui.ui().t("按键与遥控器")); i++)
                 key(KeyEvent.KEYCODE_DPAD_DOWN);
             check(focused(ui.ui().t("按键与遥控器")), "D-pad reaches key settings without touch");
@@ -232,12 +288,17 @@ final class InputProbe {
                     5000,
                     "REC starts the shared native capture");
             String owner = controller.snapshot().holdOwner;
-            boolean[] hardwareControls = {false};
+            VoiceRecordingPanel[] feedback = {null};
             probe.runOnMainSync(
-                    () ->
-                            hardwareControls[0] =
-                                    contains(screen.getWindow().getDecorView(), ui.ui().t("发送录音")));
-            check(hardwareControls[0], "hardware recording retains explicit Send/Cancel controls");
+                    () -> {
+                        feedback[0] =
+                                find(screen.getWindow().getDecorView(), VoiceRecordingPanel.class);
+                        check(
+                                contains(feedback[0], ui.ui().t("发送录音"))
+                                        && contains(feedback[0], ui.ui().t("取消录音")),
+                                "hardware recording uses the panel with explicit Send and Cancel");
+                    });
+            screenshot(context, "input-key");
             probe.runOnMainSync(
                     () -> find(screen.getWindow().getDecorView(), HoldToTalkView.class).cancel());
             barrier();
@@ -294,27 +355,17 @@ final class InputProbe {
                         touchControls[0] =
                                 contains(screen.getWindow().getDecorView(), ui.ui().t("发送录音"));
                         touchFeedback[0] =
-                                find(
-                                                        screen.getWindow().getDecorView(),
-                                                        HoldToTalkView.RecordingIndicator.class)
-                                                != null
+                                find(screen.getWindow().getDecorView(), VoiceRecordingPanel.class)
+                                                == feedback[0]
                                         && contains(
                                                 screen.getWindow().getDecorView(),
-                                                ui.ui().t("松开发送"));
+                                                ui.ui().t("松开发送 · 移出按钮取消"));
                     });
-            check(!touchControls[0], "touch recording presents no separate Send/Cancel panel");
+            check(!touchControls[0], "touch recording sends via release");
             check(
                     touchFeedback[0],
-                    "touch recording shows the recording animation and release hint");
-            java.io.File image = new java.io.File(context.getExternalCacheDir(), "input-touch.png");
-            android.graphics.Bitmap bitmap = probe.getUiAutomation().takeScreenshot();
-            if (bitmap != null) {
-                try (java.io.FileOutputStream output = new java.io.FileOutputStream(image)) {
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output);
-                } finally {
-                    bitmap.recycle();
-                }
-            }
+                    "touch and REC use the same recording panel with the appropriate hint");
+            screenshot(context, "input-touch");
             check(
                     java.util.Arrays.equals(initialPosition, activePosition),
                     "the held touch target stays under the finger: "
@@ -436,6 +487,37 @@ final class InputProbe {
                                     .count()
                             == sent,
                     "a canceled key-up cannot send after window focus returns");
+
+            probe.runOnMainSync(() -> screen.findViewById(R.id.chat_ambient_button).performClick());
+            await(
+                    () -> controller.snapshot().ambientActive,
+                    5000,
+                    "top-right Ambient starts the call");
+            check(page().equals("ambient"), "Ambient opens directly from chat");
+            probe.waitForIdleSync();
+            screenshot(context, "input-ambient");
+            probe.runOnMainSync(
+                    () -> {
+                        View decor = screen.getWindow().getDecorView();
+                        check(
+                                described(decor, ui.ui().t("设置")) == null,
+                                "Ambient has no Settings shortcut");
+                        described(decor, ui.ui().t("最小化环境模式")).performClick();
+                    });
+            check(
+                    page().equals("conversation") && controller.snapshot().ambientActive,
+                    "minimising Ambient returns to chat and keeps listening");
+            probe.runOnMainSync(() -> screen.findViewById(R.id.chat_ambient_button).performClick());
+            check(page().equals("ambient"), "the right action reopens a minimised call");
+            probe.runOnMainSync(
+                    () ->
+                            described(screen.getWindow().getDecorView(), ui.ui().t("关闭环境模式"))
+                                    .performClick());
+            await(
+                    () -> !controller.snapshot().ambientActive && !RecordingInput.isActive(),
+                    5000,
+                    "the Ambient off control releases capture");
+            check(page().equals("conversation"), "ending Ambient returns to chat");
         } finally {
             probe.runOnMainSync(
                     () -> {

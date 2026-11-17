@@ -8,7 +8,7 @@ package dev.openduo.pocket.ui;
  *
  * <p>This class deliberately has no Android or controller dependency. Pages consume named design
  * tokens through {@code Ui}; they do not decide layout from a physical screen or a business state.
- * Window-size classes choose navigation; pane footprints use the remaining content width.
+ * Window-size classes choose content spacing and pane footprints.
  */
 public final class AdaptiveMetrics {
     public enum WidthClass {
@@ -70,8 +70,8 @@ public final class AdaptiveMetrics {
         return heightDp < 480;
     }
 
-    /** A very narrow display uses page-level navigation to keep the transcript tall. */
-    public boolean compactNavigation() {
+    /** A very narrow window gives more of its width to content. */
+    public boolean narrowWidth() {
         return widthDp < 320;
     }
 
@@ -83,54 +83,29 @@ public final class AdaptiveMetrics {
         return 32;
     }
 
-    /**
-     * Tall windows use bottom navigation; wide or short landscape windows reclaim vertical room.
-     */
-    public boolean navigationRail() {
-        return widthDp >= 840 || widthDp >= 600 && heightDp < 480;
-    }
-
-    public boolean iconOnlyRail() {
-        return navigationRail() && (shortHeight() || largeText());
-    }
-
-    public int navigationRailWidthDp() {
-        return iconOnlyRail() ? 64 : 88;
-    }
-
-    /** Width that a page can actually use after shared navigation and outer margins. */
-    public int contentWidthDp(boolean withNavigation) {
-        return Math.max(
-                1,
-                widthDp
-                        - (withNavigation && navigationRail() ? navigationRailWidthDp() : 0)
-                        - pagePaddingDp() * 2);
-    }
-
-    private boolean fitsPanes(
-            boolean withNavigation, int firstMinDp, int secondMinDp, int gapDp, int minHeightDp) {
+    private boolean fitsPanes(int firstMinDp, int secondMinDp, int gapDp, int minHeightDp) {
         return heightDp >= minHeightDp
-                && contentWidthDp(withNavigation) >= firstMinDp + secondMinDp + gapDp;
+                && widthDp - pagePaddingDp() * 2 >= firstMinDp + secondMinDp + gapDp;
     }
 
     /** Short landscape and medium windows can put onboarding choices beside the introduction. */
     public boolean twoPaneOnboarding() {
-        return fitsPanes(false, shortHeight() ? 260 : 320, shortHeight() ? 260 : 300, 24, 300);
+        return fitsPanes(shortHeight() ? 260 : 320, shortHeight() ? 260 : 300, 24, 300);
     }
 
     /** Pairing needs room for the link actions and a complete manual form. */
     public boolean twoPanePairing() {
-        return fitsPanes(false, 280, 360, 16, 420);
+        return fitsPanes(280, 360, 16, 420);
     }
 
-    /** Settings columns have to fit after the persistent navigation rail. */
+    /** Settings columns each need space for labels and controls. */
     public boolean twoPaneSettings() {
-        return fitsPanes(true, 320, 320, 16, 480);
+        return fitsPanes(320, 320, 16, 480);
     }
 
-    /** Two useful workspace panes need enough width after navigation and page margins. */
+    /** Two useful workspace panes need enough width after page margins. */
     public boolean twoPaneWorkspace() {
-        return fitsPanes(true, sidebarWidthDp(), largeText() ? 800 : 560, 16, 520);
+        return fitsPanes(sidebarWidthDp(), largeText() ? 800 : 560, 16, 520);
     }
 
     public int sidebarWidthDp() {
@@ -139,6 +114,11 @@ public final class AdaptiveMetrics {
 
     public int ambientControlWidthDp() {
         return Math.min(440, Math.max(320, widthDp / 3));
+    }
+
+    /** The chat thread and its composer use the same readable column. */
+    public int chatColumnMaxWidthDp() {
+        return largeText() ? 1040 : 880;
     }
 
     public int messageMaxWidthDp() {
@@ -177,10 +157,6 @@ public final class AdaptiveMetrics {
     public int rowMinHeightDp() {
         if (largeText()) return 64;
         return widthClass == WidthClass.COMPACT ? 56 : 60;
-    }
-
-    public int navigationHeightDp() {
-        return largeText() ? 68 : 60;
     }
 
     public int viewfinderHeightDp() {

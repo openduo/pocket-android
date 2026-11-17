@@ -2,17 +2,20 @@
 // SPDX-License-Identifier: FSL-1.1-Apache-2.0
 package dev.openduo.pocket.ui.pages;
 
+import android.graphics.drawable.InsetDrawable;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import dev.openduo.pocket.R;
 import dev.openduo.pocket.core.Attachment;
 import dev.openduo.pocket.core.ImportProgress;
 import dev.openduo.pocket.core.PocketController;
@@ -23,6 +26,7 @@ import dev.openduo.pocket.ui.components.AttachmentImages;
 import dev.openduo.pocket.ui.components.ComposerInput;
 import dev.openduo.pocket.ui.components.HoldToTalkView;
 import dev.openduo.pocket.ui.components.Sheets;
+import dev.openduo.pocket.ui.components.VoiceRecordingPanel;
 
 /** Persistent input controls and their transient editor/scroll state, independent of the feed. */
 final class ConversationComposer {
@@ -31,16 +35,18 @@ final class ConversationComposer {
     private final Ui ui;
     private final Runnable sent;
     private final AttachmentImages images;
-    private LinearLayout composer, textRow, chipRow, quoteRow, holdPanel, importRow;
-    private TextView holdLabel, quoteText, importLabel;
+    private LinearLayout chipRow, quoteRow, importRow;
+    private TextView quoteText, importLabel;
     private EditText input;
-    private View voiceToggle, send, importCancel;
+    private View voiceToggle, attach, send, importCancel;
+    private ImageView modeIcon;
     private HoldToTalkView hold;
+    private VoiceRecordingPanel recording;
     private HorizontalScrollView chipScroll;
     private final java.util.Set<String> chipPaths = new java.util.HashSet<>();
     private int pendingChipScroll = -1;
     private String chipKey = "", importId = "";
-    private boolean applying;
+    private boolean applying, focusTypingOnToggle;
     private long draftGeneration, pendingEdit;
 
     ConversationComposer(PageHost host, PocketController controller, Runnable sent) {
@@ -51,47 +57,15 @@ final class ConversationComposer {
         images = new AttachmentImages(controller);
     }
 
-    void render(AdaptiveColumn root) {
-        AdaptiveColumn adaptive = root;
-        holdPanel = ui.column();
-        ui.inset(holdPanel, 18, 10);
-        holdPanel.setBackground(ui.surface(ui.palette.surface, 16));
-        holdLabel = ui.label(ui.t("准备中…"), 18, ui.palette.text, true);
-        holdLabel.setGravity(Gravity.CENTER);
-        holdPanel.addView(holdLabel);
-        HoldToTalkView.Meter meter = new HoldToTalkView.Meter(ui, controller);
-        holdPanel.addView(meter, new LinearLayout.LayoutParams(-1, ui.controlHeight()));
-        TextView hint = ui.label(ui.t("确认键发送 · 取消按钮放弃本次录音"), 12, ui.palette.secondary, false);
-        hint.setGravity(Gravity.CENTER);
-        holdPanel.addView(hint);
-        LinearLayout voiceActions = ui.row();
-        voiceActions.addView(
-                ui.button(
-                        ui.t("取消录音"),
-                        ui.palette.secondary,
-                        ui.palette.raised,
-                        () ->
-                                host.input()
-                                        .invoke(
-                                                dev.openduo.pocket.input.InputAction.CANCEL_OR_STOP,
-                                                host.input().owner("voice-cancel"))),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        voiceActions.addView(
-                ui.button(
-                        ui.t("发送录音"),
-                        ui.palette.onAccent,
-                        ui.palette.accent,
-                        () ->
-                                host.input()
-                                        .invoke(
-                                                dev.openduo.pocket.input.InputAction.SEND_VOICE,
-                                                host.input().owner("voice-send"))),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        holdPanel.addView(voiceActions);
-        root.addView(holdPanel);
-        holdPanel.setVisibility(View.GONE);
-        composer = ui.column();
-        composer.setPadding(ui.dp(6), ui.dp(6), ui.dp(6), ui.dp(8));
+    void render(AdaptiveColumn root, LinearLayout chat, FrameLayout thread) {
+        recording = new VoiceRecordingPanel(host);
+        thread.addView(recording, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout footer = ui.column();
+        footer.addView(ui.divider());
+        LinearLayout composer = ui.column();
+        int sidePadding = Math.max(ui.dp(8), ui.pagePadding() - ui.dp(4));
+        composer.setPadding(sidePadding, ui.dp(3), sidePadding, ui.dp(4));
+        footer.addView(ui.scrollFooter(composer));
         quoteRow = ui.row();
         quoteText = ui.label("", 12, ui.palette.secondary, false);
         quoteText.setMaxLines(2);
@@ -125,13 +99,11 @@ final class ConversationComposer {
         chipRow = ui.row();
         chipScroll.addView(chipRow);
         composer.addView(chipScroll);
-        textRow = ui.row();
-        voiceToggle =
-                ui.iconButton(
-                        "mic", ui.t("切换语音或文字"), ui.palette.secondary, controller::toggleVoiceInput);
-        textRow.addView(
-                voiceToggle,
-                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
+        LinearLayout textRow = ui.row();
+        textRow.setGravity(Gravity.BOTTOM);
+        modeIcon = ui.icon("mic", ui.palette.secondary, 19);
+        voiceToggle = action(modeIcon, ui.t("切换语音或文字"), ui.palette.raised, this::toggleMode);
+        textRow.addView(voiceToggle, actionSize());
         input =
                 ui.configureInput(
                         new ComposerInput(ui.context, controller::importAttachment),
@@ -142,8 +114,12 @@ final class ConversationComposer {
         input.setSaveEnabled(
                 false); // The controller owns the durable text; the UI restores selection.
         input.setMaxLines(4);
-        adaptive.editor(input, 4);
+        root.editor(input, 4);
+        input.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        input.setIncludeFontPadding(false);
+        input.setMinimumHeight(ui.touchTarget());
         input.setMinHeight(ui.touchTarget());
+        ui.composerSurface(input, ui.palette.raised);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         input.addTextChangedListener(
                 new TextWatcher() {
@@ -162,26 +138,28 @@ final class ConversationComposer {
                     public void afterTextChanged(Editable e) {}
                 });
         textRow.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
-        hold = new HoldToTalkView(host, controller);
+        hold = new HoldToTalkView(host, controller, () -> updateRecording(controller.snapshot()));
         textRow.addView(hold, new LinearLayout.LayoutParams(0, -2, 1));
-        textRow.addView(
-                ui.iconButton(
-                        "plus", ui.t("添加照片、拍照、文件或位置"), ui.palette.secondary, this::attachMenu),
-                new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
+        attach =
+                action(
+                        ui.icon("plus", ui.palette.secondary, 19),
+                        ui.t("添加照片、拍照、文件或位置"),
+                        ui.palette.raised,
+                        this::attachMenu);
+        textRow.addView(attach, actionSize());
         send =
-                ui.iconButton(
-                        "chevron_right",
+                action(
+                        ui.icon("arrow_up", ui.palette.onAccent, 19),
                         ui.t("发送消息"),
                         ui.palette.accent,
                         () -> {
                             controller.sendDraft();
                             sent.run();
                         });
-        textRow.addView(
-                send, new LinearLayout.LayoutParams(ui.iconButtonSize(), ui.iconButtonSize()));
+        textRow.addView(send, actionSize());
         composer.addView(textRow);
-        root.addView(ui.scrollFooter(composer));
-        adaptive.getViewTreeObserver()
+        chat.addView(footer);
+        root.getViewTreeObserver()
                 .addOnGlobalLayoutListener(
                         () -> {
                             images.refreshVisible();
@@ -202,22 +180,41 @@ final class ConversationComposer {
                         });
     }
 
+    private View action(ImageView icon, String description, int fill, Runnable click) {
+        FrameLayout button = new FrameLayout(ui.context);
+        button.addView(icon, new FrameLayout.LayoutParams(ui.dp(19), ui.dp(19), Gravity.CENTER));
+        button.setContentDescription(description);
+        ui.clickable(button, fill, 20, click);
+        button.setBackground(new InsetDrawable(ui.focusSurface(fill, 20), ui.dp(4)));
+        return button;
+    }
+
+    private LinearLayout.LayoutParams actionSize() {
+        return new LinearLayout.LayoutParams(ui.touchTarget(), ui.touchTarget());
+    }
+
+    private void toggleMode() {
+        focusTypingOnToggle = hold.isShown();
+        controller.toggleVoiceInput();
+    }
+
     private void attachMenu() {
-        java.util.List<Sheets.Action> actions = new java.util.ArrayList<>();
-        if (ui.metrics.compactNavigation())
-            actions.add(new Sheets.Action(ui.t("切换语音或文字"), controller::toggleVoiceInput));
-        actions.add(new Sheets.Action(ui.t("照片"), () -> host.pickAttachment("image/*")));
-        actions.add(new Sheets.Action(ui.t("拍照"), host::takePhoto));
-        actions.add(new Sheets.Action(ui.t("文件"), () -> host.pickAttachment("*/*")));
-        actions.add(new Sheets.Action(ui.t("位置"), () -> host.navigate("location")));
-        Sheets.actions(ui, ui.t("添加到消息"), actions.toArray(new Sheets.Action[0]));
+        Sheets.actions(
+                ui,
+                ui.t("添加到消息"),
+                new Sheets.Action(ui.t("照片"), () -> host.pickAttachment("image/*")),
+                new Sheets.Action(ui.t("拍照"), host::takePhoto),
+                new Sheets.Action(ui.t("文件"), () -> host.pickAttachment("*/*")),
+                new Sheets.Action(ui.t("位置"), () -> host.navigate("location")));
     }
 
     void update(PocketController.Snapshot s) {
         boolean ambientOn = s.ambientActive, voice = s.holdRecording || s.voiceInput && !ambientOn;
-        voiceToggle.setVisibility(
-                ambientOn || ui.metrics.compactNavigation() ? View.GONE : View.VISIBLE);
+        voiceToggle.setVisibility(ambientOn ? View.GONE : View.VISIBLE);
         voiceToggle.setContentDescription(voice ? ui.t("切换到文字输入") : ui.t("切换到按住说话"));
+        modeIcon.setImageResource(voice ? R.drawable.ic_lucide_keyboard : R.drawable.ic_lucide_mic);
+        voiceToggle.setEnabled(!s.holdRecording);
+        attach.setEnabled(!s.holdRecording);
         hold.setVisibility(voice ? View.VISIBLE : View.GONE);
         input.setVisibility(voice ? View.GONE : View.VISIBLE);
         if (voice) ui.hideKeyboard(input);
@@ -237,8 +234,8 @@ final class ConversationComposer {
                 (!voice && !s.draft.trim().isEmpty() || !s.chips.isEmpty())
                         ? View.VISIBLE
                         : View.GONE);
-        send.setEnabled(s.imports.isEmpty());
-        send.setAlpha(s.imports.isEmpty() ? 1f : .4f);
+        send.setEnabled(!s.holdRecording && s.imports.isEmpty());
+        send.setAlpha(send.isEnabled() ? 1f : .4f);
         importRow.setVisibility(s.imports.isEmpty() ? View.GONE : View.VISIBLE);
         if (!s.imports.isEmpty()) {
             ImportProgress progress = s.imports.get(0);
@@ -337,13 +334,18 @@ final class ConversationComposer {
             }
         }
         chipRow.setVisibility(s.chips.isEmpty() ? View.GONE : View.VISIBLE);
+        updateRecording(s);
+        if (focusTypingOnToggle && !voice) {
+            focusTypingOnToggle = false;
+            if (input.isShown()) focus();
+        }
+    }
+
+    private void updateRecording(PocketController.Snapshot s) {
+        if (s == null) return;
         hold.update(s);
-        holdPanel.setVisibility(s.holdRecording && !hold.touchHolding() ? View.VISIBLE : View.GONE);
-        Ui.updateText(
-                holdLabel,
-                hold.cancelArmed()
-                        ? ui.t("松手取消")
-                        : s.holdLive ? HoldToTalkView.duration(s.holdDurationMs) : ui.t("准备中…"));
+        boolean touching = hold.touchHolding(s);
+        recording.update(s, touching, touching && hold.cancelArmed());
     }
 
     void focus() {
@@ -354,6 +356,7 @@ final class ConversationComposer {
     }
 
     void hidden() {
+        focusTypingOnToggle = false;
         if (hold != null) hold.cancel();
         if (input != null) ui.hideKeyboard(input);
     }

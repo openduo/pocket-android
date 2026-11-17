@@ -15,7 +15,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 </p>
 <p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The separate E11 bring-up covers the revised UI only; see the device guide for its limits.</sub></p>
 
-[Download 0.4.0 Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
+[Download 0.4.0 RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
 ## What is implemented
 
@@ -25,21 +25,21 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 - Passport protocol 1.3 and Android BLE integration: press/audio assembly, RESULT/WORK/REPLY, quiet delivery and replay memory; [upstream differential checks and hardware limits](docs/passport.md).
 - Session lists/details/notification controls, Camera2/H.264 Sight, maps/coordinates/geocoding and arrival tracking.
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
-- Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example in Preview 3; [input guide](docs/input.md).
+- Shared touch/key/remote actions, editable foreground bindings, native D-pad/OK/Back navigation and an E2 REC/MARK example; [input guide](docs/input.md).
 - Shared [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) protocol/JNI owners, corrected media-v1 audio downlink and ongoing reply playback through screen lock.
-- Current source reflows full-width pages with page-level navigation below 320dp, side navigation in wide or short landscape windows, content-width based pane fitting, a scrollable first-run flow, readable message widths, system-bar/IME insets and page-state restoration. This layout revision is not in Preview 3.
+- Chat has Settings, the room name and Ambient in the top bar. It uses a centered composer, a shared recording panel for touch and keys, full-width bubbles below 320dp and a bounded reading column on wider windows. [Android window and keyboard behavior](docs/ui.md).
 
 Implementation and real-service acceptance are tracked separately. The local original-package E2 build has passed one human voice-note turn with a user-confirmed audible reply, and one notification delivery with a correlated success and unique recipient record. Recognition had a wording error. These results use the earlier local E2 array build and do not establish human-speech acceptance for the public framework-audio APK. Sight has now resumed and passes actual media negotiation and native video uplink on the updated public-package E2 build; [scene recognition and sustained-rate limits](docs/sight.md) remain explicit. Full hands-free ambient conversation, physical arrivals and long-term background behavior remain unverified. Android push remains deferred. Passport has resumed in the current source and passes fixed protocol vectors on the JVM and E2 Android runtime; physical accessory acceptance is still open. Preview 3 includes these implementations, the shared Rust protocol and the lockscreen playback fix. Version alignment does not claim 1:1 parity; the [migration record](docs/migration.md) retains the remaining gaps.
 
 ## Install and connect
 
-Preview 3 uses version code 3 and the existing public signing key, so it updates earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
+RC 1 uses version code 4 and the existing public signing key, so it updates earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
 E2 firmware 04319 requires the [local array-adapted `Pocket-E2.apk`](docs/devices.md#e2-example)
 for its built-in microphone. Keep that adapted package installed on E2. Public `Pocket.apk`
 contains no proprietary firmware and reports unavailable built-in input on this firmware instead
-of uploading invalid audio. The restored public-identity array build passes local calibration and
-34 bounded input checks; [human ASR acceptance remains separate](docs/audio.md#e2-built-in-capture).
+of uploading invalid audio. See the local array build's [capture evidence](docs/audio.md#e2-built-in-capture)
+and [touch/key navigation check](docs/input.md#bounded-verification).
 
 1. Install `Pocket.apk` from [Releases](https://github.com/openduo/pocket-android/releases).
 2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.

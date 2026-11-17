@@ -1825,9 +1825,6 @@ public final class Probe extends Instrumentation {
                     shell.addView(
                             preview[0].render(),
                             new android.widget.LinearLayout.LayoutParams(-1, 0, 1));
-                    shell.addView(
-                            new dev.openduo.pocket.ui.components.BottomNav(variant, ignored -> {})
-                                    .render("conversation"));
                     dialog[0] =
                             new android.app.Dialog(
                                     screen,

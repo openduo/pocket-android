@@ -31,28 +31,13 @@ final class AdaptiveMetricsContracts {
         AdaptiveMetrics tiny = AdaptiveMetrics.of(64, 240, 1f);
         AdaptiveMetrics speaker = AdaptiveMetrics.of(259, 610, 1f);
         check(
-                speaker.compactNavigation()
-                        && !phone.compactNavigation()
-                        && !speaker.navigationRail(),
-                "very narrow windows use page navigation without a persistent bar");
-        check(
-                !phone.navigationRail()
-                        && !medium.navigationRail()
-                        && wide.navigationRail()
-                        && AdaptiveMetrics.of(740, 360, 1f).navigationRail(),
-                "navigation moves to a rail for wide or short landscape windows");
-        check(
-                AdaptiveMetrics.of(740, 360, 1f).iconOnlyRail()
-                        && AdaptiveMetrics.of(1280, 800, 2f).iconOnlyRail()
-                        && !wide.iconOnlyRail()
-                        && wide.navigationRailWidthDp()
-                                > AdaptiveMetrics.of(740, 360, 1f).navigationRailWidthDp(),
-                "short or large-text rails keep icon targets without clipped labels");
+                speaker.narrowWidth() && !phone.narrowWidth(),
+                "very narrow setup pages use the narrower spacing");
         check(
                 wide.twoPaneWorkspace()
                         && !medium.twoPaneWorkspace()
                         && !AdaptiveMetrics.of(1100, 460, 1f).twoPaneWorkspace()
-                        && !AdaptiveMetrics.of(1180, 900, 1.8f).twoPaneWorkspace()
+                        && !AdaptiveMetrics.of(1140, 900, 1.8f).twoPaneWorkspace()
                         && AdaptiveMetrics.of(1280, 800, 2f).twoPaneWorkspace(),
                 "workspace panes require usable width and height at the current text scale");
         check(
@@ -62,20 +47,18 @@ final class AdaptiveMetricsContracts {
                         && !AdaptiveMetrics.of(600, 960, 1f).twoPaneOnboarding()
                         && !AdaptiveMetrics.of(259, 545, 1f).twoPaneOnboarding(),
                 "onboarding uses adjacent choices when two readable columns fit, including short"
-                    + " landscape");
+                        + " landscape");
         check(
                 AdaptiveMetrics.of(840, 600, 1f).twoPanePairing()
                         && !AdaptiveMetrics.of(740, 360, 1f).twoPanePairing()
                         && AdaptiveMetrics.of(961, 541, 1f).twoPaneSettings()
                         && AdaptiveMetrics.of(840, 600, 1f).twoPaneSettings()
                         && !AdaptiveMetrics.of(600, 960, 1f).twoPaneSettings(),
-                "pairing and settings use their own form footprints after shared navigation");
+                "pairing and settings use their own form footprints");
         check(
-                AdaptiveMetrics.of(961, 541, 1f).contentWidthDp(true) == 809
-                        && AdaptiveMetrics.of(961, 541, 1f).contentWidthDp(false) == 897
-                        && !AdaptiveMetrics.of(961, 541, 1f).twoPaneWorkspace()
-                        && AdaptiveMetrics.of(1000, 600, 1f).twoPaneWorkspace(),
-                "workspace decisions account for rail and margins rather than device identity");
+                !AdaptiveMetrics.of(850, 541, 1f).twoPaneWorkspace()
+                        && AdaptiveMetrics.of(900, 541, 1f).twoPaneWorkspace(),
+                "workspace panes can use the full window after margins");
         check(
                 wide.ambientControlWidthDp() <= 440
                         && AdaptiveMetrics.of(1280, 800, 2f).ambientControlWidthDp() < 440,

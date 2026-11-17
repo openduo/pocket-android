@@ -5,6 +5,7 @@ package dev.openduo.pocket.ui.components;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
@@ -13,63 +14,54 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import dev.openduo.pocket.core.PocketController;
+import dev.openduo.pocket.input.InputAction;
 import dev.openduo.pocket.ui.PageHost;
 import dev.openduo.pocket.ui.Ui;
 
 /** Touch, keyboard and accessibility controls share the controller's single capture owner. */
-public final class HoldToTalkView extends LinearLayout {
+public final class HoldToTalkView extends TextView {
     private final PageHost host;
     private final PocketController controller;
     private final Ui ui;
-    private final TextView label, hint;
-    private final RecordingIndicator indicator;
+    private final Runnable gestureChanged;
     private boolean held, cancel, live;
     private boolean tapGesture, tapToSend;
+    private int fill;
     private final String owner;
 
-    public HoldToTalkView(PageHost host, PocketController controller) {
+    public HoldToTalkView(PageHost host, PocketController controller, Runnable gestureChanged) {
         super(host.activity());
         this.host = host;
         this.controller = controller;
+        this.gestureChanged = gestureChanged;
         ui = host.ui();
         owner = host.input().owner("voice-control:" + java.util.UUID.randomUUID());
         setGravity(Gravity.CENTER);
-        setMinimumHeight(Math.max(ui.touchTarget(), ui.dp(72)));
-        setOrientation(VERTICAL);
-        ui.inset(this, 6, 8);
-        label = ui.label(ui.t("按住说话"), 14, ui.palette.text, true);
-        label.setGravity(Gravity.CENTER);
-        label.setSingleLine(true);
-        label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        addView(label, new LayoutParams(-1, -2));
-        indicator = new RecordingIndicator(ui);
-        indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        // Reserve the indicator's space so starting capture never moves the held target.
-        addView(indicator, new LayoutParams(-1, ui.dp(18)));
-        indicator.setVisibility(INVISIBLE);
-        hint = ui.label(ui.t("松开发送"), 11, ui.palette.secondary, false);
-        hint.setGravity(Gravity.CENTER);
-        hint.setSingleLine(true);
-        hint.setEllipsize(TextUtils.TruncateAt.END);
-        hint.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        addView(hint, new LayoutParams(-1, -2));
+        setMinimumHeight(ui.touchTarget());
+        setTextSize(15);
+        setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        setIncludeFontPadding(false);
+        setSingleLine(true);
+        setEllipsize(TextUtils.TruncateAt.END);
+        setText(ui.t("按住说话"));
+        setTextColor(ui.palette.text);
+        fill = ui.palette.raised;
         ui.clickable(
                 this,
-                ui.palette.raised,
-                12,
+                fill,
+                20,
                 () ->
                         host.input()
                                 .invoke(
                                         recording()
-                                                ? dev.openduo.pocket.input.InputAction.SEND_VOICE
-                                                : dev.openduo.pocket.input.InputAction.TOGGLE_VOICE,
+                                                ? InputAction.SEND_VOICE
+                                                : InputAction.TOGGLE_VOICE,
                                         owner));
-        setContentDescription(ui.t("按住说话，手指移出按钮可取消"));
+        ui.composerSurface(this, fill);
+        setContentDescription(ui.t("按住说话"));
     }
 
     private void begin() {
@@ -77,7 +69,6 @@ public final class HoldToTalkView extends LinearLayout {
         held = true;
         cancel = false;
         host.input().begin(owner);
-        update(controller.snapshot());
     }
 
     private void finish(boolean canceled) {
@@ -86,8 +77,7 @@ public final class HoldToTalkView extends LinearLayout {
         held = false;
         host.input().end(owner, canceled);
         cancel = false;
-        live = false;
-        update(controller.snapshot());
+        gestureChanged.run();
     }
 
     public void cancel() {
@@ -116,7 +106,7 @@ public final class HoldToTalkView extends LinearLayout {
     @Override
     public boolean performAccessibilityAction(int action, android.os.Bundle arguments) {
         if (action == AccessibilityNodeInfo.ACTION_DISMISS && recording()) {
-            host.input().invoke(dev.openduo.pocket.input.InputAction.CANCEL_OR_STOP, owner);
+            host.input().invoke(InputAction.CANCEL_OR_STOP, owner);
             return true;
         }
         return super.performAccessibilityAction(action, arguments);
@@ -125,7 +115,7 @@ public final class HoldToTalkView extends LinearLayout {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_ESCAPE && recording()) {
-            host.input().invoke(dev.openduo.pocket.input.InputAction.CANCEL_OR_STOP, owner);
+            host.input().invoke(InputAction.CANCEL_OR_STOP, owner);
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -156,36 +146,27 @@ public final class HoldToTalkView extends LinearLayout {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (tapGesture) {
-                    tapToSend =
-                            event.getX() >= 0
-                                    && event.getX() <= getWidth()
-                                    && event.getY() >= 0
-                                    && event.getY() <= getHeight();
+                    tapToSend = inside(event);
                     return true;
                 }
                 if (!held) return true;
-                boolean outside =
-                        event.getX() < 0
-                                || event.getX() > getWidth()
-                                || event.getY() < 0
-                                || event.getY() > getHeight();
+                boolean outside = !inside(event);
                 if (cancel != outside) {
                     cancel = outside;
                     haptic(HapticFeedbackConstants.CLOCK_TICK);
-                    update(controller.snapshot());
+                    gestureChanged.run();
                 }
                 return true;
             case MotionEvent.ACTION_UP:
                 if (tapGesture) {
-                    boolean send = tapToSend;
+                    boolean send = tapToSend && inside(event);
                     tapGesture = false;
                     tapToSend = false;
-                    if (send && recording())
-                        host.input().invoke(dev.openduo.pocket.input.InputAction.SEND_VOICE, owner);
+                    if (send && recording()) host.input().invoke(InputAction.SEND_VOICE, owner);
                     getParent().requestDisallowInterceptTouchEvent(false);
                     return true;
                 }
-                finish(cancel);
+                finish(cancel || !inside(event));
                 getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
             case MotionEvent.ACTION_CANCEL:
@@ -201,46 +182,41 @@ public final class HoldToTalkView extends LinearLayout {
         }
     }
 
+    private boolean inside(MotionEvent event) {
+        return event.getX() >= 0
+                && event.getX() < getWidth()
+                && event.getY() >= 0
+                && event.getY() < getHeight();
+    }
+
     public void update(PocketController.Snapshot s) {
-        if (s == null) return;
-        boolean own = s.holdRecording && owner.equals(s.holdOwner);
-        if (own && s.holdLive && !live) {
-            live = true;
-            haptic(HapticFeedbackConstants.VIRTUAL_KEY);
-        }
-        boolean touching = held && own;
+        if (s.holdLive && !live && isShown()) haptic(HapticFeedbackConstants.VIRTUAL_KEY);
+        live = s.holdLive;
+        boolean touching = touchHolding(s);
         boolean armed = touching && cancel;
         boolean active = s.holdRecording;
-        label.setText(
-                active
-                        ? armed
-                                ? ui.t("松手取消")
-                                : s.holdLive
-                                        ? ui.format("录音中 · %s", duration(s.holdDurationMs))
-                                        : ui.t("准备中…")
-                        : ui.t("按住说话"));
-        int color = active && s.holdLive && !armed ? ui.palette.onAccent : ui.palette.text;
-        label.setTextColor(color);
-        hint.setText(armed ? ui.t("松手取消") : active && !touching ? ui.t("发送录音") : ui.t("松开发送"));
-        hint.setTextColor(active ? color : ui.palette.secondary);
-        indicator.setColor(color);
-        indicator.setVisibility(active && s.holdLive ? VISIBLE : INVISIBLE);
-        setBackground(
-                ui.focusSurface(
-                        active
-                                ? armed
-                                        ? ui.palette.attentionTint
-                                        : s.holdLive ? ui.palette.accent : ui.palette.selected
-                                : ui.palette.raised,
-                        12));
-        setContentDescription(
+        Ui.updateText(
+                this,
+                !active
+                        ? ui.t("按住说话")
+                        : armed ? ui.t("松手取消") : touching ? ui.t("松开发送") : ui.t("发送录音"));
+        setTextColor(active && !armed ? ui.palette.onAccent : ui.palette.text);
+        int nextFill =
+                active ? armed ? ui.palette.attentionTint : ui.palette.accent : ui.palette.raised;
+        if (fill != nextFill) {
+            fill = nextFill;
+            ui.composerSurface(this, fill);
+        }
+        String description =
                 active
                         ? armed
                                 ? ui.t("松手取消，移回按钮继续录音")
                                 : s.holdLive
                                         ? touching ? ui.t("正在录音，松开发送") : ui.t("正在录音，再次激活发送")
                                         : ui.t("准备麦克风")
-                        : ui.t("按住说话"));
+                        : ui.t("按住说话，手指移出按钮可取消");
+        if (!TextUtils.equals(getContentDescription(), description))
+            setContentDescription(description);
     }
 
     public boolean cancelArmed() {
@@ -248,9 +224,8 @@ public final class HoldToTalkView extends LinearLayout {
     }
 
     /** Touch release sends directly; separate Send/Cancel controls are for other input owners. */
-    public boolean touchHolding() {
-        PocketController.Snapshot state = controller.snapshot();
-        return held && state != null && owner.equals(state.holdOwner);
+    public boolean touchHolding(PocketController.Snapshot state) {
+        return held && state.holdRecording && owner.equals(state.holdOwner);
     }
 
     private void haptic(int kind) {
@@ -273,39 +248,6 @@ public final class HoldToTalkView extends LinearLayout {
     public static String duration(long ms) {
         long sec = ms / 1000;
         return String.format(java.util.Locale.ROOT, "%d:%02d", sec / 60, sec % 60);
-    }
-
-    /** A recording-state animation, independent of microphone amplitude. */
-    public static final class RecordingIndicator extends View {
-        private final Ui ui;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        RecordingIndicator(Ui ui) {
-            super(ui.context);
-            this.ui = ui;
-            paint.setStrokeWidth(ui.dp(3));
-            paint.setStrokeCap(Paint.Cap.ROUND);
-        }
-
-        void setColor(int color) {
-            if (paint.getColor() == color) return;
-            paint.setColor(color);
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            double phase = android.os.SystemClock.uptimeMillis() / 180.0;
-            float center = getHeight() / 2f;
-            for (int i = 0; i < 5; i++) {
-                float pulse = (float) (.5 + .5 * Math.sin(phase + i * .8));
-                float amplitude = ui.dp(2) + pulse * Math.max(0, center - ui.dp(4));
-                float x = getWidth() / 2f + (i - 2) * ui.dp(6);
-                canvas.drawLine(x, center - amplitude, x, center + amplitude, paint);
-            }
-            if (isShown()) postInvalidateDelayed(50);
-        }
     }
 
     public static final class Meter extends View {

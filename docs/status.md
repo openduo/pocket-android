@@ -2,16 +2,20 @@
 
 English · [简体中文](status.zh-CN.md)
 
-Updated 2026-11-15. The milestone delivers a maintainable `openduo/pocket-android` project and Android preview, with E2 as an adapter example. Full 1:1 parity remains a future comparison. Testing is deliberately limited to relevant checks, with older expanded evidence retained separately.
+Updated 2026-11-17. The Android release candidate shares its adaptive UI across devices, with E2
+as a hardware adapter example. Full 1:1 parity remains a future comparison. Earlier test results
+are retained with their own build identities and limits.
 
-Published: [0.4.0 · Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3)
-([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.3/Pocket.apk),
-version code 3). It includes Sight service adaptation, pocket-rs 0.1.1, ongoing playback through
-screen lock, Passport 1.3, foreground input bindings and the ownership refactors below. The public
-package/signature are retained for in-place updates. Lower checkpoint counts describe the build
-tested at that time; Preview 1/2 artifacts remain historical releases.
+Published: [0.4.0 · RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1)
+([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-rc.1/Pocket.apk),
+version code 4). It includes the new chat header, compact composer, shared recording feedback and
+window layouts described in [the UI guide](ui.md). The public package and signature are retained.
+The English gallery was recaptured from the RC using prepared Try content.
 
-## Preview 3 release verification
+## Historical Preview 3 release verification
+
+[Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) introduced
+Sight service adaptation, pocket-rs 0.1.1, screen-lock playback, Passport 1.3 and key bindings.
 
 - 2,634 actual-JNI JVM assertions, source/ownership checks, 653 catalog entries across 145 production
   Java sources, Go vet/tests, dual-ABI Debug and signed generic Release builds pass.
@@ -34,12 +38,10 @@ recording is uploaded or sent to the room. The generic-build guard separately pa
 unavailable-input reason, zero packets and released microphone. Headset input keeps its framework
 route. This confirms restored input, not new human ASR accuracy.
 
-Touch recording uses one stationary button showing a recording label, duration, release hint and
-simple recording-state animation after capture starts. The animation is independent of real-time
-amplitude. The separate Send/Cancel panel remains for other input owners. The adapted E2 passes
-34 bounded injected-event assertions with actual capture and Try-only sends, including visible
-feedback, fixed touch position and exactly one note on release; bindings/settings are restored and
-the paired room returns Online. Physical key presses remain unaccepted.
+Touch, hardware and accessibility use the same recording panel, with an animation that indicates
+recording state. The touch button stays in place; recordings started without touch show Send and
+Cancel controls in the panel. The [bounded E2 input check](input.md#bounded-verification) used
+injected events, actual capture and Try-only sends, then restored the paired room Online.
 
 Explicit firmware builds write local-only `dist/Pocket-E2.apk`, keeping `dist/Pocket.apk` available
 for generic publication. E2 must stay on the adapted APK. No proprietary libraries/models enter

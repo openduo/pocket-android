@@ -3,6 +3,7 @@
 
 package dev.openduo.pocket.ui.pages;
 
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -21,7 +22,7 @@ public final class AmbientPage implements PocketController.Listener {
     private final PocketController controller;
     private final Ui ui;
     private LinearLayout root;
-    private TextView status, caption, action, mute, detail, hush, camera, flip, sightStatus;
+    private TextView title, status, caption, action, mute, detail, hush, camera, flip, sightStatus;
     private LinearLayout cameras, controls;
     private View room, transcript, off;
     private boolean twoPane;
@@ -39,22 +40,24 @@ public final class AmbientPage implements PocketController.Listener {
         if (root != null) return root;
         twoPane = ui.metrics.twoPaneWorkspace();
         root = ui.column();
-        LinearLayout bar = ui.row();
-        bar.addView(
-                ui.iconButton(
-                        "chevron_down",
-                        ui.t("最小化环境模式"),
-                        ui.palette.secondary,
-                        () -> host.navigate("conversation")));
-        bar.addView(
-                ui.label(ui.t("环境模式"), 17, ui.palette.text, true),
-                new LinearLayout.LayoutParams(0, -2, 1));
-        bar.addView(
-                ui.iconButton(
-                        "settings",
-                        ui.t("设置"),
-                        ui.palette.secondary,
-                        () -> host.navigate("settings")));
+        LinearLayout heading = ui.column();
+        title = ui.label(ui.t("多多"), 17, ui.palette.text, true);
+        TextView mode = ui.label(ui.t("环境模式"), 11, ui.palette.secondary, false);
+        for (TextView label : new TextView[] {title, mode}) {
+            label.setGravity(Gravity.CENTER);
+            label.setMaxLines(1);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            heading.addView(label, new LinearLayout.LayoutParams(-1, -2));
+        }
+        root.addView(
+                ui.centeredBar(
+                        ui.iconButton(
+                                "chevron_down",
+                                ui.t("最小化环境模式"),
+                                ui.palette.secondary,
+                                () -> host.navigate("conversation")),
+                        heading,
+                        null));
         off =
                 ui.iconButton(
                         "power",
@@ -64,10 +67,6 @@ public final class AmbientPage implements PocketController.Listener {
                             controller.endAmbient();
                             host.navigate("conversation");
                         });
-        off.setMinimumWidth(ui.touchTarget());
-        off.setMinimumHeight(ui.touchTarget());
-        bar.addView(off);
-        root.addView(bar);
         LinearLayout center = ui.column();
         ui.inset(center, ui.pagePaddingDp(), 12);
         center.setGravity(Gravity.CENTER_VERTICAL);
@@ -152,6 +151,7 @@ public final class AmbientPage implements PocketController.Listener {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
         tp.leftMargin = ui.dp(8);
         controls.addView(transcriptToggle, tp);
+        controls.addView(off, new LinearLayout.LayoutParams(ui.touchTarget(), ui.touchTarget()));
         root.addView(controls);
         sightStatus = ui.label("", 13, ui.palette.secondary, false);
         sightStatus.setGravity(Gravity.CENTER);
@@ -221,6 +221,9 @@ public final class AmbientPage implements PocketController.Listener {
         if (root == null) return;
         PocketController.Snapshot s = controller.snapshot();
         if (s == null) return;
+        Ui.updateText(
+                title,
+                s.roomName.isEmpty() ? ui.t("多多") : s.trying ? ui.t(s.roomName) : s.roomName);
         boolean on = s.ambientActive;
         off.setVisibility(on ? View.VISIBLE : View.GONE);
         controls.setVisibility(on || s.playingAudio ? View.VISIBLE : View.GONE);
@@ -300,7 +303,16 @@ public final class AmbientPage implements PocketController.Listener {
                                         || s.ambient == PocketController.Ambient.OFFLINE
                                         || s.ambient == PocketController.Ambient.FAILED
                                 ? ui.t("重新打开")
-                                : on ? ui.t("关闭环境模式") : ui.t("打开环境模式"));
+                                : ui.t("打开环境模式"));
+        action.setVisibility(
+                !on
+                                || s.ambient == PocketController.Ambient.SEAT_TAKEN
+                                || s.ambient == PocketController.Ambient.DEAF
+                                || s.ambient == PocketController.Ambient.PAUSED
+                                || s.ambient == PocketController.Ambient.OFFLINE
+                                || s.ambient == PocketController.Ambient.FAILED
+                        ? View.VISIBLE
+                        : View.GONE);
         boolean blocked =
                 s.ambient == PocketController.Ambient.FAILED
                         || s.ambient == PocketController.Ambient.OFFLINE

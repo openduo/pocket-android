@@ -45,21 +45,13 @@ public final class SettingsPage implements PocketController.Listener {
     public View render() {
         if (root != null) return root;
         root = ui.column();
-        TextView heading = ui.label(ui.t("设置"), 22, ui.palette.text, true);
-        if (ui.metrics.compactNavigation()) {
-            LinearLayout bar = ui.row();
-            bar.addView(
-                    ui.iconButton(
-                            "chevron_left",
-                            ui.t("返回"),
-                            ui.palette.secondary,
-                            () -> host.navigate("conversation")));
-            bar.addView(heading);
-            root.addView(bar);
-        } else {
-            ui.inset(heading, ui.pagePaddingDp(), 14);
-            root.addView(heading);
-        }
+        TextView heading = ui.label(ui.t("设置"), 17, ui.palette.text, true);
+        heading.setGravity(Gravity.CENTER);
+        root.addView(
+                ui.centeredBar(
+                        ui.iconButton("chevron_left", ui.t("返回"), ui.palette.secondary, host::back),
+                        heading,
+                        null));
         LinearLayout body = ui.column();
         boolean columns = ui.metrics.twoPaneSettings();
         LinearLayout second = ui.column();

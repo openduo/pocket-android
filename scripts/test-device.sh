@@ -135,6 +135,7 @@ probe_args=(
   -e showcaseOnly "${POCKET_CAPTURE_SHOWCASE:-0}"
   -e showcaseLanguage "${POCKET_SHOWCASE_LANGUAGE:-en}"
   -e showcaseTheme "${POCKET_SHOWCASE_THEME:-light}"
+  -e showcasePaired "${POCKET_SHOWCASE_PAIRED_E2:-0}"
   -e inputOnly "${POCKET_TEST_INPUT_ONLY:-0}"
   -e coordinationOnly "${POCKET_TEST_COORDINATION_ONLY:-0}"
   -e hardwareSmokeOnly "${POCKET_TEST_HARDWARE_SMOKE:-0}"
@@ -178,6 +179,9 @@ if [[ -n "${POCKET_TEST_NOTIFY_TARGET:-}" ]]; then
   probe_args+=(-e notifyTargetBase64 "$(printf '%s' "$POCKET_TEST_NOTIFY_TARGET" | base64 | tr -d '\r\n')")
 fi
 if [[ "${POCKET_TEST_VOICE_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_RUST_MIGRATION_ONLY:-0}" == 1 || "${POCKET_TEST_SERVICE_READINESS_ONLY:-0}" == 1 || "${POCKET_E2_TEST_NOTIFY_ROOM_ONLY:-0}" == 1 || "${POCKET_E2_TEST_SIGHT_ROOM_ONLY:-0}" == 1 || "${POCKET_TEST_INPUT_ONLY:-0}" == 1 || "${POCKET_TEST_COORDINATION_ONLY:-0}" == 1 || "${POCKET_TEST_LOCKSCREEN_PLAYBACK_ONLY:-0}" == 1 ]]; then
+  resume_after_probe=1
+fi
+if [[ "${POCKET_CAPTURE_SHOWCASE:-0}" == 1 && "${POCKET_SHOWCASE_PAIRED_E2:-0}" == 1 ]]; then
   resume_after_probe=1
 fi
 adb shell am instrument -w -r "${probe_args[@]}" "$probe_package/dev.openduo.pocket.qa.Probe" | tee "$build/result.txt"

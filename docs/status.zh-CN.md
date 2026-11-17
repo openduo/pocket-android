@@ -2,11 +2,13 @@
 
 [English](status.md) · 简体中文
 
-更新：2026-11-15。当前交付是可继续维护的 `openduo/pocket-android` 与 Android 预览版，E2 随项目作为适配案例。完整 1:1 保留为后续对照，本阶段不扩大回归矩阵。本文区分实现与真实服务验证；早期详细测试证据放在[历史检查点](status-2026-11-14-history.md)和[验收记录](acceptance.md)。
+更新：2026-11-17。Android 候选版在不同设备上共用窗口布局，E2 随项目作为硬件适配案例。完整 1:1 保留为后续对照；各次测试保留受测构建与验证边界。
 
-已发布 [0.4.0 · Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-android.3/Pocket.apk)，versionCode 3），包含 Sight 服务适配、pocket-rs 0.1.1、锁屏续播、Passport 1.3、前台输入映射和下述所有权重构。保留公开包名与签名，可直接覆盖更新。下文检查点数量对应当时受测构建；Preview 1／2 发布资产保留为历史版本。
+已发布 [0.4.0 · RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-rc.1/Pocket.apk)，versionCode 4）。新版包含聊天顶部导航、紧凑输入栏、共用录音面板及[窗口适配](ui.zh-CN.md)。保留公开包名与签名，可直接覆盖更新。项目英文截图使用 RC 的体验内容重新拍摄。
 
-## Preview 3 发布验证
+## 历史 Preview 3 发布验证
+
+[Preview 3](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-android.3) 包含 Sight 适配、pocket-rs 0.1.1、锁屏续播、Passport 1.3 和前台按键映射。
 
 - 实际 JNI 的 2,634 条 JVM 断言、源码／所有权边界、145 个生产 Java 源文件与 653 条文案、
   Go vet／test、双 ABI Debug 和签名通用 Release 构建通过。
@@ -25,10 +27,7 @@
 另以通用包通过不可用保护检查：给出本地化原因、产生零个音频包并释放资源；耳机麦克风仍保留
 标准路由。此结果确认采集入口恢复，不新增真人 ASR 准确率结论。
 
-触屏录音保持一个固定按钮，显示「录音中」、时长、松手提示，并在实际采集启动后显示简单录音动画。
-动画与实时音量无关；其他输入方式仍有独立发送／取消面板。适配版 E2 通过 34 条注入事件短检查，
-使用真实采集、只向 Try 发送，覆盖反馈可见、触屏位置固定与一次松手只发送一条；设置／映射恢复，
-原配对房间回到 Online。用户实按实体键仍未验收。
+触屏、实体键和无障碍操作共用录音面板，动画表示录音状态。触屏长按时按钮位置固定；非触屏发起的录音在同一面板显示发送和取消。[E2 定向输入检查](input.zh-CN.md#有限验证)使用注入事件和真实采集，只向 Try 发送，随后原配对房间恢复在线。
 
 显式固件构建单独输出本地 `dist/Pocket-E2.apk`，不覆盖用于通用发布的 `dist/Pocket.apk`。
 E2 必须保持适配 APK，厂商库／模型不能进入公共发布资产。见[音频证据](audio.md#e2-built-in-capture)

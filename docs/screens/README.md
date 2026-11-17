@@ -1,6 +1,7 @@
 # English product screenshots
 
-The public gallery uses English, prepared Try content. The messages are fixed examples, not actual room conversations. Audio capture/playback and the camera stayed off.
+The public gallery shows Android 0.4.0 RC 1 in English with prepared Try content. Audio capture,
+playback and the camera stayed off.
 
 | Asset | Source |
 | --- | --- |
@@ -10,19 +11,21 @@ The public gallery uses English, prepared Try content. The messages are fixed ex
 | `raw/` | Unmodified source screenshots used by the gallery compositor |
 | `provenance.json` | Source/profile/language/theme/content boundaries and APK SHA-256 for each capture |
 
-The E2 gallery shows the actual device screen. Other device layouts are identified as emulator captures. The landscape example demonstrates the shared window policy; no target smart speaker was used or accepted. The generic APK was installed alongside the old E2 test app, whose login/pairing/data were preserved.
-
-The capture APK is identified in `provenance.json`; it predates the public previews. Later changes
-adjusted launcher-language fallback and an E2 error translation, plus build/documentation checks.
-The illustrated scenes/layout are unchanged. These images remain documentation of that candidate,
-not acceptance evidence for every subsequently published APK.
+The E2 gallery uses the local microphone array build and its actual screen. The phone, tablet and
+landscape views use the generic APK on an emulator. Each capture APK is identified in
+`provenance.json`. The local E2 build retains the device's pairing; its APK is not published.
 
 ## Reproduce
 
-Build `dist/Pocket.apk` first. Captures use a separately signed, temporary instrumentation package and refuse an already-paired app. They run documentation capture only, with no regression matrix. Device selection is explicit; emulator window presets are restored afterward. A physical device's display settings are never changed.
+Build `dist/Pocket.apk` for emulator captures. For a physical E2, build the
+[local array APK](../devices.md#e2-example) as `dist/Pocket-E2.apk`. The capture script checks the
+variant before installing it. A separately signed temporary instrumentation package captures
+Try scenes and restores emulator display settings. For an idle paired E2, the explicit
+`--allow-paired-e2` option temporarily enters Try, verifies the original room and draft have
+returned, and leaves the app open. Omit the option for an unpaired app.
 
 ```sh
-python3 scripts/capture-showcase.py --serial YOUR_E2 --profile e2 --theme dark
+python3 scripts/capture-showcase.py --serial YOUR_E2 --profile e2 --theme dark --allow-paired-e2
 python3 scripts/capture-showcase.py --serial YOUR_EMULATOR --profile phone
 python3 scripts/capture-showcase.py --serial YOUR_EMULATOR --profile tablet --theme dark
 python3 scripts/capture-showcase.py --serial YOUR_EMULATOR --profile landscape

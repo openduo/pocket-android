@@ -12,6 +12,7 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -26,6 +27,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -133,10 +135,6 @@ public final class Ui {
         return dp(metrics.widthDp());
     }
 
-    public int navigationHeight() {
-        return dp(metrics.navigationHeightDp());
-    }
-
     public int viewfinderHeight() {
         return dp(metrics.viewfinderHeightDp());
     }
@@ -204,6 +202,24 @@ public final class Ui {
         return view;
     }
 
+    /** Equal side slots keep a page title centred even with only one action. */
+    public LinearLayout centeredBar(View left, View title, View right) {
+        LinearLayout bar = row();
+        bar.setPadding(dp(4), 0, dp(4), 0);
+        bar.addView(left, new LinearLayout.LayoutParams(touchTarget(), touchTarget()));
+        bar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        bar.addView(
+                right == null ? new Space(context) : right,
+                new LinearLayout.LayoutParams(touchTarget(), touchTarget()));
+        return bar;
+    }
+
+    /** The pill is inset within a full-size touch target. */
+    public void composerSurface(TextView field, int fill) {
+        field.setBackground(new InsetDrawable(focusSurface(fill, 20), 0, dp(4), 0, dp(4)));
+        field.setPadding(dp(12), dp(9), dp(12), dp(9));
+    }
+
     public TextView label(String text, float sp, int color, boolean bold) {
         TextView view = new TextView(context);
         view.setText(text);
@@ -244,7 +260,7 @@ public final class Ui {
         return field;
     }
 
-    public View icon(String name, int color, int size) {
+    public ImageView icon(String name, int color, int size) {
         ImageView image = new ImageView(context);
         int resource =
                 context.getResources()

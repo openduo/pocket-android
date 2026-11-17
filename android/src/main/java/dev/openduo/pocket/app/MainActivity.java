@@ -18,7 +18,6 @@ import dev.openduo.pocket.core.PocketController;
 import dev.openduo.pocket.ui.InsetsFrame;
 import dev.openduo.pocket.ui.PageHost;
 import dev.openduo.pocket.ui.Ui;
-import dev.openduo.pocket.ui.components.BottomNav;
 import dev.openduo.pocket.ui.components.Sheets;
 import dev.openduo.pocket.ui.pages.AmbientPage;
 import dev.openduo.pocket.ui.pages.ConversationPage;
@@ -36,7 +35,6 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
     private Ui ui;
     private dev.openduo.pocket.ui.PageStates pageStates;
     private PocketController controller;
-    private LinearLayout shell, navSlot;
     private FrameLayout pages;
     private final Map<String, View> views = new LinkedHashMap<>();
     private String page;
@@ -97,35 +95,16 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         pairIntentHandled = saved != null && saved.getBoolean("pairIntentHandled");
         inboundPresented = saved != null && saved.getBoolean("inboundPresented");
         loginWaiting = saved != null && saved.getBoolean("loginWaiting");
-        boolean rail = ui.metrics.navigationRail();
-        shell = rail ? ui.row() : ui.column();
-        shell.setBackgroundColor(ui.palette.background);
         pages = new FrameLayout(this);
-        navSlot = ui.column();
-        if (rail) {
-            navSlot.setBackgroundColor(ui.palette.surface);
-            shell.addView(
-                    navSlot,
-                    new LinearLayout.LayoutParams(ui.dp(ui.metrics.navigationRailWidthDp()), -1));
-            shell.addView(pages, new LinearLayout.LayoutParams(0, -1, 1));
-        } else {
-            shell.addView(pages, new LinearLayout.LayoutParams(-1, 0, 1));
-            shell.addView(navSlot);
-        }
+        pages.setBackgroundColor(ui.palette.background);
         InsetsFrame frame = new InsetsFrame(ui);
         frame.keyboardListener(
                 shown -> {
                     keyboardVisible = shown;
                     if (pairing != null) pairing.keyboard(shown);
                     if (location != null) location.keyboard(shown);
-                    navSlot.setVisibility(
-                            shown
-                                            || ui.metrics.compactNavigation()
-                                            || !page.matches("conversation|ambient|settings")
-                                    ? View.GONE
-                                    : View.VISIBLE);
                 });
-        frame.addView(shell);
+        frame.addView(pages, new FrameLayout.LayoutParams(-1, -1));
         setContentView(frame);
         inputs = new ExternalInputs(this, controller, saved);
         controller.addListener(this);
@@ -317,18 +296,6 @@ public final class MainActivity extends Activity implements PageHost, PocketCont
         if (location != null && page.equals("location")) location.visible();
         if (pairing != null && page.equals("pairing")) pairing.keyboard(keyboardVisible);
         if (location != null && page.equals("location")) location.keyboard(keyboardVisible);
-        navSlot.removeAllViews();
-        boolean navigation =
-                page.equals("conversation") || page.equals("ambient") || page.equals("settings");
-        navSlot.setVisibility(
-                navigation && !keyboardVisible && !ui.metrics.compactNavigation()
-                        ? View.VISIBLE
-                        : View.GONE);
-        if (navigation && !ui.metrics.compactNavigation())
-            navSlot.addView(
-                    new BottomNav(ui, this::navigate)
-                            .render(page, ui.metrics.navigationRail(), ui.metrics.iconOnlyRail()),
-                    new LinearLayout.LayoutParams(-1, ui.metrics.navigationRail() ? -1 : -2));
         ui.immersive();
         focusNavigation.restore(page, selected);
     }

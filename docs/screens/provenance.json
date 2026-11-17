@@ -1,10 +1,10 @@
 {
   "phone": {
-    "source": "Android emulator",
+    "source": "Android emulator, API 35",
     "profile": "phone",
     "language": "en",
     "theme": "light",
-    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "apkSha256": "d95a1678bc3721034d0dafde000546456c8adeee134ccb391caaba8581816b1f",
     "content": "Prepared Try content; no microphone, camera or actual room sends"
   },
   "e2": {
@@ -12,23 +12,23 @@
     "profile": "e2",
     "language": "en",
     "theme": "dark",
-    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "apkSha256": "a14dfcd11176d3200c96fbf6f068ba64256e74b6ff36cad00e3aa0c4dc61b413",
     "content": "Prepared Try content; no microphone, camera or actual room sends"
   },
   "tablet": {
-    "source": "Android emulator",
+    "source": "Android emulator, API 35",
     "profile": "tablet",
     "language": "en",
     "theme": "dark",
-    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "apkSha256": "d95a1678bc3721034d0dafde000546456c8adeee134ccb391caaba8581816b1f",
     "content": "Prepared Try content; no microphone, camera or actual room sends"
   },
   "landscape": {
-    "source": "Android emulator",
+    "source": "Android emulator, API 35",
     "profile": "landscape",
     "language": "en",
     "theme": "light",
-    "apkSha256": "ceeed9d1f0cce8166411aad8ab72ac8c6f03e7fd2986eb64427fe3534296784b",
+    "apkSha256": "d95a1678bc3721034d0dafde000546456c8adeee134ccb391caaba8581816b1f",
     "content": "Prepared Try content; no microphone, camera or actual room sends"
   }
 }

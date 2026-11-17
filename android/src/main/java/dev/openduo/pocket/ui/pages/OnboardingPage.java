@@ -34,7 +34,7 @@ public final class OnboardingPage implements PocketController.Listener {
     public View render() {
         if (root != null) return root;
         boolean wide = ui.metrics.twoPaneOnboarding();
-        boolean narrow = ui.metrics.compactNavigation();
+        boolean narrow = ui.metrics.narrowWidth();
         boolean shortWindow = ui.metrics.shortHeight();
         root = wide ? ui.row() : ui.column();
         ui.inset(root, ui.pagePaddingDp(), narrow || shortWindow ? 8 : 12);

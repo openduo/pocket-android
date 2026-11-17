@@ -320,6 +320,7 @@
   "来自「%s」": "From “%s”",
   "松开发送 · ": "Release to send · ",
   "松开发送": "Release to send",
+  "松开发送 · 移出按钮取消": "Release to send · Drag off to cancel",
   "录音中 · %s": "Recording · %s",
   "松手取消": "Release to Cancel",
   "松手取消，移回按钮继续录音": "Release to cancel. Move back onto the button to keep recording.",

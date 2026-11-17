@@ -15,9 +15,9 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   The 22-case window/font matrix, actual TalkBack page traversal and legacy source Switch Access
   scans now pass under [the documented conditions](acceptance.md); remaining dynamic-content and
   system-dialog accessibility coverage is listed separately.
-- 48 dp controls, bottom navigation and composer, internally scrolling sheets capped at the adaptive
-  sheet height (82% of a normal window and never taller than a short window). Hide bottom navigation
-  for the IME. Measured Android-8 insets keep the
+- 48 dp controls, page navigation in the header and composer below the thread. Internally scrolling
+  sheets are capped at the adaptive sheet height (82% of a normal window and never taller than a
+  short window). Measured Android-8 insets keep the
   composer above the keyboard. Bottom controls can grow with the font scale. Detached windows stop
   their inset callbacks; returning from a dialog reapplies the window's immersive flags. E2 firmware
   retains white system icons, so its status/navigation surfaces stay dark in both app themes.
@@ -25,7 +25,8 @@ with dp, assume a phone-sized canvas, or change the user's display settings to m
   older reading position survive new rows. Prepending history preserves the first visible row.
 - Hold-to-talk handles raw touches; leaving any edge arms cancel, returning resumes. Capture and
   encoder lifetime belong to the controller. Haptic starts only when input actually starts.
-- Actual microphone RMS drives the meter. A static placeholder is never presented as live audio.
+- Actual microphone RMS drives the Ambient meter. The shared voice-note panel uses a simple
+  recording animation and timer.
 - Ambient capture and held notes share one input. Audio focus loss keeps an interrupted note as a
   failed draft, pauses ambient capture, and drops playback. Foreground/seat metadata cannot hide an
   ongoing focus loss. New muted speech acknowledges immediately without delaying the room clock;

@@ -46,7 +46,7 @@ public final class PairingPage implements PocketController.Listener {
         LinearLayout body = ui.column();
         ui.inset(body, ui.pagePaddingDp(), 10);
         LinearLayout intro = ui.column();
-        boolean narrow = ui.metrics.compactNavigation();
+        boolean narrow = ui.metrics.narrowWidth();
         ui.add(intro, ui.label(ui.t("配对链接"), 12, ui.palette.subtle, false), 0);
         LinearLayout linkRow = ui.row();
         link = ui.input(ui.t("配对链接"), "", false);

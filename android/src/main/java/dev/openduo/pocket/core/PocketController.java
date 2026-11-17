@@ -1961,29 +1961,37 @@ public final class PocketController {
         state.execute(
                 () -> {
                     if (ambientWanted) ambientOff();
-                    else {
-                        if (!trying && !settings.isComplete()) {
-                            notice("请先连接房间");
-                            return;
-                        }
-                        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                                != PackageManager.PERMISSION_GRANTED) {
-                            notice("请先授予麦克风权限");
-                            return;
-                        }
-                        ambientWanted = true;
-                        ambientLinkPaused = false;
-                        ambientFailure = "";
-                        resetRedial("ambient_start");
-                        ambient = Ambient.STARTING;
-                        audioSuspended = false;
-                        setOutputMuted(false);
-                        startService();
-                        startCapture();
-                        reconnect();
-                        publish();
-                    }
+                    else ambientOn();
                 });
+    }
+
+    /** Opening the call view is idempotent; only the explicit off action ends listening. */
+    public void startAmbient() {
+        state.execute(this::ambientOn);
+    }
+
+    private void ambientOn() {
+        if (ambientWanted) return;
+        if (!trying && !settings.isComplete()) {
+            notice("请先连接房间");
+            return;
+        }
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            notice("请先授予麦克风权限");
+            return;
+        }
+        ambientWanted = true;
+        ambientLinkPaused = false;
+        ambientFailure = "";
+        resetRedial("ambient_start");
+        ambient = Ambient.STARTING;
+        audioSuspended = false;
+        setOutputMuted(false);
+        startService();
+        startCapture();
+        reconnect();
+        publish();
     }
 
     public void endAmbient() {
