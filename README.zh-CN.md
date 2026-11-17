@@ -6,7 +6,7 @@
 
 项目面向手机、平板和其他带屏 Android 设备。**E2 是随项目提供的硬件适配案例**。窗口布局由公共 UI 策略管理，硬件差异通过设备接口接入；业务逻辑不按屏幕尺寸或设备型号分叉。较早的布局曾在 AIUniBOX E11 检查；当前通用重排在多个模拟器窗口验证，房间音频和实体语音键仍需验收。
 
-[下载 0.4.0 RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
+[下载 0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
 
 <p align="center"><img src="docs/screens/app.png" alt="Android 英文界面的对话、Markdown、文件与环境模式" width="100%"></p>
 <p align="center"><sub>Android 模拟器，英文界面，内置预设体验内容；采集与播放关闭。</sub></p>
@@ -29,7 +29,7 @@
 
 ## 安装与首次连接
 
-RC 1 使用 versionCode 4 和既有公开签名，可直接覆盖较早的公开预览版，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
+0.4.0 使用 versionCode 5 和既有公开签名，可从 RC 1 和较早的公开预览版原位升级，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
 
 E2 固件 04319 的内置麦克风需要[本地阵列适配 `Pocket-E2.apk`](docs/devices.zh-CN.md#e2-案例)，
 应保持安装适配版。公开 `Pocket.apk` 不含厂商固件，在该固件上会提示内置输入不可用，避免上传

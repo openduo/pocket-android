@@ -2,9 +2,9 @@
 
 [English](status.md) · 简体中文
 
-更新：2026-11-17。Android 候选版在不同设备上共用窗口布局，E2 随项目作为硬件适配案例。完整 1:1 保留为后续对照；各次测试保留受测构建与验证边界。
+更新：2026-11-17。Android 版在不同设备上共用窗口布局，E2 随项目作为硬件适配案例。完整 1:1 保留为后续对照；各次测试保留受测构建与验证边界。
 
-已发布 [0.4.0 · RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-rc.1/Pocket.apk)，versionCode 4）。新版包含聊天顶部导航、紧凑输入栏、共用录音面板及[窗口适配](ui.zh-CN.md)。保留公开包名与签名，可直接覆盖更新。项目英文截图使用 RC 的体验内容重新拍摄。
+已发布 [0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0/Pocket.apk)，versionCode 5）。正式版沿用 [RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) 的聊天顶部导航、紧凑输入栏、共用录音面板及[窗口适配](ui.zh-CN.md)，保留公开包名与签名，可原位升级。项目英文截图记录的是 RC 1 的体验内容。
 
 ## 历史 Preview 3 发布验证
 

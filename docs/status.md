@@ -2,15 +2,16 @@
 
 English · [简体中文](status.zh-CN.md)
 
-Updated 2026-11-17. The Android release candidate shares its adaptive UI across devices, with E2
+Updated 2026-11-17. The Android release shares its adaptive UI across devices, with E2
 as a hardware adapter example. Full 1:1 parity remains a future comparison. Earlier test results
 are retained with their own build identities and limits.
 
-Published: [0.4.0 · RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1)
-([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0-rc.1/Pocket.apk),
-version code 4). It includes the new chat header, compact composer, shared recording feedback and
-window layouts described in [the UI guide](ui.md). The public package and signature are retained.
-The English gallery was recaptured from the RC using prepared Try content.
+Published: [0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0)
+([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0/Pocket.apk),
+version code 5). It carries forward the chat header, compact composer, shared recording feedback
+and window layouts from [RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1),
+with the same package and signing certificate. The English gallery shows those layouts using
+prepared Try content from RC 1. See [the UI guide](ui.md) for the test scope.
 
 ## Historical Preview 3 release verification
 

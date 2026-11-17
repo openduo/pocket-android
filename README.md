@@ -15,7 +15,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 </p>
 <p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The separate E11 bring-up covers the revised UI only; see the device guide for its limits.</sub></p>
 
-[Download 0.4.0 RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
+[Download 0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
 ## What is implemented
 
@@ -33,7 +33,7 @@ Implementation and real-service acceptance are tracked separately. The local ori
 
 ## Install and connect
 
-RC 1 uses version code 4 and the existing public signing key, so it updates earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
+0.4.0 uses version code 5 and the existing public signing key, so it updates RC 1 and earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
 E2 firmware 04319 requires the [local array-adapted `Pocket-E2.apk`](docs/devices.md#e2-example)
 for its built-in microphone. Keep that adapted package installed on E2. Public `Pocket.apk`
