@@ -70,7 +70,13 @@ final class RoomAccessContracts {
         RequestScope send = new RequestScope(access);
         try {
             access.client(send)
-                    .sendText("qa", Collections.emptyList(), "fixed", "phone", false, "");
+                    .sendText(
+                            "qa",
+                            Collections.emptyList(),
+                            "00000000-0000-4000-8000-000000000002",
+                            "phone",
+                            false,
+                            "");
         } catch (ChannelClient.Failure expected) {
             check(expected.unauthorized(), "the original unauthorized status remains classified");
         }
@@ -99,7 +105,13 @@ final class RoomAccessContracts {
         try (RequestScope requests = new RequestScope(retry)) {
             ChannelClient client = retry.client(requests);
             for (int i = 0; i < 2; i++)
-                client.sendText("qa", Collections.emptyList(), "fixed", "phone", false, "");
+                client.sendText(
+                        "qa",
+                        Collections.emptyList(),
+                        "00000000-0000-4000-8000-000000000002",
+                        "phone",
+                        false,
+                        "");
             check(
                     retrySource.begins.get() == 1
                             && retrySource.active.size() == 1

@@ -63,13 +63,28 @@ public final class VoiceUploadContracts {
             Files.write(file.toPath(), new byte[] {0, 0});
             file.delete();
             client.sendVoice(
-                    admitted, "phone", "stable-key", "later", true, "fixture-place", 24_000);
+                    admitted,
+                    "phone",
+                    "00000000-0000-4000-8000-000000000004",
+                    "later",
+                    true,
+                    "fixture-place",
+                    24_000);
             client.sendVoice(
-                    admitted, "phone", "stable-key", "later", true, "fixture-place", 19_000);
+                    admitted,
+                    "phone",
+                    "00000000-0000-4000-8000-000000000004",
+                    "later",
+                    true,
+                    "fixture-place",
+                    19_000);
             check(
                     transport.calls == 2
                             && Arrays.equals(transport.body, framed)
-                            && transport.headers.optString("Idempotency-Key").equals("stable-key")
+                            && transport
+                                    .headers
+                                    .optString("Idempotency-Key")
+                                    .equals("00000000-0000-4000-8000-000000000004")
                             && transport.headers.optString("X-Voice-Source").equals("phone")
                             && transport.headers.optString("X-Ambient-Display").equals("later")
                             && transport.headers.optString("X-Ambient-Spoken").equals("1")

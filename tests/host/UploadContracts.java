@@ -62,7 +62,12 @@ public final class UploadContracts {
                                 + variant);
             }
             client.sendText(
-                    "attachment", Collections.singletonList(result), "stable", "phone", false, "");
+                    "attachment",
+                    Collections.singletonList(result),
+                    "00000000-0000-4000-8000-000000000003",
+                    "phone",
+                    false,
+                    "");
             JSONObject sent = transport.message.getJSONArray("attachments").getJSONObject(0);
             check(
                     sent.getString("sha256").equals(DIGEST)

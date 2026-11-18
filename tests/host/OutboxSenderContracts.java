@@ -64,11 +64,19 @@ final class OutboxSenderContracts {
             f.sender.dispatch();
             f.time.drain();
             check(
-                    f.source.keys.equals(Collections.singletonList("replacement"))
-                            && f.results.equals(Collections.singletonList("replacement"))
+                    f.source.keys.equals(Collections.singletonList(requestId("replacement")))
+                            && f.results.equals(Collections.singletonList(requestId("replacement")))
                             && f.errors.get(0) == null
                             && f.source.active.isEmpty(),
-                    "a cancelled queued send never reaches HTTP or the replacement completion");
+                    "a cancelled queued send never reaches HTTP or the replacement completion: "
+                            + "keys="
+                            + f.source.keys
+                            + ", results="
+                            + f.results
+                            + ", errors="
+                            + f.errors
+                            + ", active="
+                            + f.source.active);
 
             f.source.duringRequest =
                     () -> {
@@ -100,7 +108,9 @@ final class OutboxSenderContracts {
             check(
                     !f.source.access.rejected()
                             && f.source.rejections == 0
-                            && f.results.equals(Arrays.asList("replacement", "after-live")),
+                            && f.results.equals(
+                                    Arrays.asList(
+                                            requestId("replacement"), requestId("after-live"))),
                     "a retired unauthorized response cannot revoke credentials or finish the"
                             + " replacement");
             check(
@@ -121,7 +131,8 @@ final class OutboxSenderContracts {
             f.time.worker.occupied = false;
             f.time.advance(25);
             check(
-                    f.results.get(f.results.size() - 1).equals("occupied") && !f.sender.active(),
+                    f.results.get(f.results.size() - 1).equals(requestId("occupied"))
+                            && !f.sender.active(),
                     "the same retained operation resumes when the worker becomes available");
             f.time.worker.occupied = true;
             f.prepare(f.text("cancel-wait"), Long.MAX_VALUE);
@@ -130,7 +141,7 @@ final class OutboxSenderContracts {
             f.time.worker.occupied = false;
             f.time.advance(25);
             check(
-                    !f.source.keys.contains("cancel-wait") && f.time.state.delay() == -1,
+                    !f.source.keys.contains(requestId("cancel-wait")) && f.time.state.delay() == -1,
                     "retirement cancels a scheduled worker-admission wait");
         }
     }
@@ -154,10 +165,15 @@ final class OutboxSenderContracts {
             f.source.status = 202;
             f.time.advance(1000);
             check(
-                    f.results.equals(Collections.singletonList("voice")) && f.errors.get(0) == null,
+                    f.results.equals(Collections.singletonList(requestId("voice")))
+                            && f.errors.get(0) == null,
                     "a successful retry finishes once without rereading a removed side file");
             check(
-                    f.source.keys.equals(Arrays.asList("voice", "voice", "voice"))
+                    f.source.keys.equals(
+                                    Arrays.asList(
+                                            requestId("voice"),
+                                            requestId("voice"),
+                                            requestId("voice")))
                             && f.source.bodies.stream().allMatch(b -> Arrays.equals(b, voice))
                             && f.source.headers.stream()
                                     .allMatch(
@@ -292,9 +308,9 @@ final class OutboxSenderContracts {
             Files.write(file.toPath(), voice);
         }
 
-        Outbox.Item text(String id) {
+        Outbox.Item text(String label) {
             return new Outbox.Item(
-                            id,
+                            requestId(label),
                             "fixture",
                             false,
                             "",
@@ -309,9 +325,9 @@ final class OutboxSenderContracts {
                     .surface("later", true, "fixture-place");
         }
 
-        Outbox.Item note(String id) {
+        Outbox.Item note(String label) {
             return new Outbox.Item(
-                            id,
+                            requestId(label),
                             "",
                             true,
                             file.getPath(),
@@ -347,6 +363,10 @@ final class OutboxSenderContracts {
             time.close();
             file.delete();
         }
+    }
+
+    private static String requestId(String label) {
+        return UUID.nameUUIDFromBytes(label.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private static final class Source implements ChannelConnection {

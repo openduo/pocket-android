@@ -439,16 +439,30 @@ public final class Contracts {
         ChannelClient client =
                 new ChannelClient(
                         new Endpoint("server.test", 443, true), "private-test-token", "A B", fake);
-        client.sendText("hello", Collections.emptyList(), "stable-id", "phone", false, "");
+        client.sendText(
+                "hello",
+                Collections.emptyList(),
+                "00000000-0000-4000-8000-000000000001",
+                "phone",
+                false,
+                "");
         check(
                 fake.path.equals("/api/messages?room=A%20B")
-                        && fake.headers.getString("Idempotency-Key").equals("stable-id")
+                        && fake.headers
+                                .getString("Idempotency-Key")
+                                .equals("00000000-0000-4000-8000-000000000001")
                         && fake.token.equals("private-test-token"),
                 "message path, auth, stable id");
         fake.status = 500;
         boolean http = false;
         try {
-            client.sendText("hello", Collections.emptyList(), "stable-id", "phone", false, "");
+            client.sendText(
+                    "hello",
+                    Collections.emptyList(),
+                    "00000000-0000-4000-8000-000000000001",
+                    "phone",
+                    false,
+                    "");
         } catch (ChannelClient.Failure e) {
             http = !e.transport && e.status == 500;
         }
