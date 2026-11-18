@@ -13,7 +13,8 @@ playback and the camera stayed off.
 
 The E2 gallery uses the local microphone array build and its actual screen. The phone, tablet and
 landscape views use the generic APK on an emulator. Each capture APK is identified in
-`provenance.json`. The local E2 build retains the device's pairing; its APK is not published.
+`provenance.json`. The local E2 build retained the device's pairing. The screenshot provenance
+identifies that capture APK; it is separate from the Release APK attached for distribution.
 
 ## Reproduce
 

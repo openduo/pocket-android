@@ -6,7 +6,7 @@
 
 项目面向手机、平板和其他带屏 Android 设备。**E2 是随项目提供的硬件适配案例**。窗口布局由公共 UI 策略管理，硬件差异通过设备接口接入；业务逻辑不按屏幕尺寸或设备型号分叉。较早的布局曾在 AIUniBOX E11 检查；当前通用重排在多个模拟器窗口验证，房间音频和实体语音键仍需验收。
 
-[下载 0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
+[下载 0.4.1](https://github.com/openduo/pocket-android/releases/tag/v0.4.1) · [已做与未做](docs/status.zh-CN.md) · [设备适配指南](docs/devices.zh-CN.md) · [工程架构](docs/architecture.zh-CN.md) · [与 iOS 的差异](docs/migration.md)
 
 <p align="center"><img src="docs/screens/app.png" alt="Android 英文界面的对话、Markdown、文件与环境模式" width="100%"></p>
 <p align="center"><sub>Android 模拟器，英文界面，内置预设体验内容；采集与播放关闭。</sub></p>
@@ -29,11 +29,11 @@
 
 ## 安装与首次连接
 
-0.4.0 使用 versionCode 5 和既有公开签名，可从 RC 1 和较早的公开预览版原位升级，保留数据与配对。最低 Android 8.0 / API 26；公开 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
+0.4.1 使用 versionCode 6 和既有公开签名，可从 0.4.0 及更早公开版本原位升级，保留数据与配对。最低 Android 8.0 / API 26；通用 APK 包含 `arm64-v8a` 和 `x86_64`。不要求 Google Play Services；没有内置房间或账号。需要自行部署的 ambient 服务和可访问主机的 Tailscale 网络。
 
-E2 固件 04319 的内置麦克风需要[本地阵列适配 `Pocket-E2.apk`](docs/devices.zh-CN.md#e2-案例)，
-应保持安装适配版。公开 `Pocket.apk` 不含厂商固件，在该固件上会提示内置输入不可用，避免上传
-无效音频。恢复后的公开包名阵列版已通过本地校准采集和 34 条输入短检查；
+E2 固件 04319 的内置麦克风需要 Release 中的[阵列适配 `Pocket-E2.apk`](docs/devices.zh-CN.md#e2-案例)。
+通用 `Pocket.apk` 不含厂商文件，在该固件上会提示内置输入不可用，避免上传无效音频。
+E2 阵列版的本地校准采集和 34 条输入短检查见[音频记录](docs/audio.md#e2-built-in-capture)，
 [真人 ASR 验收单独记录](docs/audio.md#e2-built-in-capture)。
 
 1. 安装 Release 中的 `Pocket.apk`。
@@ -43,6 +43,8 @@ E2 固件 04319 的内置麦克风需要[本地阵列适配 `Pocket-E2.apk`](doc
 旧测试版 `top.kuaner.pockete2` 与公开版是两个应用。不同包名不能继承 AndroidKeyStore/私有数据库，新包需要重新登录与配对；已消费的一次性配对链接不可复用。已有 E2 安装也可以使用原签名生成[同包名兼容构建](docs/devices.zh-CN.md#原包覆盖测试)，直接保留节点、配对与数据。不要为安装新版先卸载旧测试版。连接方式见[连接文档](docs/connection.md)。
 
 ## 构建
+
+E2 阵列版需要通过[本地设备恢复流程](docs/devices.zh-CN.md#e2-案例)取得构建输入。固件源文件不提交到 Git；公开 `Pocket-E2.apk` 会包含模型和厂商库，通用 `Pocket.apk` 不包含。
 
 使用 Rust 1.100.0、JDK 17、Android SDK 35 / Build Tools 35.0.0 / NDK 28.2.13676358 / CMake 3.22.1、Go 1.27.4，以及 `go.mod` 固定的 x/mobile。Gradle 8.13 wrapper 和 AGP 8.13.2 已固定。Android Studio 可直接打开仓库。
 
@@ -68,7 +70,7 @@ scripts/build-android.sh
 # 可通过 POCKET_SIGN_DIR 指定签名目录。
 ```
 
-E2 阵列录音的可选本地构建与固件要求见[设备适配指南](docs/devices.zh-CN.md)。私有厂商库和模型不在源码及公开 APK 中。
+E2 阵列录音的本地构建和发布流程见[设备适配指南](docs/devices.zh-CN.md)。固件源文件不提交到 Git；公开 `Pocket-E2.apk` 会包含模型和厂商库，通用 `Pocket.apk` 不包含。
 
 ## 模块与维护
 
@@ -78,8 +80,8 @@ E2 阵列录音的可选本地构建与固件要求见[设备适配指南](docs/
 | `:protocol` | 固定版本 pocket-rs 的 Java／JNI 接口；Rust 负责房间协议、分帧、Ambient 与重试 |
 | `:input` | 纯 Java 动作、输入目标和成对按键规则；不依赖 Android 或业务 |
 | `:ui-policy` | 纯 Java 窗口宽高/字号设计策略，不依赖业务与设备型号 |
-| `:device` | 通用 Android 音频、路由、能力发现、共享麦克风 lease 与设备接口 |
-| `:device-e2` | E2 型号/固件判断、系统栏例外和可选阵列适配，作为设备案例 |
+| `:device:base` | 通用 Android 音频、路由、能力发现、共享麦克风 lease 与设备接口 |
+| `:device:e2` | E2 型号/固件判断、系统栏例外和可选阵列适配，作为设备案例 |
 | `:app` (`android/`) | Android 入口、持久化、controller、系统服务、原生 View 页面与窗口容器 |
 | `bridge/tsbridge` | 内嵌 Tailscale、HTTP/WebSocket/语音传输；不参与布局 |
 

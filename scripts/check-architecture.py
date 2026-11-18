@@ -35,16 +35,16 @@ if re.search(r'\bnew\s+(?:(?:[\w]+\.)*)(?:CaptureSession|OpusDecoder|SpeechPlaye
 for file in (source / 'ui').rglob('*.java'):
     if file.name not in ('Ui.java', 'InsetsFrame.java') and re.search(r'\b(?:widthPixels|heightPixels|screenWidthDp|screenHeightDp)\b', file.read_text()):
         errors.append(f'{file.relative_to(root)} reads window pixels outside the UI policy')
-for module in ('android', 'core', 'ui-policy', 'device', 'device-e2', 'input'):
+for module in ('android', 'core', 'ui-policy', 'device/base', 'device/e2', 'input'):
     for file in (root / module / 'src').rglob('*'):
         if not file.is_file() or file.suffix not in ('.java', '.c', '.h'):
             continue
         text = file.read_text()
-        if module != 'device-e2' and re.search(r'\bBuild\.(?:MODEL|FINGERPRINT)\b', text):
+        if module != 'device/e2' and re.search(r'\bBuild\.(?:MODEL|FINGERPRINT)\b', text):
             errors.append(f'{file.relative_to(root)} selects an OEM outside its adapter')
-        if module == 'device' and re.search(r'dev\.openduo\.pocket\.(?:device\.e2|core|ui|net)\.', text):
+        if module == 'device/base' and re.search(r'dev\.openduo\.pocket\.(?:device\.e2|core|ui|net)\.', text):
             errors.append(f'{file.relative_to(root)} reverses the hardware dependency')
-for directory in ('android/src', 'core/src', 'ui-policy/src', 'device/src', 'device-e2/src', 'input/src', 'scripts', 'tests', 'bridge/tsbridge'):
+for directory in ('android/src', 'core/src', 'ui-policy/src', 'device/base/src', 'device/e2/src', 'input/src', 'scripts', 'tests', 'bridge/tsbridge'):
     for file in (root / directory).rglob('*'):
         if not file.is_file() or file.suffix not in ('.java', '.go', '.c', '.h', '.sh', '.py', '.cjs'):
             continue

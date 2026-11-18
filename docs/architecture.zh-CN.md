@@ -8,8 +8,8 @@ flowchart TD
     core[core: pure Java protocol and reducers]
     ui[ui-policy: pure Java window metrics]
     input[input: pure Java actions and key gestures]
-    device[device: framework audio and hardware interface]
-    e2[device-e2: optional E2 integration]
+    device[device/base: framework audio and hardware interface]
+    e2[device/e2: optional E2 integration]
     bridge[Go Tailscale / HTTP / WebSocket]
     app --> core
     app --> ui

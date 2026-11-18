@@ -7,7 +7,10 @@ restored without clearing pairing/data. Local calibration confirms real array in
 34-assertion input probe uses actual capture and Try-only sends, then restores the paired room
 Online. No new human ASR acceptance is claimed. Never install a generic APK over this E2 again.
 An explicit `-Pe2FirmwareDir=...` build now writes `dist/Pocket-E2.apk`, leaving `dist/Pocket.apk`
-for generic publication. Vendor libraries/models stay local. A generic build on this firmware
+for generic publication. Firmware/model source files stay out of Git. By explicit user request on
+2026-11-18, the generic tag workflow publishes `Pocket.apk`, and the locally built `Pocket-E2.apk`
+may be attached to the same public Release with its SHA-256 using
+`scripts/upload-e2-release.sh`; the E2 APK contains the 04319 vendor libraries/models. A generic build on this firmware
 refuses built-in capture with a localized explanation instead of uploading invalid audio; headset
 input keeps the standard route. Touch recording has a stationary button, timer, release hint and
 simple recording-state animation (the user explicitly declined real-time waveforms). Separate
@@ -123,9 +126,10 @@ awaits a released media-capable service; do not assume the user missed an availa
 Speech/audible replies and scoped session notifications are independent of that Sight release.
 
 Support general Android hardware, including future display-equipped smart speakers. E2 ships as an
-adapter example. Keep device/OEM decisions in `:device-e2` or future adapter modules, window policy
+adapter example. Keep device/OEM decisions in `:device:e2` or future adapter modules, window policy
 in `:ui-policy` and `app/ui`, and Android-independent business/protocol in `:core`. The default
-adapter uses Android framework audio. No vendor firmware/model may enter public source or APKs.
+adapter uses Android framework audio. Never commit vendor firmware/model source files. The generic
+APK must remain free of them; the user explicitly authorized their inclusion in the public E2 APK.
 Push (including crypto/identifiers/ledger) remains explicitly deferred.
 
 - `PocketController` owns mutable room state on one executor; views observe snapshots. Do not read
@@ -142,7 +146,7 @@ Push (including crypto/identifiers/ledger) remains explicitly deferred.
   app-owned copy, native controls and device errors within the localization boundary.
   This includes English-authored labels, accessibility descriptions, notifications and QR-pairing
   failures. Follow `docs/localization.md` for copy/language additions; keep user content literal.
-- Never track actual hosts/room/device IDs, tokens, keys, private logs/screenshots, recordings or firmware.
+- Never track actual hosts/room/device IDs, tokens, keys, private logs/screenshots, recordings or firmware source files.
   Exception: the user explicitly requested public README/device screenshots; only sanitized
   prepared Try content under `docs/screens/` may be committed.
   Generated/private material belongs in ignored `.build/`, `build/` or `dist/`. Licensed prepared

@@ -2,13 +2,16 @@
 
 English · [简体中文](status.zh-CN.md)
 
-Updated 2026-11-17. The Android release shares its adaptive UI across devices, with E2
+Updated 2026-11-18. The Android release shares its adaptive UI across devices, with E2
 as a hardware adapter example. Full 1:1 parity remains a future comparison. Earlier test results
 are retained with their own build identities and limits.
 
-Published: [0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0)
-([signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0/Pocket.apk),
-version code 5). It carries forward the chat header, compact composer, shared recording feedback
+Published: [0.4.1](https://github.com/openduo/pocket-android/releases/tag/v0.4.1)
+([generic signed APK](https://github.com/openduo/pocket-android/releases/download/v0.4.1/Pocket.apk),
+[E2 array APK](https://github.com/openduo/pocket-android/releases/download/v0.4.1/Pocket-E2.apk),
+version code 6). Both use the original public package and signing certificate. The E2 APK embeds
+the 04319 model and vendor libraries; firmware source files remain local and untracked. It carries
+forward the chat header, compact composer, shared recording feedback
 and window layouts from [RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1),
 with the same package and signing certificate. The English gallery shows those layouts using
 prepared Try content from RC 1. See [the UI guide](ui.md) for the test scope.
@@ -44,9 +47,11 @@ recording state. The touch button stays in place; recordings started without tou
 Cancel controls in the panel. The [bounded E2 input check](input.md#bounded-verification) used
 injected events, actual capture and Try-only sends, then restored the paired room Online.
 
-Explicit firmware builds write local-only `dist/Pocket-E2.apk`, keeping `dist/Pocket.apk` available
-for generic publication. E2 must stay on the adapted APK. No proprietary libraries/models enter
-public assets. See [audio evidence](audio.md#e2-built-in-capture) and [local build](devices.md#e2-example).
+Explicit firmware builds write `dist/Pocket-E2.apk`, keeping `dist/Pocket.apk` available for the
+generic tag workflow. The local upload helper checks payload, package/version, signer and SHA-256
+before attaching the E2 APK to the same public Release. E2 must stay on the adapted APK; the generic
+APK contains no proprietary payload. See [audio evidence](audio.md#e2-built-in-capture) and
+[build/release steps](devices.md#e2-example).
 
 ## Sight resumed with the updated room service
 

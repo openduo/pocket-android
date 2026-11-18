@@ -21,7 +21,7 @@
 
 输入工厂在 capture owner 线程、取得全局 microphone lease 后调用，返回实现 `RecordingInput` 的输入。`start/read/stop/close` 必须遵守 owner 线程与资源释放约定；停止/异常必须释放引擎，`read` 应有有限返回时间。实现只能提供硬件行为，不能触碰 room token、outbox、controller 或窗口尺寸。输出目前共享 Android AudioTrack/AudioManager，暂未抽象厂商私有播放引擎。
 
-新增专有设备时：建立依赖 `:device` 的 `:device-<vendor>` Android library，实现或继承 `AndroidDeviceAdapter`，在 app composition root 注册，并按该设备的真实能力编写短验证。尺寸仍通过 `AdaptiveMetrics`，不写入 adapter。已有标准相机/MediaCodec、LocationManager 和热状态继续通过系统 API，尚无需求时不建立空的厂商抽象。
+新增专有设备时：建立依赖 `:device:base` 的 `:device:<vendor>` Android library（位于 `device/<vendor>/`），实现或继承 `AndroidDeviceAdapter`，在 app composition root 注册，并按该设备的真实能力编写短验证。尺寸仍通过 `AdaptiveMetrics`，不写入 adapter。已有标准相机/MediaCodec、LocationManager 和热状态继续通过系统 API，尚无需求时不建立空的厂商抽象。
 
 ## E2 案例
 
@@ -31,11 +31,16 @@
 
 `E2DeviceAdapter` 只匹配 Android API27 的 `E2 AI Recorder`；保留该固件无法绘制深色系统图标的例外。固件 04319 的内置麦克风必须使用本地阵列库／模型。该固件的标准 Android 输入虽然能打开，却收不到有效麦克风信号；通用 APK 现在会明确提示内置输入不可用，避免上传无效音频。选定耳机麦克风时仍使用标准路由。E2 应安装本地阵列适配包。
 
-阵列 Java/JNI adapter 源码可公开，厂商库和模型不属于项目可公开分发内容。只有显式传入属性时才打包，不会自动读取 `.build/firmware`：
+阵列 Java/JNI adapter 源码可公开；固件库和模型文件不会提交到仓库。E2 APK 会包含 04319 模型及厂商库，因此必须显式指定固件目录，不会自动读取 `.build/firmware`：
 
 ```sh
-scripts/build-android.sh -Pe2FirmwareDir=/absolute/path/to/local/firmware
-# 仅限本地的产物，保持公开包名与原签名：
+# 从已连接 E2 的系统录音 APK 恢复本地构建输入：
+scripts/prepare-e2-firmware-from-device.sh
+# 使用同一公开签名密钥构建 E2 包：
+scripts/build-android.sh -Pe2FirmwareDir="$PWD/.build/e2-firmware-from-device"
+# 通用版 tag workflow 创建 Release 后，附加 E2 包并更新 SHA256SUMS：
+scripts/upload-e2-release.sh v0.4.1 dist/Pocket-E2.apk
+# 或直接安装到 E2：
 adb -s YOUR_DEVICE_SERIAL install -r dist/Pocket-E2.apk
 ```
 
@@ -47,7 +52,10 @@ firmware/
   lib/arm64-v8a/… vendor libraries for firmware 04319 …
 ```
 
-本地 E2 包与通用包使用相同应用 ID 和签名，可保留现有数据与配对。适配产物单独命名为 `dist/Pocket-E2.apk`，不会覆盖通用 `dist/Pocket.apk`。带私有固件的产物不能上传公共 Release，E2 应保持安装适配版。去掉属性构建的是面向其他设备的通用版本。`scripts/build-e2-adapter.sh` 只向 ignored 模块 build 目录写产物。恢复后的公开包名 E2 已通过本地校准采集和 34 条输入短检查，见[当前音频证据](audio.md#e2-built-in-capture)。
+通用版 tag workflow 发布 `Pocket.apk` 与 SHA-256。E2 包与通用包使用相同应用 ID 和签名，可保留现有数据与配对；适配产物命名为 `dist/Pocket-E2.apk`，不会覆盖通用包。按用户明确要求，可用 `scripts/upload-e2-release.sh` 将 E2 APK 和校验和附加到同一个公开 Release；上传前会核对模型/库、包名版本和签名。只上传 APK 与校验和，固件源文件及中间产物仍留在 ignored 本地目录。去掉属性构建的是面向其他设备的通用版本。恢复后的公开包名 E2 已通过本地校准采集和 34 条输入短检查，见[当前音频证据](audio.md#e2-built-in-capture)。
+
+`Publish Pocket Android` GitHub workflow 在推送 `v*` tag 时运行，需要配置仓库 secrets
+`POCKET_SIGNING_P12_BASE64` 和 `POCKET_SIGNING_PASSWORD`。它发布通用 APK；E2 固件输入从本地设备恢复，托管 runner 无法读取当前连接的设备。
 
 ## 原包覆盖测试
 

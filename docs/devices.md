@@ -24,11 +24,16 @@ Android framework capabilities are the default. E2 ships as a concrete adapter e
 
 `E2DeviceAdapter` matches API27 and model `E2 AI Recorder`. It declares the firmware's system-icon quirk. Firmware 04319 requires locally supplied array libraries/models for its built-in microphone. Standard Android input opens on this firmware but supplies no microphone signal. A generic APK therefore reports that built-in input is unavailable instead of uploading invalid audio; a selected headset microphone retains the standard route. Use the local array build on E2.
 
-Array Java/JNI adapter source is public. Proprietary firmware libraries/models are excluded from the repository and public APK. Inclusion requires an explicit local property; no build automatically discovers `.build/firmware`:
+Array Java/JNI adapter source is public. Firmware libraries/models are never committed to the repository. An E2 APK includes the 04319 model and vendor libraries, so build it only from an explicit firmware directory; no build automatically discovers `.build/firmware`:
 
 ```sh
-scripts/build-android.sh -Pe2FirmwareDir=/absolute/path/to/local/firmware
-# Local-only output, same public package and signing key:
+# Recover local build inputs from the connected E2 system recorder APK:
+scripts/prepare-e2-firmware-from-device.sh
+# Build the signed E2 package with the same public key:
+scripts/build-android.sh -Pe2FirmwareDir="$PWD/.build/e2-firmware-from-device"
+# After the generic tag workflow creates the Release, attach E2 and update SHA256SUMS:
+scripts/upload-e2-release.sh v0.4.1 dist/Pocket-E2.apk
+# Or install it directly on E2:
 adb -s YOUR_DEVICE_SERIAL install -r dist/Pocket-E2.apk
 ```
 
@@ -40,7 +45,11 @@ firmware/
   lib/arm64-v8a/… libraries for firmware 04319 …
 ```
 
-This local build uses the same application ID and signing key as the generic app, preserving its data and pairing. It writes `dist/Pocket-E2.apk` without overwriting `dist/Pocket.apk`. Keep the proprietary result out of public Releases and leave E2 on its adapted build. Building without the property produces the generic payload for other hardware. `scripts/build-e2-adapter.sh` writes only to an ignored build directory. The restored public-identity E2 passes local calibration capture and 34 bounded input assertions; see [current audio evidence](audio.md#e2-built-in-capture).
+The generic tag workflow publishes `Pocket.apk` and its SHA-256. The E2 build uses the same application ID and signing key, preserving data and pairing, and writes `dist/Pocket-E2.apk` without overwriting `dist/Pocket.apk`. By explicit user request, that APK may be publicly attached to the matching Release with `scripts/upload-e2-release.sh`; the helper checks the payload, package/version, and signer against the generic APK first. Only the APK and checksum are uploaded; firmware source and build intermediates remain in ignored local directories. Building without the property produces the generic payload for other hardware. `scripts/build-e2-adapter.sh` writes only to an ignored build directory. The restored public-identity E2 passes local calibration capture and 34 bounded input assertions; see [current audio evidence](audio.md#e2-built-in-capture).
+
+The `Publish Pocket Android` GitHub workflow runs on `v*` tags and requires the
+`POCKET_SIGNING_P12_BASE64` and `POCKET_SIGNING_PASSWORD` repository secrets. It publishes the generic
+APK; E2 inputs are recovered locally because a hosted runner cannot access the connected device.
 
 ## Same-package testing
 

@@ -1,0 +1,96 @@
+name: Publish Pocket Android
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: pocket-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.100.0
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: actions/setup-java@v6.3.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v7.1.0
+        with:
+          go-version: '1.27.4'
+          cache-dependency-path: bridge/tsbridge/go.sum
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Prepare pinned Android tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+      - name: Prepare pinned gomobile binding tools
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260908204917-8b95e45f8d3e
+          go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260908204917-8b95e45f8d3e
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/gomobile" init
+      - name: Verify release tag matches app version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version_name="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/build.gradle | head -n 1)"
+          [[ "$RELEASE_TAG" == "v$version_name" ]] || {
+            echo "Tag $RELEASE_TAG does not match app version $version_name." >&2
+            exit 1
+          }
+      - name: Prepare public signing key
+        env:
+          SIGNING_P12_BASE64: ${{ secrets.POCKET_SIGNING_P12_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.POCKET_SIGNING_PASSWORD }}
+        run: |
+          [[ -n "$SIGNING_P12_BASE64" && -n "$SIGNING_PASSWORD" ]] || {
+            echo 'Set POCKET_SIGNING_P12_BASE64 and POCKET_SIGNING_PASSWORD repository secrets.' >&2
+            exit 1
+          }
+          export POCKET_SIGN_DIR="$RUNNER_TEMP/pocket-signing"
+          echo "POCKET_SIGN_DIR=$POCKET_SIGN_DIR" >> "$GITHUB_ENV"
+          install -d -m 700 "$POCKET_SIGN_DIR"
+          printf '%s' "$SIGNING_P12_BASE64" | base64 --decode > "$POCKET_SIGN_DIR/pocket.p12"
+          printf '%s' "$SIGNING_PASSWORD" > "$POCKET_SIGN_DIR/password"
+          chmod 600 "$POCKET_SIGN_DIR/pocket.p12" "$POCKET_SIGN_DIR/password"
+      - name: Build and verify generic release APK
+        run: |
+          scripts/build-android.sh
+          python3 scripts/check-public-apk.py dist/Pocket.apk
+          (cd dist && shasum -a 256 Pocket.apk > SHA256SUMS)
+      - name: Preserve an existing E2 checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+              --jq '.assets[].name' | grep -Fxq 'Pocket-E2.apk'; then
+            mkdir -p .build/release-assets
+            gh release download "$RELEASE_TAG" --pattern Pocket-E2.apk \
+              --dir .build/release-assets --repo "$GITHUB_REPOSITORY"
+            e2_sha="$(shasum -a 256 .build/release-assets/Pocket-E2.apk | awk '{print $1}')"
+            printf '%s  Pocket-E2.apk\n' "$e2_sha" >> dist/SHA256SUMS
+          fi
+      - name: Publish generic APK and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/Pocket.apk dist/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/Pocket.apk dist/SHA256SUMS \
+              --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+              --title "Pocket Android $RELEASE_TAG"
+          fi

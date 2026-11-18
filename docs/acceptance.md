@@ -12,7 +12,7 @@ The current milestone uses necessary build/contracts and short representative ch
 | Android build | Gradle Release passed; arm64-v8a+x86_64; public-payload check passed |
 | Representative windows | 320×640dp, 1280×800dp, 740×360dp passed on an API35 emulator |
 | Native smoke | Five assertions: explicit capture opt-in, JNI Opus roundtrip, actual framework input/packets and microphone release |
-| E2 adapter | Local optional native adapter compiled; proprietary payload excluded from public APK |
+| E2 adapter | Local optional native adapter compiled; generic APK excludes the payload, while the public E2 APK includes it; publication does not expand runtime acceptance |
 | Documentation captures | English prepared-content screenshots on physical E2 and emulators; no actual room/audio/camera operation, not feature acceptance |
 
 The window run preceded a theme-aware icon/legal-assets update; the native smoke was repeated on the icon-updated release candidate. A final launcher-label fallback change was build-checked; the native smoke was not repeated for that resource-only change. No business behavior changed in that final asset update. Exact local APK hashes/results remain in ignored `.build/`. Screenshot provenance is public in [screens](screens/README.md).

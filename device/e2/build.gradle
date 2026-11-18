@@ -16,7 +16,7 @@ android {
         sourceSets.main.jniLibs.srcDir layout.buildDirectory.dir('firmware/jni')
     }
 }
-dependencies { api project(':device') }
+dependencies { api project(':device:base') }
 
 if (providers.gradleProperty('e2FirmwareDir').isPresent()) {
     tasks.register('prepareE2Firmware', Exec) {

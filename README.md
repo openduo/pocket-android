@@ -15,7 +15,7 @@ Built for phones, tablets and other Android devices with a display. **E2 ships a
 </p>
 <p align="center"><sub>E2: physical-device screen capture. Phone, tablet and landscape display: emulator captures. The separate E11 bring-up covers the revised UI only; see the device guide for its limits.</sub></p>
 
-[Download 0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
+[Download 0.4.1](https://github.com/openduo/pocket-android/releases/tag/v0.4.1) · [Implemented and remaining](docs/status.md) · [Device adapters](docs/devices.md) · [Architecture](docs/architecture.md) · [iOS migration gaps](docs/migration.md)
 
 ## What is implemented
 
@@ -33,13 +33,13 @@ Implementation and real-service acceptance are tracked separately. The local ori
 
 ## Install and connect
 
-0.4.0 uses version code 5 and the existing public signing key, so it updates RC 1 and earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the public APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
+0.4.1 uses version code 6 and the existing public signing key, so it updates 0.4.0 and earlier public previews in place without clearing data or pairing. Android 8.0 / API 26 or later; the generic APK includes **arm64-v8a and x86_64**. Google Play Services is not required. Bring your own ambient host and a Tailscale network that can reach it; there is no bundled room or account.
 
-E2 firmware 04319 requires the [local array-adapted `Pocket-E2.apk`](docs/devices.md#e2-example)
-for its built-in microphone. Keep that adapted package installed on E2. Public `Pocket.apk`
-contains no proprietary firmware and reports unavailable built-in input on this firmware instead
-of uploading invalid audio. See the local array build's [capture evidence](docs/audio.md#e2-built-in-capture)
-and [touch/key navigation check](docs/input.md#bounded-verification).
+E2 firmware 04319 requires the array-adapted [`Pocket-E2.apk`](docs/devices.md#e2-example) from
+Releases for its built-in microphone. The generic `Pocket.apk` contains no vendor payload and
+reports unavailable built-in input on this firmware instead of uploading invalid audio. See the
+E2 array build's [capture evidence](docs/audio.md#e2-built-in-capture) and
+[touch/key navigation check](docs/input.md#bounded-verification).
 
 1. Install `Pocket.apk` from [Releases](https://github.com/openduo/pocket-android/releases).
 2. Choose **Log in to Tailscale** and authorize using the link or a QR code on another device.
@@ -74,7 +74,7 @@ scripts/build-android.sh
 # POCKET_SIGN_DIR can select a different signing directory.
 ```
 
-E2 array capture is an [explicit local build option](docs/devices.md). Proprietary firmware libraries/models are excluded from source and public APKs.
+E2 array capture is an [explicit local build option](docs/devices.md). Firmware source files stay out of Git. The public `Pocket-E2.apk` contains the model and vendor libraries; the generic `Pocket.apk` does not.
 
 ## Modules and maintenance
 
@@ -84,8 +84,8 @@ E2 array capture is an [explicit local build option](docs/devices.md). Proprieta
 | `:protocol` | Pinned pocket-rs Java/JNI interface; Rust owns room wire/framing/Ambient/retry rules |
 | `:input` | Pure Java actions, input targets and paired key gestures; no Android or business dependency |
 | `:ui-policy` | Pure Java window/typography policy; no business state or model-specific layout |
-| `:device` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |
-| `:device-e2` | E2 model/firmware detection, system-bar quirk and optional array adapter |
+| `:device:base` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |
+| `:device:e2` | E2 model/firmware detection, system-bar quirk and optional array adapter |
 | `:app` (`android/`) | Android composition, persistence, controller, system services, native View pages and window containers |
 | `bridge/tsbridge` | Embedded Tailscale, HTTP/WebSocket and speech transport |
 

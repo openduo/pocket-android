@@ -11,7 +11,9 @@ microphone signal. During release preparation the generic public-package APK had
 local array build. Recording duration alone therefore did not establish that speech was captured.
 The same-package, same-signature array build is restored on E2 without clearing pairing or data.
 Use [the explicit local build](devices.md#e2-example), `dist/Pocket-E2.apk`; never replace it with
-the generic release APK. Vendor libraries/models remain private local inputs.
+the generic release APK. The public E2 APK embeds the vendor libraries/models; their source files
+remain local build inputs and are not committed to the repository. Keep using the E2 APK on this
+firmware rather than installing the generic APK.
 
 A bounded local-only probe recorded three seconds each of voice/natural input while playing a
 one-second calibration tone. The restored array route captures the tone in both modes, unlike

@@ -14,8 +14,8 @@ android {
         applicationId legacyIdentity ? 'top.kuaner.pockete2' : 'dev.openduo.pocket'
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName '0.4.0'
+        versionCode 6
+        versionName '0.4.1'
         buildConfigField 'String', 'PERSISTENCE_PREFIX', '"' + persistencePrefix + '"'
         buildConfigField 'String', 'TAILNET_HOSTNAME', '"' + persistencePrefix + '"'
         ndk { abiFilters 'arm64-v8a', 'x86_64' }
@@ -56,8 +56,8 @@ dependencies {
     implementation project(':core')
     implementation project(':input')
     implementation project(':ui-policy')
-    implementation project(':device')
-    implementation project(':device-e2')
+    implementation project(':device:base')
+    implementation project(':device:e2')
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation files(rootProject.file('.build/tsbridge/classes.jar'))
             .builtBy(rootProject.tasks.named('buildBridge'))
@@ -83,7 +83,7 @@ tasks.named('preBuild') {
 // Preserve the existing opt-in instrumentation runner across the build-system migration.
 tasks.register('exportProbeClasspath', Jar) {
     dependsOn 'compileReleaseJavaWithJavac', ':core:classes', ':protocol:classes', ':input:classes', ':ui-policy:classes',
-            ':device:compileReleaseJavaWithJavac', ':device-e2:compileReleaseJavaWithJavac'
+            ':device:base:compileReleaseJavaWithJavac', ':device:e2:compileReleaseJavaWithJavac'
     archiveFileName = 'classes.jar'
     destinationDirectory = rootProject.layout.projectDirectory.dir('.build/android')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -92,7 +92,7 @@ tasks.register('exportProbeClasspath', Jar) {
     from project(':protocol').layout.buildDirectory.dir('classes/java/main')
     from project(':input').layout.buildDirectory.dir('classes/java/main')
     from project(':ui-policy').layout.buildDirectory.dir('classes/java/main')
-    for (module in [':device', ':device-e2']) {
+    for (module in [':device:base', ':device:e2']) {
         from project(module).layout.buildDirectory.dir('intermediates/javac/release/compileReleaseJavaWithJavac/classes')
     }
     from { zipTree(rootProject.file('.build/tsbridge/classes.jar')) }

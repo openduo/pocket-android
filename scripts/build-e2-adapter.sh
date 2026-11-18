@@ -14,5 +14,5 @@ cp "$firmware/assets/e2-array-models.zip" "$output/assets/"
 cp "$firmware"/lib/arm64-v8a/*.so "$output/jni/arm64-v8a/"
 compilers=("$ndk"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android26-clang)
 python3 "$project_dir/scripts/prepare-e2-meter.py" "$firmware/lib/arm64-v8a/libtinyalsa.so" "$output/jni/arm64-v8a/libe2alsa.so"
-"${compilers[0]}" -std=c11 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -shared -Wl,-soname,libtinyalsa.so -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--no-undefined "$project_dir/device-e2/src/main/cpp/e2_capture_meter.c" -ldl -lm -llog -o "$output/jni/arm64-v8a/libtinyalsa.so"
-"${compilers[0]}" -std=c11 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -shared -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--no-undefined "$project_dir/device-e2/src/main/cpp/e2_array.c" -ldl -o "$output/jni/arm64-v8a/libe2_array.so"
+"${compilers[0]}" -std=c11 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -shared -Wl,-soname,libtinyalsa.so -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--no-undefined "$project_dir/device/e2/src/main/cpp/e2_capture_meter.c" -ldl -lm -llog -o "$output/jni/arm64-v8a/libtinyalsa.so"
+"${compilers[0]}" -std=c11 -Wall -Wextra -Werror -fPIC -fvisibility=hidden -shared -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--no-undefined "$project_dir/device/e2/src/main/cpp/e2_array.c" -ldl -o "$output/jni/arm64-v8a/libe2_array.so"

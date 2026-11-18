@@ -2,9 +2,9 @@
 
 [English](status.md) · 简体中文
 
-更新：2026-11-17。Android 版在不同设备上共用窗口布局，E2 随项目作为硬件适配案例。完整 1:1 保留为后续对照；各次测试保留受测构建与验证边界。
+更新：2026-11-18。Android 版在不同设备上共用窗口布局，E2 随项目作为硬件适配案例。完整 1:1 保留为后续对照；各次测试保留受测构建与验证边界。
 
-已发布 [0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0)（[签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.0/Pocket.apk)，versionCode 5）。正式版沿用 [RC 1](https://github.com/openduo/pocket-android/releases/tag/v0.4.0-rc.1) 的聊天顶部导航、紧凑输入栏、共用录音面板及[窗口适配](ui.zh-CN.md)，保留公开包名与签名，可原位升级。项目英文截图记录的是 RC 1 的体验内容。
+已发布 [0.4.1](https://github.com/openduo/pocket-android/releases/tag/v0.4.1)（[通用签名 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.1/Pocket.apk)、[E2 阵列 APK](https://github.com/openduo/pocket-android/releases/download/v0.4.1/Pocket-E2.apk)，versionCode 6）。两个包使用原公开包名和签名。E2 包内含 04319 模型和厂商库；固件源文件仍留在本地、不进 Git。正式版沿用 [0.4.0](https://github.com/openduo/pocket-android/releases/tag/v0.4.0) 的聊天顶部导航、紧凑输入栏、共用录音面板及[窗口适配](ui.zh-CN.md)，保留公开包名与签名，可原位升级。项目英文截图记录的是 RC 1 的体验内容。
 
 ## 历史 Preview 3 发布验证
 
@@ -29,9 +29,10 @@
 
 触屏、实体键和无障碍操作共用录音面板，动画表示录音状态。触屏长按时按钮位置固定；非触屏发起的录音在同一面板显示发送和取消。[E2 定向输入检查](input.zh-CN.md#有限验证)使用注入事件和真实采集，只向 Try 发送，随后原配对房间恢复在线。
 
-显式固件构建单独输出本地 `dist/Pocket-E2.apk`，不覆盖用于通用发布的 `dist/Pocket.apk`。
-E2 必须保持适配 APK，厂商库／模型不能进入公共发布资产。见[音频证据](audio.md#e2-built-in-capture)
-与[本地构建](devices.zh-CN.md#e2-案例)。
+显式固件构建输出 `dist/Pocket-E2.apk`，不覆盖通用 tag workflow 构建的 `dist/Pocket.apk`。
+本地上传脚本会检查 payload、包名／版本、签名和 SHA-256，再把 E2 包附加到同一个公开 Release。
+E2 必须保持适配包；通用 APK 不含厂商 payload。见[音频证据](audio.md#e2-built-in-capture)
+与[构建／发布步骤](devices.zh-CN.md#e2-案例)。
 
 ## 更新房间服务后的 Sight 适配
 
@@ -70,7 +71,7 @@ Android。OutboxSender／RoomLink 负责平台副作用顺序，不会同时驱�
 | 工程边界 | Gradle wrapper/AGP/CMake 标准构建，纯 `:core`、`:protocol`、`:ui-policy`、`:input`、通用 `:device`、案例 `:device-e2`、`:app` 七个模块；边界检查与 GitHub CI |
 | 多窗口 | 复用窗口尺寸类别、列宽上限、短窗口/IME/Insets/页面状态；布局不根据 E2 型号或物理屏幕大小分支 |
 | 多硬件 | 默认 Android 录音/路由与能力发现；communication 音源不可用时尝试 MIC；E2 型号/固件/系统栏例外和阵列输入集中在设备模块 |
-| 品牌与分发 | 名称「多多 / DuoDuo Pocket」、包名 `dev.openduo.pocket`、`duoduopocket` 深链、上游绒球/声纹图标；legacy/adaptive/themed 图标；统一 0.4.0 版本来源；arm64+x86_64 APK |
+| 品牌与分发 | 名称「多多 / DuoDuo Pocket」、包名 `dev.openduo.pocket`、`duoduopocket` 深链、上游绒球/声纹图标；legacy/adaptive/themed 图标；统一 0.4.1 版本来源；arm64+x86_64 APK |
 | 国际化 | 当前源码 653 条中英文文案（首个预览版 617 条）、跟随系统及英文回退；界面/原生控件/无障碍/通知/错误统一语言边界；全部生产模块与原生资源检查；英文公开文档与主要中文指南、英文截图 |
 | P0 已实现 | Tailscale 登录/配对/live、网络恢复、文本/附件/历史、幂等 outbox/草稿/持久化、语音上传/重试、环境模式/播放/中断 |
 | P1 已实现 | Sight 协商与 Camera2/H.264、会话列表/详情与通知控制、地图/坐标/geocoder/到达 ledger、中英文主题、导入/分享、Try 与诊断 |

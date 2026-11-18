@@ -69,8 +69,10 @@ for path in files:
 # silently escape coverage. Try scripts own explicitly bilingual prepared content; TextCatalog
 # owns legacy error patterns and plural rules rather than UI binding sites.
 source_files = []
-for module in ROOT.iterdir():
-    source_files.extend((module / 'src/main/java').rglob('*.java'))
+for src_root in ROOT.rglob('src/main/java'):
+    if any(part.startswith('.') or part in ('build', 'third_party') for part in src_root.parts):
+        continue
+    source_files.extend(src_root.rglob('*.java'))
 for path in source_files:
     if path.name == 'TextCatalog.java' or 'trymode' in path.parts:
         continue
