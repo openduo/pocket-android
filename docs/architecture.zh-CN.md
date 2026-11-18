@@ -99,7 +99,7 @@ controller 保留应用命令入口、不可变 snapshot 投影、组件装配�
 
 ## 共享 Rust 协议边界
 
-`:protocol` 编译固定版本 pocket-rs 的 Java 桥；C JNI 只负责借用输入、复制结果和释放 Rust 缓冲。
+`:protocol` 编译 pocket-rs 的 Java 桥；C JNI 只负责借用输入、复制结果和释放 Rust 缓冲。
 `:core` 中的 Endpoint／配对、API、分帧、Ambient 输入／播放和重试门面实际调用 Rust，原对应
 Java 状态机已删除。JVM 契约加载宿主 Rust 库，Android 为两个 ABI 打包同一核心。协议不依赖
 Android／Go；应用保留任务／SQLite／网络／音频／生命周期所有权，不会再启动第二个 Rust

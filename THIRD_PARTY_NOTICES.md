@@ -6,7 +6,7 @@ covered in `third_party/POCKET-IOS-NOTICE.txt`.
 
 | Component | Version | Licence | How it is included |
 |---|---|---|---|
-| Pocket Rust | 0.1.0 (pinned submodule) | FSL-1.1-Apache-2.0 | Shared room protocol in `libpocket_core.so`, C JNI shim and Java bridge; complete Rust dependency texts/metadata copied from the pinned SDK to APK `assets/licenses/pocket-rs/` |
+| Pocket Rust | 0.1.1 (latest upstream `main` snapshot integrated by this repository) | FSL-1.1-Apache-2.0 | Shared room protocol in `libpocket_core.so`, C JNI shim and Java bridge; complete Rust dependency texts/metadata copied from the integrated source to APK `assets/licenses/pocket-rs/` |
 | libopus | 1.6.1 | BSD-3-Clause | static library built by CMake (`android/src/main/cpp/CMakeLists.txt`) from the xiph.org release |
 | github.com/coder/websocket | v1.8.15 | ISC | compiled into `libgojni.so` by gomobile |
 | golang.org/x/sys | v0.48.0 | BSD-3-Clause | compiled into `libgojni.so` by gomobile |

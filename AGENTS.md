@@ -28,11 +28,13 @@ Debug/Release and source/localization checks pass. See docs/sight.md. Scene reco
 rate/thermal and other-hardware acceptance remain open; no automatic repetition or broad matrix.
 This supersedes the earlier Sight deferrals below. Push stays deferred. The user subsequently
 requested pushing both repositories and publishing new versions: SDK 0.1.1 and Android Preview 3
-(versionCode 3). Pin the published SDK commit and retain the same public package/signature; publish
-only the generic Pocket.apk and its checksum, never the local legacy/vendor artifacts.
+(versionCode 3). Keep the Android integration current with upstream pocket-rs `main`, recording the
+integrated revision in the submodule pointer so each release remains reproducible. Retain the same
+public package/signature; publish only the generic Pocket.apk and its checksum, never local
+legacy/vendor artifacts.
 
 Rust protocol adoption (2026-11-15): the user's completion gate includes actual Android integration
-and E2 acceptance. `:protocol` builds the pinned pocket-rs Java/JNI binding; the former Java endpoint,
+and E2 acceptance. `:protocol` builds the shared pocket-rs Java/JNI binding; the former Java endpoint,
 Chat request/framing, Ambient input/output and retry reducers delegate to Rust. Core live validation
 also runs there. Keep Android network/SQLite/resource/foreground-service ordering in existing owners;
 never also drive Rust's aggregate Session as a second sender. The current public-identity E2 check

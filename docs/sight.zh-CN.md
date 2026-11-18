@@ -3,7 +3,8 @@
 [English](sight.md) · 简体中文
 
 2026-11-15 用户确认房间服务更新并恢复 Sight 范围。Preview 3 源码和 E2 公开包名 APK
-已通过真实相机协商与视频上传，发布版本固定 pocket-rs 0.1.1 以采用相同的媒体音频规则。
+已通过真实相机协商与视频上传；该构建使用 pocket-rs 0.1.1 处理媒体 v1 音频。当前 Android
+源码跟踪上游 `main`，更新方式见[共享协议接入说明](rust.zh-CN.md)。
 
 ## 协议与职责
 
@@ -14,7 +15,7 @@
 **只有上行增加媒体类型字节**：`0x01` 后是 Opus 包，`0x02` 后是 H.264 Annex-B 访问单元及序号、
 时间戳、关键帧／速率配置。下行始终是完整 Opus 包，包括支持媒体的连接。Rust Ambient 和细粒度
 JNI 输入现在共用这个规则，不会按首字节丢包或剥掉首字节。SDK 的本机 loopback 服务也已改成真实的
-下行格式。Preview 3 子模块固定到包含该修正的 pocket-rs 0.1.1 发布提交；ABI 不变。
+下行格式。Preview 3 使用了包含该修正的 pocket-rs 0.1.1 提交；当前集成跟随上游 `main` 最新 revision。ABI 不变。
 
 `SightSession` 仍负责主机请求、用户开关、master／前台条件、帧大小、序号、关键帧请求与恢复；
 `SightCapture` 在相机线程拥有 Camera2 与 MediaCodec。不增加静态照片回退、第二个麦克风所有者或

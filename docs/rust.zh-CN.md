@@ -2,12 +2,15 @@
 
 [English](rust.md) · 简体中文
 
-仓库在 `third_party/pocket-rs` 用 submodule 固定共享协议 0.1.1
-（`86fae5df622ddefc436861bd0f0df7d1fa390864`），克隆后运行
-`git submodule update --init --recursive`。在原 JDK17／NDK `28.2.13676358` 基础上安装
-Rust 1.100.0，执行 `rustup target add aarch64-linux-android x86_64-linux-android`。
-Gradle 为 `:core:check` 构建宿主 JNI，为 APK 构建双 ABI JNI。本地联调可用
-`-PpocketRustDir=/path/to/pocket-rs`，默认和 CI 使用提交固定的版本。
+共享协议来自上游 [openduo/pocket-rs](https://github.com/openduo/pocket-rs)，通过 submodule
+放在 `third_party/pocket-rs`，跟踪其 `main` 分支。克隆后运行
+`git submodule update --init --recursive`；要更新到上游最新源码，运行
+`git submodule update --remote third_party/pocket-rs`。验证协议变更后再提交更新的 submodule 指针。
+每个 Android 提交都会记录实际集成的源码 revision，保证检出和发布构建可复现；依赖策略跟随上游
+`main`，不固定 pocket-rs 发布版本。在原 JDK17／NDK `28.2.13676358` 基础上安装 Rust 1.100.0，
+执行 `rustup target add aarch64-linux-android x86_64-linux-android`。Gradle 为 `:core:check`
+构建宿主 JNI，为 APK 构建双 ABI JNI。本地联调可用 `-PpocketRustDir=/path/to/pocket-rs`，默认使用
+Android 提交记录的 submodule revision。
 
 `:protocol` 仅包含没有 Android API 依赖的 Java 桥；`RustProtocol` 映射领域类型、ABI 结果和既有
 本地化错误。AmbientInput／AmbientOutput／PacketStream／Endpoint 和重试门面不再实现另一套
@@ -21,8 +24,8 @@ Rust 聚合 Session。新 Linux 宿主可选择聚合入口。流线程在完成
 
 恢复后的 [Sight 适配](sight.zh-CN.md)修正了新版媒体服务暴露的 SDK 规则：`media=1` 只有上行
 增加类型字节。共享 Ambient 与 JNI 输入完整保留下行 Opus，包括首字节为 `0x01` 的包；本机
-loopback 服务也改为真实下行格式。Preview 3 子模块固定到包含该修正的 pocket-rs 0.1.1 发布提交，
-SDK 资产与 APP 源码使用同一套协议实现。新增 12 条 JVM 断言后共 2,634 条通过，Rust workspace 共 21 个测试通过。
+loopback 服务也改为真实下行格式。Preview 3 使用了包含该修正的 pocket-rs 0.1.1 提交；当前 Android
+源码已更新到上游 `main` 最新 revision。新增 12 条 JVM 断言后共 2,634 条通过，Rust workspace 共 21 个测试通过。
 
 APK 为 arm64-v8a 与 x86_64 包含 `libpocket_core.so`／`libpocket_jni.so`，支持 API26 和
 16 KiB 对齐，附带混淆保留规则及许可证。协议／JNI 不依赖 Go；既有 Go／Tailscale 只负责 Android

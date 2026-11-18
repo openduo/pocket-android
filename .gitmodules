@@ -1,3 +1,4 @@
 [submodule "third_party/pocket-rs"]
 	path = third_party/pocket-rs
 	url = https://github.com/openduo/pocket-rs.git
+	branch = main

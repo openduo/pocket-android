@@ -4,7 +4,8 @@ English · [简体中文](sight.zh-CN.md)
 
 Sight was resumed at the user's request on 2026-11-15 after the room service update. The current
 Preview 3 source and public-package APK pass actual camera negotiation and video uplink.
-The release pins pocket-rs 0.1.1 for matching media-v1 audio handling.
+That Preview 3 build used pocket-rs 0.1.1 for matching media-v1 audio handling. The current Android
+source tracks upstream `main`; see [shared protocol integration](rust.md) for its update policy.
 
 ## Wire and ownership
 
@@ -18,8 +19,9 @@ Only the **uplink** is kind-framed: `0x01` precedes an Opus packet and `0x02` pr
 H.264 Annex-B access unit, its sequence/timestamp and key/rate configuration. Downlink stays one
 unchanged Opus packet, even on a media-capable connection. The Rust Ambient owner and granular JNI
 input now share this rule; neither strips a first byte or rejects a packet based on its first byte.
-The SDK's native loopback server was corrected to model the actual downlink too. Preview 3 pins
-the published pocket-rs 0.1.1 commit containing this correction. The ABI and Android resource ownership do not change.
+The SDK's native loopback server was corrected to model the actual downlink too. Preview 3 used the
+pocket-rs 0.1.1 commit containing this correction; the current integration follows the latest
+upstream `main`. The ABI and Android resource ownership do not change.
 
 `SightSession` retains the server-owned capture ask, explicit user opt-in, master/foreground gates,
 frame bound, numbering, key requests and recovery. `SightCapture` owns Camera2 and MediaCodec on

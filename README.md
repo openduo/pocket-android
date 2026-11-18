@@ -26,7 +26,7 @@ Built for phones, tablets and other Android devices with a display. Window layou
 - Session lists/details/notification controls, Camera2/H.264 Sight, maps/coordinates/geocoding and arrival tracking.
 - English and Simplified Chinese, system/light/dark appearance, diagnostics, local notifications and a clearly labeled prepared-content Try mode.
 - Shared touch/key/remote actions, editable foreground bindings and native D-pad/OK/Back navigation; [input guide](docs/input.md).
-- Shared [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) protocol/JNI owners, corrected media-v1 audio downlink and ongoing reply playback through screen lock.
+- Uses the latest upstream [pocket-rs](https://github.com/openduo/pocket-rs) protocol/JNI implementation, including media-v1 audio handling and reply playback through screen lock.
 - Chat has Settings, the room name and Ambient in the top bar. It uses a centered composer, a shared recording panel for touch and keys, full-width bubbles below 320dp and a bounded reading column on wider windows. [Android window and keyboard behavior](docs/ui.md).
 
 Implementation and real-service acceptance are tracked separately. See [status](docs/status.md) and the [migration record](docs/migration.md) for current verification limits and remaining work.
@@ -73,7 +73,7 @@ scripts/build-android.sh
 | Module | Responsibility |
 | --- | --- |
 | `:core` | Android-independent models/application reducers, Rust protocol facades, request boundaries and Try transport |
-| `:protocol` | Pinned pocket-rs Java/JNI interface; Rust owns room wire/framing/Ambient/retry rules |
+| `:protocol` | pocket-rs Java/JNI interface; Rust owns room wire/framing/Ambient/retry rules |
 | `:input` | Pure Java actions, input targets and paired key gestures; no Android or business dependency |
 | `:ui-policy` | Pure Java window/typography policy; no business state or model-specific layout |
 | `:device:base` | Standard Android audio/routing, capability discovery, one microphone lease and the device interface |

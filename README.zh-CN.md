@@ -22,7 +22,7 @@
 - 会话读取与详情/通知控制，Camera2/H.264 Sight、地图/坐标/地名查询及到达检测的实现。
 - 中英文、浅色/深色/跟随系统、诊断、本地通知、明确标记为预设内容的 Try 模式。
 - 触屏／实体键／遥控器统一动作、可修改的前台按键映射与方向／确认／返回导航；见[输入指南](docs/input.zh-CN.md)。
-- 共享 [pocket-rs 0.1.1](https://github.com/openduo/pocket-rs/releases/tag/v0.1.1) 协议／JNI 所有者、正确的媒体下行音频及锁屏后继续播完当前回复。
+- 使用 [pocket-rs](https://github.com/openduo/pocket-rs) 上游最新协议与 JNI 实现，包含媒体 v1 音频规则和锁屏后继续播放已开始的回复。
 - 聊天顶部提供设置、房间名与环境模式入口；占位文字垂直居中，触屏与实体键共用录音面板。低于 320dp 时收发气泡铺满聊天区，宽屏的消息和输入栏共用一条阅读列；见[窗口和键盘适配](docs/ui.zh-CN.md)。
 
 实现状态与真实服务验收分开记录。当前验证边界和待办见[项目状态](docs/status.zh-CN.md)及[迁移记录](docs/migration.md)。
@@ -68,7 +68,7 @@ scripts/build-android.sh
 | 模块 | 职责 |
 | --- | --- |
 | `:core` | 无 Android 依赖的模型／应用 reducer、Rust 协议门面、请求边界与 Try transport |
-| `:protocol` | 固定版本 pocket-rs 的 Java／JNI 接口；Rust 负责房间协议、分帧、Ambient 与重试 |
+| `:protocol` | pocket-rs 的 Java／JNI 接口；Rust 负责房间协议、分帧、Ambient 与重试 |
 | `:input` | 纯 Java 动作、输入目标和成对按键规则；不依赖 Android 或业务 |
 | `:ui-policy` | 纯 Java 窗口宽高/字号设计策略，不依赖业务与设备型号 |
 | `:device:base` | 通用 Android 音频、路由、能力发现、共享麦克风 lease 与设备接口 |

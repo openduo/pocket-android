@@ -622,7 +622,7 @@ Future parity acceptance should use real service/device evidence for the selecte
 
 ## Shared protocol follow-up
 
-Android's Chat/Ambient wire and retry owners now call the pinned `openduo/pocket-rs` library through
+Android's Chat/Ambient wire and retry owners now call the shared `openduo/pocket-rs` library through
 JNI. Native networking/audio/storage/lifecycle remain Android-owned, and the existing aggregate app
 coordination does not run a duplicate Rust Session. The library's [migration plan](https://github.com/openduo/pocket-rs/blob/main/docs/migration.md)
 records native Linux, Android and future iOS gates independently. See [integration](rust.md) and

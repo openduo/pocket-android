@@ -114,7 +114,7 @@ Gradle wrapper 8.13, AGP 8.13.2 and CMake provide the standard build. Go tasks d
 
 ## Shared Rust protocol boundary
 
-`:protocol` compiles the pinned pocket-rs Java binding; C JNI only copies borrowed inputs/owned
+`:protocol` compiles the shared pocket-rs Java binding; C JNI only copies borrowed inputs/owned
 results and frees each Rust result. `:core` contains domain facades for endpoint/pairing, API,
 framing, Ambient input/output and retry owners; the former Java reducers are removed. JVM contracts
 load the host Rust library, while Android packages the same core for both supported ABIs. Protocol
